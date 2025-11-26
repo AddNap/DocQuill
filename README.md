@@ -23,7 +23,7 @@
 - **AI-Ready JSON Export** – Structured layout export for analysis and modification by AI/ML pipelines
 - **Full DOCX Support** – Footnotes, endnotes, textboxes, watermarks, field codes, bookmarks, and more
 
-## 🚀 Quick Start
+## Quick Start
 
 ```bash
 pip install docx-interpreter
@@ -56,7 +56,7 @@ doc.to_html("output.html")
 - [**Architecture**](docs/architecture.md) – System design, data flow, and internals
 - [**AI Integration**](docs/ai-integration.md) – JSON export format and AI workflow examples
 
-## 🎯 Placeholder Types
+## Placeholder Types
 
 | Type | Example | Output |
 |------|---------|--------|
@@ -70,7 +70,7 @@ doc.to_html("output.html")
 | `LIST` | `{{ LIST:Features }}` | Bullet/numbered list |
 | `CONDITIONAL` | `{{ START_Offer }}...{{ END_Offer }}` | Show/hide block |
 
-## 🔧 Core API
+## Core API
 
 ```python
 from docx_interpreter import Document
@@ -101,7 +101,7 @@ doc.merge_selective({
 layout = doc.pipeline()                # Get UnifiedLayout
 ```
 
-## 🏗️ Architecture
+## Architecture
 
 ```
 DOCX File
@@ -119,7 +119,7 @@ PDFCompiler / HTMLExporter
 PDF / HTML Output
 ```
 
-## 🤖 AI Integration
+## AI Integration
 
 Export document layout as structured JSON for AI processing:
 
@@ -135,23 +135,22 @@ layout.export_json("layout.json", format="optimized_pipeline")
 # - Semantic markers (source_uid, sequence)
 ```
 
-## 📊 Comparison with Alternatives
+## Features
 
-| Feature | DocQuill | python-docx | Aspose.Words |
-|---------|----------|-------------|--------------|
-| Full DOCX parsing | ✅ | ⚠️ ~20% | ✅ |
-| PDF rendering | ✅ | ❌ | ✅ |
-| HTML rendering | ✅ | ❌ | ✅ |
-| Placeholder engine | ✅ 20+ types | ❌ | ❌ |
-| Document merger | ✅ | ❌ | ⚠️ |
-| Native Python | ✅ | ✅ | ❌ (.NET wrapper) |
-| Open source | ✅ Apache 2.0 | ✅ MIT | ❌ Commercial |
-| Price | Free | Free | $999+/year |
+| Feature | DocQuill |
+|---------|----------|
+| Full DOCX parsing | ✅ |
+| PDF rendering | ✅ |
+| HTML rendering | ✅ |
+| Placeholder engine | ✅ 20+ types |
+| Native Python | ✅ |
+| Open source | ✅ Apache 2.0 |
+| Price | Free |
 
-## 🛠️ Technology Stack
+## Technology Stack
 
 - **Python 3.9+** – Core library, parser, layout engine
-- **Rust (PyO3)** – High-performance PDF renderer
+- **Rust (PyO3)** – High-performance PDF renderer and WMF/EMF/EMF+ converter
 - **HarfBuzz** – Text shaping and metrics
 - **ReportLab** – Fallback PDF backend
 
