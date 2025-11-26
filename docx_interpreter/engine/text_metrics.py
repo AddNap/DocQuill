@@ -1,11 +1,13 @@
 """
-TextMetricsEngine — obliczanie rzeczywistej szerokości i wysokości tekstu.
 
-Używa ReportLab do metryk fontów i oblicza:
-- szerokość tekstu
-- wysokość tekstu (z uwzględnieniem line spacing)
-- liczbę linii
-- strukturę linii
+TextMetricsEngine - calculating actual text width and height.
+
+Uses ReportLab for font metrics and calculates:
+- text width
+- text height (accounting for line spacing)
+- number of lines
+- line structure
+
 """
 
 from __future__ import annotations
@@ -27,7 +29,7 @@ from .utils.font_registry import register_default_fonts
 
 @dataclass(slots=True)
 class Glyph:
-    """Reprezentuje pojedynczy glif w tekście."""
+    """Represents single glyph in text."""
     glyph_id: int
     cluster: int
     x: float
@@ -38,7 +40,7 @@ class Glyph:
 
 @dataclass(slots=True)
 class TextLayout:
-    """Struktura wynikowa dla układu tekstu."""
+    """Result structure for text layout."""
     width: float
     height: float
     line_count: int = 1
@@ -50,10 +52,12 @@ class TextLayout:
 
 class TextMetricsEngine:
     """
-    Silnik do obliczania metryk tekstu.
-    
-    Używa ReportLab do pomiarów szerokości i oblicza wysokość
-    na podstawie line spacing i liczby linii.
+
+    Engine for calculating text metrics.
+
+    Uses ReportLab for width measurements and calculates height
+    based on line spacing and number of lines.
+
     """
     
     def __init__(self):
@@ -63,11 +67,11 @@ class TextMetricsEngine:
         self._ensure_default_fonts()
     
     def _ensure_default_fonts(self) -> None:
-        """Upewnia się, że domyślne fonty są zarejestrowane."""
+        """Ensures default fonts are registered."""
         if not REPORTLAB_AVAILABLE:
             return
         
-        # Domyślne fonty ReportLab są zawsze dostępne
+        # Default ReportLab fonts are always available
         default_fonts = [
             "Helvetica",
             "Helvetica-Bold",
@@ -88,13 +92,15 @@ class TextMetricsEngine:
     
     def _get_font_name(self, style: Dict[str, Any]) -> str:
         """
-        Pobiera nazwę fontu z stylu.
-        
+
+        Gets font name from style.
+
         Args:
-            style: Słownik ze stylami
-            
+        style: Dictionary with styles
+
         Returns:
-            Nazwa fontu do użycia w ReportLab
+        Font name to use in ReportLab
+
         """
         font_candidate = (
             style.get("font_name")
@@ -110,14 +116,16 @@ class TextMetricsEngine:
     
     def measure_text(self, text: str, style: Dict[str, Any]) -> Dict[str, float]:
         """
-        Mierzy szerokość i wysokość tekstu.
-        
+
+        Measures text width and height.
+
         Args:
-            text: Tekst do zmierzenia
-            style: Słownik ze stylami (font_name, font_size, line_spacing, etc.)
-            
+        text: Text to measure
+        style: Dictionary with styles (font_name, font_size, line_spacing, etc.)
+
         Returns:
-            Dict z metrykami: {"width": float, "height": float, "line_count": int}
+        Dict with metrics: {"width": float, "height": float, "line_count": int}
+
         """
         if not text:
             font_size = float(style.get("font_size", 11))
@@ -134,10 +142,10 @@ class TextMetricsEngine:
         
         if REPORTLAB_AVAILABLE:
             try:
-                # Zmierz szerokość całego tekstu
+                # Measure width of entire text
                 width = pdfmetrics.stringWidth(text, font_name, font_size)
                 
-                # Oblicz wysokość (jedna linia)
+                # Calculate height (one line)
                 height = font_size * line_spacing
                 
                 return {
@@ -146,11 +154,11 @@ class TextMetricsEngine:
                     "line_count": 1
                 }
             except Exception:
-                # Fallback jeśli font nie jest dostępny
+                # Fallback if font not available
                 pass
         
         # Fallback: proste szacowanie
-        char_width = font_size * 0.6 # Przybliżona szerokość znaku
+        char_width = font_size * 0.6 # Approximate character width
         width = len(text) * char_width
         height = font_size * line_spacing
         
@@ -167,15 +175,17 @@ class TextMetricsEngine:
         max_width: Optional[float] = None
     ) -> TextLayout:
         """
-        Układa tekst w linie i oblicza metryki.
-        
+
+        Lays out text into lines and calculates metrics.
+
         Args:
-            text: Tekst do układania
-            style: Słownik ze stylami
-            max_width: Maksymalna szerokość (opcjonalnie, do łamania linii)
-            
+        text: Text to lay out
+        style: Dictionary with styles
+        max_width: Maximum width (optional, for line breaking)
+
         Returns:
-            TextLayout z metrykami i liniami
+        TextLayout with metrics and lines
+
         """
         if style is None:
             style = {}
@@ -195,7 +205,7 @@ class TextMetricsEngine:
         font_size = float(style.get("font_size", 11))
         line_spacing = float(style.get("line_spacing", 1.2))
         
-        # Jeśli nie ma max_width, po prostu zmierz tekst
+        # If no max_width, just measure text
         if max_width is None:
             metrics = self.measure_text(text, style)
             return TextLayout(
@@ -206,10 +216,10 @@ class TextMetricsEngine:
                 font_size=font_size
             )
         
-        # Łamanie linii
+        # Line breaking
         lines = self._break_text_into_lines(text, font_name, font_size, max_width)
         
-        # Oblicz szerokość najszerszej linii
+        # Calculate width of widest line
         max_line_width = 0.0
         if REPORTLAB_AVAILABLE:
             try:
@@ -225,7 +235,7 @@ class TextMetricsEngine:
             char_width = font_size * 0.6
             max_line_width = max(len(line) * char_width for line in lines)
         
-        # Oblicz całkowitą wysokość
+        # Calculate total height
         total_height = len(lines) * font_size * line_spacing
         
         return TextLayout(
@@ -244,21 +254,23 @@ class TextMetricsEngine:
         max_width: float
     ) -> List[str]:
         """
-        Łamie tekst na linie zgodnie z max_width.
-        
+
+        Breaks text into lines according to max_width.
+
         Args:
-            text: Tekst do złamania
-            font_name: Nazwa fontu
-            font_size: Rozmiar fontu
-            max_width: Maksymalna szerokość linii
-            
+        text: Text to break
+        font_name: Font name
+        font_size: Font size
+        max_width: Maximum line width
+
         Returns:
-            Lista linii tekstu
+        List of text lines
+
         """
         if not text.strip():
             return [""]
         
-        # Podziel na słowa
+        # Split into words
         words = text.split()
         if not words:
             return [""]
@@ -269,24 +281,24 @@ class TextMetricsEngine:
         if REPORTLAB_AVAILABLE:
             try:
                 for word in words:
-                    # Spróbuj dodać słowo do bieżącej linii
+                    # Try to add word to current line
                     candidate = f"{current_line} {word}".strip() if current_line else word
                     candidate_width = pdfmetrics.stringWidth(candidate, font_name, font_size)
                     
                     if candidate_width <= max_width:
-                        # Słowo mieści się
+                        # Word fits
                         current_line = candidate
                     else:
-                        # Słowo nie mieści się - dodaj bieżącą linię i zacznij nową
+                        # Word doesn't fit - add current line and start new
                         if current_line:
                             lines.append(current_line)
                             current_line = word
                         else:
-                            # Słowo jest zbyt długie - dodaj je mimo wszystko
+                            # Word is too long - add it anyway
                             lines.append(word)
                             current_line = ""
                 
-                # Dodaj ostatnią linię
+                # Add last line
                 if current_line:
                     lines.append(current_line)
                 
@@ -295,7 +307,7 @@ class TextMetricsEngine:
                 # Fallback na prostszy algorytm
                 pass
         
-        # Fallback: proste łamanie linii
+        # Fallback: simple line breaking
         char_width = font_size * 0.6
         chars_per_line = max(1, int(max_width / char_width))
         
@@ -310,7 +322,7 @@ class TextMetricsEngine:
                     current_line_words = [word]
                     current_line_length = word_length
                 else:
-                    # Słowo jest zbyt długie
+                    # Word is too long
                     lines.append(word)
                     current_line_length = 0
             else:
@@ -324,13 +336,15 @@ class TextMetricsEngine:
     
     def get_line_height(self, style: Dict[str, Any]) -> float:
         """
-        Oblicza wysokość jednej linii.
-        
+
+        Calculates height of one line.
+
         Args:
-            style: Słownik ze stylami
-            
+        style: Dictionary with styles
+
         Returns:
-            Wysokość linii w punktach
+        Line height in points
+
         """
         font_size = float(style.get("font_size", 11))
         line_spacing = float(style.get("line_spacing", 1.2))

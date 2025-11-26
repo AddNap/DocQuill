@@ -606,14 +606,14 @@ class HeaderFooterParser:
                         anchor_info['relationship_source'] = getattr(self, '_current_relationship_file', None)
                         anchor_info['part_path'] = getattr(self, '_current_part_path', None)
                         
-                        # Pobierz ścieżkę obrazu z relationship jeśli jest rel_id
+                        # Get image path from relationship if there is rel_id
                         try:
                             relationship_source = anchor_info['relationship_source']
                             if not relationship_source:
-                                # Spróbuj zbudować relationship_source z part_path
+                                # Try to build relationship_source from part_path
                                 part_path = anchor_info.get('part_path')
                                 if part_path:
-                                    # Zbuduj ścieżkę do pliku relacji
+                                    # Build path to relationship file
                                     from pathlib import Path
                                     part_path_obj = Path(part_path)
                                     rel_dir = part_path_obj.parent / "_rels"
@@ -621,22 +621,22 @@ class HeaderFooterParser:
                                     relationship_source = str(rel_file)
                             
                             if relationship_source:
-                                # Pobierz relationships dla tego źródła
-                                # relationship_source to ścieżka do pliku .rels, np. "word/_rels/footer1.xml.rels"
+                                # Get relationships for this source
+                                # relationship_source is path to .rels file, e.g. "word/_rels/footer1...
                                 # package_reader przechowuje relationships z kluczami jak "word/_rels/footer1.xml.rels"
-                                # Więc możemy użyć relationship_source bezpośrednio jako klucza
+                                # So we can use relationship_source directly as key
                                 relationships = self.package_reader.get_relationships(relationship_source)
                                 if relationships and r_embed in relationships:
                                     rel_data = relationships[r_embed]
                                     rel_target = rel_data.get("target", "")
                                     if rel_target:
-                                        # Pobierz pełną ścieżkę do obrazu
-                                        # rel_target to ścieżka względna w DOCX, np. "media/image2.jpeg"
-                                        # Musimy zbudować pełną ścieżkę w wyekstraktowanym katalogu
-                                        # Obrazy są w word/media/, więc musimy dodać "word/" przed rel_target
+                                        # Get full path to image
+                                        # rel_target is relative path in DOCX, e.g. "media/image2.jpeg"
+                                        # We need to build full path in extracted directory
+                                        # Images are in word/media/, so we need to add "word/" before rel_target
                                         from pathlib import Path
                                         extract_to = self.package_reader.extract_to
-                                        # rel_target może być już z "word/" lub bez
+                                        # rel_target may already have "word/" or not
                                         if rel_target.startswith("word/"):
                                             image_path = Path(extract_to) / rel_target
                                         else:
@@ -827,12 +827,12 @@ class HeaderFooterParser:
                     # Font size for complex scripts
                     properties['sizeCs'] = child.get('val', '')
                 elif tag_name == 'b':
-                    # Bold - sprawdź atrybut val (może być "true", "false", "1", "0", lub brak)
+                    # Bold - check val attribute (may be "true", "false", "1", "0", or missing...)
                     val_attr = child.get('val', '')
                     if val_attr in ('false', '0', 'off'):
                         properties['bold'] = False
                     else:
-                        # Domyślnie True jeśli jest <w:b/> bez val lub val="true"/"1"
+                        # Default True if there is <w:b/> without val or val="true"/"1"
                         properties['bold'] = True
                 elif tag_name == 'i':
                     # Italic

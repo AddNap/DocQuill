@@ -1,10 +1,12 @@
 """
-Pagination Manager dla UnifiedLayout.
 
-Obsługuje:
+Pagination Manager for UnifiedLayout.
+
+Handles:
 - page-break-before, page-break-after
-- przypisywanie nagłówków i stopek do konkretnych stron
-- różne warianty stron (pierwsza, parzysta, nieparzysta)
+- assigning headers and footers to specific pages
+- different page variants (first, even, odd)
+
 """
 
 from typing import Dict, List, Optional, Any, Tuple
@@ -17,19 +19,23 @@ from .page_variator import Placement
 
 class HeaderFooterResolver:
     """
-    Rozwiązuje nagłówki i stopki dla konkretnych stron.
-    
-    Obsługuje różne warianty stron:
-    - first: pierwsza strona
-    - even: strony parzyste
-    - odd: strony nieparzyste (oprócz pierwszej)
-    - default: domyślny nagłówek/stopka
+
+    Resolves headers and footers for specific pages.
+
+    Handles different page variants:
+    - first: first page
+    - even: even pages
+    - odd: odd pages (except first)
+    - default: default header/footer
+
     """
     
     def __init__(self, layout_structure):
         """
+
         Args:
-            layout_structure: LayoutStructure z nagłówkami i stopkami
+        layout_structure: LayoutStructure with headers and footers
+
         """
         import logging
         logger = logging.getLogger(__name__)
@@ -45,14 +51,16 @@ class HeaderFooterResolver:
     
     def resolve(self, page_number: int, section_info: Optional[Dict[str, Any]] = None) -> Tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
         """
-        Rozwiązuje nagłówek i stopkę dla danej strony.
-        
+
+        Resolves header and footer for given page.
+
         Args:
-            page_number: Numer strony (1-based)
-            section_info: Opcjonalne informacje o sekcji (może zawierać specyficzne nagłówki/stopki)
-            
+        page_number: Page number (1-based)
+        section_info: Optional section information (may contain specific headers/footers)
+
         Returns:
-            Tuple (header, footer) - oba mogą być None
+        Tuple (header, footer) - both can be None
+
         """
         header = self.get_header_for_page(page_number, section_info)
         footer = self.get_footer_for_page(page_number, section_info)
@@ -64,20 +72,22 @@ class HeaderFooterResolver:
         section_info: Optional[Dict[str, Any]] = None
     ) -> Optional[Dict[str, Any]]:
         """
-        Zwraca nagłówek dla danej strony.
-        
+
+        Returns header for given page.
+
         Args:
-            page_number: Numer strony (1-based)
-            section_info: Opcjonalne informacje o sekcji
-            
+        page_number: Page number (1-based)
+        section_info: Optional section information
+
         Returns:
-            Dict z danymi nagłówka lub None
+        Dict with header data or None
+
         """
-        # Sprawdź czy sekcja ma specyficzne nagłówki
+        # Check if section has specific headers
         if section_info and "headers" in section_info:
             section_headers = section_info["headers"]
             if isinstance(section_headers, dict):
-                # Użyj nagłówków z sekcji
+                # Use headers from section
                 headers = section_headers
             else:
                 headers = self.headers
@@ -110,7 +120,7 @@ class HeaderFooterResolver:
                     return header_list[0]
             return None
         
-        # Dla nieparzystych stron (oprócz pierwszej)
+        # For odd pages (except first)
         if page_number % 2 == 1:
             if "odd" in headers:
                 header_list = headers["odd"]
@@ -131,20 +141,22 @@ class HeaderFooterResolver:
         section_info: Optional[Dict[str, Any]] = None
     ) -> Optional[Dict[str, Any]]:
         """
-        Zwraca stopkę dla danej strony.
-        
+
+        Returns footer for given page.
+
         Args:
-            page_number: Numer strony (1-based)
-            section_info: Opcjonalne informacje o sekcji
-            
+        page_number: Page number (1-based)
+        section_info: Optional section information
+
         Returns:
-            Dict z danymi stopki lub None
+        Dict with footer data or None
+
         """
-        # Sprawdź czy sekcja ma specyficzne stopki
+        # Check if section has specific footers
         if section_info and "footers" in section_info:
             section_footers = section_info["footers"]
             if isinstance(section_footers, dict):
-                # Użyj stopek z sekcji
+                # Use footers from section
                 footers = section_footers
             else:
                 footers = self.footers
@@ -156,12 +168,12 @@ class HeaderFooterResolver:
             if "first" in footers:
                 footer_list = footers["first"]
                 if footer_list and len(footer_list) > 0:
-                    return footer_list  # Zwróć całą listę elementów
+                    return footer_list  # Return entire list of elements
             # Fallback na default
             if "default" in footers:
                 footer_list = footers["default"]
                 if footer_list and len(footer_list) > 0:
-                    return footer_list  # Zwróć całą listę elementów
+                    return footer_list  # Return entire list of elements
             return None
         
         # Dla parzystych stron
@@ -169,25 +181,25 @@ class HeaderFooterResolver:
             if "even" in footers:
                 footer_list = footers["even"]
                 if footer_list and len(footer_list) > 0:
-                    return footer_list  # Zwróć całą listę elementów
+                    return footer_list  # Return entire list of elements
             # Fallback na default
             if "default" in footers:
                 footer_list = footers["default"]
                 if footer_list and len(footer_list) > 0:
-                    return footer_list  # Zwróć całą listę elementów
+                    return footer_list  # Return entire list of elements
             return None
         
-        # Dla nieparzystych stron (oprócz pierwszej)
+        # For odd pages (except first)
         if page_number % 2 == 1:
             if "odd" in footers:
                 footer_list = footers["odd"]
                 if footer_list and len(footer_list) > 0:
-                    return footer_list  # Zwróć całą listę elementów
+                    return footer_list  # Return entire list of elements
             # Fallback na default
             if "default" in footers:
                 footer_list = footers["default"]
                 if footer_list and len(footer_list) > 0:
-                    return footer_list  # Zwróć całą listę elementów
+                    return footer_list  # Return entire list of elements
             return None
         
         return None
@@ -195,12 +207,14 @@ class HeaderFooterResolver:
 
 class PaginationManager:
     """
-    Manager paginacji dla UnifiedLayout.
-    
-    Obsługuje:
-    - page-break-before/after (już w LayoutAssembler, ale można użyć tutaj)
-    - przypisywanie nagłówków i stopek
-    - różne warianty stron
+
+    Pagination manager for UnifiedLayout.
+
+    Handles:
+    - page-break-before/after (already in LayoutAssembler, but can be used here)
+    - assigning headers and footers
+    - different page variants
+
     """
     
     def __init__(
@@ -211,9 +225,11 @@ class PaginationManager:
         page_variator: Optional[Any] = None,
     ):
         """
+
         Args:
-            unified_layout: UnifiedLayout do zarządzania
-            header_footer_resolver: Opcjonalny resolver nagłówków/stopek
+        unified_layout: UnifiedLayout to manage
+        header_footer_resolver: Optional headers/footers resolver
+
         """
         self.unified_layout = unified_layout
         self.header_footer_resolver = header_footer_resolver
@@ -222,14 +238,16 @@ class PaginationManager:
     
     def apply_headers_footers(self, layout_structure=None):
         """
-        Stosuje nagłówki i stopki do stron w UnifiedLayout.
-        
-        Dodaje LayoutBlock z typem "header" lub "footer" do odpowiednich stron.
-        
+
+        Applies headers and footers to pages in UnifiedLayout.
+
+        Adds LayoutBlock with type "header" or "footer" to appropriate pages.
+
         Args:
-            layout_structure: Opcjonalny LayoutStructure (jeśli nie ma resolvera)
+        layout_structure: Optional LayoutStructure (if no resolver)
+
         """
-        # Jeśli nie ma resolvera, ale jest layout_structure, utwórz go
+        # If no resolver but layout_structure exists, create it
         if not self.header_footer_resolver and layout_structure:
             self.header_footer_resolver = HeaderFooterResolver(layout_structure)
         
@@ -239,13 +257,13 @@ class PaginationManager:
         import logging
         logger = logging.getLogger(__name__)
         
-        # Pobierz informacje o sekcjach z layout_structure jeśli dostępne
-        # WAŻNE: Używamy informacji o sekcjach z parsera (xml_parser.parse_sections) jeśli dostępne
+        # Get section information from layout_structure if available
+        # IMPORTANT: Use section information from parser (xml_parser.parse_sections) if available
         sections_info = None
         if layout_structure and hasattr(layout_structure, 'sections'):
             sections_info = layout_structure.sections
         
-        # Alternatywnie, spróbuj pobrać sekcje z parsera jeśli dostępny
+        # Alternatively, try to get sections from parser if available
         if not sections_info and hasattr(self, 'layout_assembler') and hasattr(self.layout_assembler, 'package_reader'):
             try:
                 from ..parser.xml_parser import XMLParser
@@ -262,7 +280,7 @@ class PaginationManager:
             page_number = page.number
             blocks_before = len(page.blocks)
             
-            # Sprawdź czy strona powinna pomijać nagłówki i stopki
+            # Check if page should skip headers and footers
             skip_headers_footers = getattr(page, 'skip_headers_footers', False)
             if skip_headers_footers:
                 logger.info(f"Page {page_number}: Skipping headers and footers (skip_headers_footers=True)")
@@ -272,11 +290,11 @@ class PaginationManager:
             if self.page_variator:
                 variant = self.page_variator.get_variant(page_number)
 
-            # Określ sekcję dla strony (dla uproszczenia używamy pierwszej sekcji)
-            # TODO: Poprawić logikę określania sekcji na podstawie numeru strony
+            # Determine section for page (for simplicity use first section)
+            # TODO: Improve section determination logic based on page number
             section_info = None
             if sections_info:
-                # Użyj pierwszej sekcji (można później rozszerzyć o mapowanie strony -> sekcja)
+                # Use first section (can be extended later with page -> section mapping)
                 if isinstance(sections_info, dict) and sections_info:
                     first_section_key = list(sections_info.keys())[0]
                     section_info = sections_info[first_section_key]
@@ -470,16 +488,18 @@ class PaginationManager:
     
     def validate_pagination(self) -> List[str]:
         """
-        Waliduje paginację - sprawdza czy wszystkie bloki mieszczą się na stronach.
-        
+
+        Validates pagination - checks if all blocks fit on pages.
+
         Returns:
-            Lista komunikatów o błędach (pusta jeśli wszystko OK)
+        List of error messages (empty if all OK)
+
         """
         errors = []
         
         for page in self.unified_layout.pages:
             for block in page.blocks:
-                # Sprawdź czy blok nie wychodzi poza stronę
+                # Check if block exceeds page boundaries
                 if block.frame.x + block.frame.width > page.size.width:
                     errors.append(
                         f"Blok {block.block_type} na stronie {page.number} "

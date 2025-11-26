@@ -1,11 +1,13 @@
 """
-TextAlignmentEngine — obliczanie pozycji X dla tekstu względem szerokości kolumny.
 
-Obsługuje:
-- left: wyrównanie do lewej (domyślne)
-- center: wyśrodkowanie
-- right: wyrównanie do prawej
-- justify: justowanie (wymaga dodatkowej logiki)
+TextAlignmentEngine - calculating X position for text relative to column width.
+
+Supports:
+- left: left alignment (default)
+- center: centering
+- right: right alignment
+- justify: justification (requires additional logic)
+
 """
 
 from typing import Dict, Any
@@ -24,54 +26,58 @@ class TextAlignmentEngine:
         alignment: str = "left"
     ) -> float:
         """
-        Oblicza pozycję X dla tekstu na podstawie alignment.
-        
+
+        Calculates X position for text based on alignment.
+
         Args:
-            rect: Rect obszaru tekstu
-            text_width: Szerokość tekstu w punktach
-            alignment: Wyrównanie ("left", "center", "right", "justify")
-            
+        rect: Rect of text area
+        text_width: Text width in points
+        alignment: Alignment ("left", "center", "right", "justify")
+
         Returns:
-            Pozycja X dla tekstu
+        X position for text
+
         """
         alignment = alignment.lower() if alignment else "left"
         
         if alignment == "center":
-            # Wyśrodkowanie
+            # Centering
             x = rect.x + (rect.width - text_width) / 2
-            return max(rect.x, x)  # Nie wychodź poza lewą krawędź
+            return max(rect.x, x)  # Don't go beyond left edge
         
         elif alignment == "right":
-            # Wyrównanie do prawej
+            # Right alignment
             x = rect.x + rect.width - text_width
-            return max(rect.x, x)  # Nie wychodź poza lewą krawędź
+            return max(rect.x, x)  # Don't go beyond left edge
         
         elif alignment == "justify":
-            # Justowanie - tekst wypełnia całą szerokość
-            # Zwróć lewą krawędź, justowanie wymaga dodatkowej logiki w rendererze
+            # Justification - text fills entire width
+            # Return left edge, justification requires additional logic in renderer
             return rect.x
         
-        else:  # "left" lub domyślne
-            # Wyrównanie do lewej
+        else:  # "left" or default
+            # Left alignment
             return rect.x
     
     @staticmethod
     def get_alignment_from_style(style: Dict[str, Any]) -> str:
         """
-        Pobiera alignment z stylu.
-        
+
+        Gets alignment from style.
+
         Args:
-            style: Słownik ze stylami
-            
+        style: Dictionary with styles
+
         Returns:
-            Alignment string ("left", "center", "right", "justify")
+        Alignment string ("left", "center", "right", "justify")
+
         """
         alignment = style.get("alignment") or style.get("text_align") or style.get("align", "left")
         
         # Normalizuj
         alignment = str(alignment).lower()
         
-        # Mapuj różne warianty
+        # Map different variants
         if alignment in ("left", "start", "l"):
             return "left"
         elif alignment in ("center", "middle", "c"):
@@ -81,7 +87,7 @@ class TextAlignmentEngine:
         elif alignment in ("justify", "justified", "j"):
             return "justify"
         else:
-            return "left"  # Domyślne
+            return "left"  # Default
     
     @staticmethod
     def calculate_text_position(
@@ -90,15 +96,17 @@ class TextAlignmentEngine:
         style: Dict[str, Any]
     ) -> float:
         """
-        Oblicza pozycję X dla tekstu na podstawie rect, szerokości tekstu i stylu.
-        
+
+        Calculates X position for text based on rect, text width and style.
+
         Args:
-            rect: Rect obszaru tekstu
-            text_width: Szerokość tekstu w punktach
-            style: Słownik ze stylami (zawiera alignment)
-            
+        rect: Rect of text area
+        text_width: Text width in points
+        style: Dictionary with styles (contains alignment)
+
         Returns:
-            Pozycja X dla tekstu
+        X position for text
+
         """
         alignment = TextAlignmentEngine.get_alignment_from_style(style)
         return TextAlignmentEngine.calculate_x(rect, text_width, alignment)

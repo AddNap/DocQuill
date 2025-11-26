@@ -33,7 +33,7 @@ class HeaderFooterRenderer:
         text = ""
         if isinstance(block.content, dict):
             text = str(block.content.get("text", ""))
-            # Sprawdź czy content ma field codes
+            # Check if content has field codes
             if 'fields' in block.content:
                 # Renderuj field codes
                 for field in block.content['fields']:
@@ -42,7 +42,7 @@ class HeaderFooterRenderer:
         elif block.content is not None:
             text = str(block.content)
         
-        # Zastąp field codes w tekście (fallback dla prostych przypadków)
+        # Replace field codes in text (fallback for simple cases)
         text = self.field_renderer.replace_fields_in_text(text)
 
         style = block.style or {}

@@ -1,11 +1,13 @@
 """
-Layout Validator — walidacja UnifiedLayout.
 
-Sprawdza:
-- czy bloki nie wychodzą poza stronę
-- czy spacing nie jest ujemny
-- czy każdy LayoutBlock ma styl
-- czy pozycje są poprawne
+Layout Validator - UnifiedLayout validation.
+
+Checks:
+- whether blocks don't exceed page boundaries
+- whether spacing is not negative
+- whether every LayoutBlock has style
+- whether positions are correct
+
 """
 
 from typing import List, Dict, Any
@@ -13,7 +15,7 @@ from .unified_layout import UnifiedLayout, LayoutPage, LayoutBlock
 
 
 class LayoutValidator:
-    """Walidator layoutu - sprawdza integralność UnifiedLayout."""
+    """Layout validator - checks UnifiedLayout integrity."""
     
     def __init__(self, unified_layout: UnifiedLayout):
         """
@@ -26,10 +28,12 @@ class LayoutValidator:
     
     def validate(self) -> tuple[bool, List[str], List[str]]:
         """
-        Wykonuje pełną walidację layoutu.
-        
+
+        Performs full layout validation.
+
         Returns:
-            Tuple (is_valid, errors, warnings)
+        Tuple (is_valid, errors, warnings)
+
         """
         self.errors.clear()
         self.warnings.clear()
@@ -47,19 +51,19 @@ class LayoutValidator:
         return is_valid, self.errors.copy(), self.warnings.copy()
     
     def _validate_pages_exist(self) -> None:
-        """Sprawdza czy istnieją strony."""
+        """Checks if pages exist."""
         if not self.unified_layout.pages:
             self.errors.append("UnifiedLayout nie zawiera żadnych stron")
     
     def _validate_blocks_in_bounds(self) -> None:
-        """Sprawdza czy wszystkie bloki mieszczą się w granicach stron."""
+        """Checks if all blocks fit within page boundaries."""
         for page in self.unified_layout.pages:
             page_number = page.number
             
             for block in page.blocks:
                 frame = block.frame
                 
-                # Sprawdź czy blok nie wychodzi poza szerokość strony
+                # Check if block exceeds page width
                 if frame.x < 0:
                     self.errors.append(
                         f"Blok {block.block_type} na stronie {page_number} "
@@ -73,7 +77,7 @@ class LayoutValidator:
                         f"(x={frame.x}, width={frame.width}, page_width={page.size.width})"
                     )
                 
-                # Sprawdź czy blok nie wychodzi poza wysokość strony
+                # Check if block exceeds page height
                 if frame.y < 0:
                     self.errors.append(
                         f"Blok {block.block_type} na stronie {page_number} "
@@ -87,7 +91,7 @@ class LayoutValidator:
                         f"(y={frame.y}, height={frame.height}, page_height={page.size.height})"
                     )
                 
-                # Sprawdź czy wymiary są dodatnie
+                # Check if dimensions are positive
                 if frame.width <= 0:
                     self.errors.append(
                         f"Blok {block.block_type} na stronie {page_number} "
@@ -101,7 +105,7 @@ class LayoutValidator:
                     )
     
     def _validate_block_styles(self) -> None:
-        """Sprawdza czy każdy blok ma styl."""
+        """Checks if every block has style."""
         for page in self.unified_layout.pages:
             page_number = page.number
             
@@ -144,7 +148,7 @@ class LayoutValidator:
                     )
     
     def _validate_page_consistency(self) -> None:
-        """Sprawdza spójność numeracji stron."""
+        """Checks page numbering consistency."""
         expected_page_number = 1
         
         for page in self.unified_layout.pages:
@@ -156,13 +160,13 @@ class LayoutValidator:
             expected_page_number += 1
     
     def _validate_block_overflow(self) -> None:
-        """Sprawdza czy bloki nie wychodzą poza marginesy dolne."""
+        """Checks if blocks don't exceed bottom margins."""
         for page in self.unified_layout.pages:
             page_number = page.number
             bottom_margin = page.margins.bottom
             
             for block in page.blocks:
-                # Sprawdź czy blok nie wychodzi poniżej dolnego marginesu
+                # Check if block goes below bottom margin
                 if block.frame.y < bottom_margin:
                     self.errors.append(
                         f"Blok {block.block_type} na stronie {page_number} "
@@ -171,7 +175,7 @@ class LayoutValidator:
                     )
     
     def _validate_spacing_conflicts(self) -> None:
-        """Sprawdza czy spacing_before + spacing_after nie kolidują."""
+        """Checks if spacing_before + spacing_after don't conflict."""
         for page in self.unified_layout.pages:
             page_number = page.number
             
@@ -189,11 +193,11 @@ class LayoutValidator:
                 spacing_after = prev_style.get("spacing_after", 0)
                 spacing_before = style.get("spacing_before", 0)
                 
-                # Sprawdź czy bloki się nakładają
+                # Check if blocks overlap
                 prev_bottom = prev_block.frame.y + prev_block.frame.height
                 current_top = block.frame.y
                 
-                # Jeśli spacing jest zbyt duży, mogą być konflikty
+                # If spacing is too large, there may be conflicts
                 gap = current_top - prev_bottom
                 expected_gap = spacing_after + spacing_before
                 
@@ -202,7 +206,7 @@ class LayoutValidator:
                         f"Bloki na stronie {page_number} nakładają się: "
                         f"blok {prev_block.block_type} i {block.block_type}"
                     )
-                elif gap < expected_gap * 0.5:  # Gap jest znacznie mniejszy niż oczekiwany
+                elif gap < expected_gap * 0.5:  # Gap is significantly smaller than expected
                     self.warnings.append(
                         f"Bloki na stronie {page_number} mają zbyt mały odstęp: "
                         f"oczekiwano {expected_gap}, otrzymano {gap}"
@@ -213,13 +217,13 @@ class LayoutValidator:
         for page in self.unified_layout.pages:
             page_number = page.number
             
-            # Policz bloki nie będące header/footer
+            # Count blocks that are not header/footer
             content_blocks = [
                 b for b in page.blocks
                 if b.block_type not in ("header", "footer")
             ]
             
-            if not content_blocks and page_number > 1:  # Pierwsza strona może być pusta
+            if not content_blocks and page_number > 1:  # First page can be empty
                 self.warnings.append(
                     f"Strona {page_number} jest pusta (bez bloków treści)"
                 )

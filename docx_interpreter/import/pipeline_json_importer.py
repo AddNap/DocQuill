@@ -1,10 +1,8 @@
 """
-Importer JSON do UnifiedLayout i Document Model.
 
-Umożliwia odwrócenie procesu: JSON → UnifiedLayout → Document Model → DOCX
+JSON importer to UnifiedLayout and Document Model.
 
-UWAGA: To jest uproszczona konwersja - UnifiedLayout ma pozycjonowanie i paginację,
-które nie są w Document Model. Ta implementacja odtwarza podstawową strukturę dokumentu.
+Enables reversing...
 """
 
 import json
@@ -21,16 +19,17 @@ from ..models.image import Image
 
 class PipelineJSONImporter:
     """
-    Importer JSON zoptymalizowanego formatu pipeline.
-    
-    Konwertuje JSON z powrotem do UnifiedLayout, a następnie do Document Model.
+
+    JSON importer for optimized pipeline format.
+
+    Converts...
     """
     
     def __init__(self, json_data: Optional[Dict[str, Any]] = None, json_path: Optional[Path] = None):
         """
+
         Args:
-            json_data: Dane JSON (dict) - jeśli podane, json_path jest ignorowany
-            json_path: Ścieżka do pliku JSON
+        json_data: JSON data (dict) - if provided,...
         """
         if json_data is not None:
             self.json_data = json_data
@@ -45,7 +44,7 @@ class PipelineJSONImporter:
         self._load_maps()
     
     def _load_maps(self):
-        """Ładuje mapy stylów i media z JSON."""
+        """Loads style and media maps from JSON."""
         # Style
         styles = self.json_data.get('styles', [])
         for i, style in enumerate(styles):
@@ -67,7 +66,7 @@ class PipelineJSONImporter:
         
         pages_data = self.json_data.get('pages', [])
         for page_data in pages_data:
-            # Deserializuj stronę
+            # Deserialize page
             page = self._deserialize_page(page_data)
             unified_layout.pages.append(page)
         
@@ -77,13 +76,13 @@ class PipelineJSONImporter:
         return unified_layout
     
     def _deserialize_page(self, page_data: Dict[str, Any]) -> LayoutPage:
-        """Deserializuje stronę z JSON."""
+        """Deserializes page from JSON."""
         # Size
         size_data = page_data.get('size', [595.0, 842.0])
         if isinstance(size_data, list) and len(size_data) >= 2:
             size = Size(size_data[0], size_data[1])
         else:
-            size = Size(595.0, 842.0)  # Domyślnie A4
+            size = Size(595.0, 842.0)  # Default A4
         
         # Margins
         margins_data = page_data.get('margins', [72, 72, 72, 72])
@@ -95,9 +94,9 @@ class PipelineJSONImporter:
                 left=margins_data[3]
             )
         else:
-            margins = Margins(72, 72, 72, 72)  # Domyślnie 1 cal
+            margins = Margins(72, 72, 72, 72)  # Default 1 inch
         
-        # Utwórz stronę
+        # Create page
         page = LayoutPage(
             number=page_data.get('n', 1),
             size=size,
@@ -205,19 +204,15 @@ class PipelineJSONImporter:
     
     def to_document_model(self) -> Any:
         """
-        Konwertuje UnifiedLayout do Document Model.
-        
-        UWAGA: To jest uproszczona konwersja - UnifiedLayout ma pozycjonowanie
-        i paginację, które nie są w Document Model. Ta metoda próbuje odtworzyć
-        strukturę dokumentu na podstawie bloków.
-        
-        Returns:
-            Document Model (obiekt z atrybutami body, headers, footers)
+
+        Converts UnifiedLayout to Document Model.
+
+        ...
         """
         unified_layout = self.to_unified_layout()
         
-        # Utwórz model dokumentu podobny do tego z parsera
-        # Używamy SimpleNamespace lub dict do symulacji modelu
+        # Create document model similar to one from parser
+        # Use SimpleNamespace or dict to simulate model
         from types import SimpleNamespace
         
         body = SimpleNamespace()
@@ -229,9 +224,9 @@ class PipelineJSONImporter:
         headers = {}
         footers = {}
         
-        # Przejdź przez wszystkie strony i zbierz elementy
+        # Go through all pages and collect elements
         for page in unified_layout.pages:
-            # Sprawdź mapowanie header/footer z JSON (jeśli dostępne)
+            # Check header/footer mapping from JSON (if available)
             page_data = None
             for p_data in self.json_data.get('pages', []):
                 if p_data.get('n') == page.number:
@@ -260,7 +255,7 @@ class PipelineJSONImporter:
                         footers['default'].append(element)
                     continue
                 
-                # Pomiń decorator
+                # Skip decorator
                 if block.block_type == 'decorator':
                     continue
                 
@@ -275,12 +270,12 @@ class PipelineJSONImporter:
                     elif block.block_type == 'image':
                         body.images.append(element)
         
-        # Utwórz model dokumentu
+        # Create document model
         model = SimpleNamespace()
         model.body = body
         model.headers = headers
         model.footers = footers
-        model.elements = body.children  # Dla kompatybilności
+        model.elements = body.children  # For compatibility
         
         return model
     
@@ -289,12 +284,12 @@ class PipelineJSONImporter:
         block_type = block.block_type
         
         if block_type == 'paragraph':
-            # Utwórz Paragraph
+            # Create Paragraph
             paragraph = Paragraph()
             paragraph.id = block.source_uid or f"para_{id(block)}"
             paragraph.style = block.style.copy() if block.style else {}
             
-            # Wyciągnij tekst i utwórz Run
+            # Extract text and create Run
             text = self._extract_text_from_content(block.content)
             if text:
                 run = Run()
@@ -305,18 +300,18 @@ class PipelineJSONImporter:
             return paragraph
         
         elif block_type == 'table':
-            # Utwórz Table
+            # Create Table
             table = Table()
             table.id = block.source_uid or f"table_{id(block)}"
             table.style = block.style.copy() if block.style else {}
             
-            # Wyciągnij wiersze
+            # Extract rows
             rows_data = self._extract_table_rows(block.content)
             table.rows = []
             for row_data in rows_data:
                 row = []
                 for cell_data in row_data:
-                    # Utwórz komórkę jako Paragraph z tekstem
+                    # Create cell as Paragraph with text
                     cell_para = Paragraph()
                     cell_text = cell_data.get('text', '')
                     if cell_text:
@@ -329,7 +324,7 @@ class PipelineJSONImporter:
             return table
         
         elif block_type == 'image':
-            # Utwórz Image
+            # Create Image
             image = Image()
             image.id = block.source_uid or f"image_{id(block)}"
             image.path = self._extract_image_path(block.content)
@@ -341,7 +336,7 @@ class PipelineJSONImporter:
         return None
     
     def _block_to_element(self, block: LayoutBlock) -> Optional[Dict[str, Any]]:
-        """Konwertuje LayoutBlock na element dict (dla kompatybilności)."""
+        """Converts LayoutBlock to element dict (for compatibility)."""
         element = self._block_to_model_element(block)
         if element is None:
             return None
@@ -367,7 +362,7 @@ class PipelineJSONImporter:
         return None
     
     def _extract_text_from_content(self, content: Any) -> str:
-        """Wyciąga tekst z content."""
+        """Extracts text from content."""
         if isinstance(content, dict):
             return content.get('text', '')
         elif isinstance(content, str):
@@ -375,9 +370,9 @@ class PipelineJSONImporter:
         return ''
     
     def _extract_table_rows(self, content: Any) -> List[List[Dict[str, Any]]]:
-        """Wyciąga wiersze tabeli z content."""
+        """Extracts table rows from content."""
         if isinstance(content, dict):
-            # Sprawdź różne możliwe struktury
+            # Check various possible structures
             if 'rows' in content:
                 return content.get('rows', [])
             elif 'table' in content:
@@ -387,13 +382,13 @@ class PipelineJSONImporter:
         return []
     
     def _extract_image_path(self, content: Any) -> Optional[str]:
-        """Wyciąga ścieżkę obrazu z content."""
+        """Extracts image path from content."""
         if isinstance(content, dict):
             return content.get('path')
         return None
     
     def _extract_image_rel_id(self, content: Any) -> Optional[str]:
-        """Wyciąga rel_id obrazu z content."""
+        """Extracts image rel_id from content."""
         if isinstance(content, dict):
             return content.get('rel_id')
         return None

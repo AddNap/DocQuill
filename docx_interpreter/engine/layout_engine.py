@@ -1,6 +1,8 @@
 """
-LayoutEngine — konwertuje model dokumentu na strukturę logiczną layoutu
-(bez obliczeń współrzędnych, kerningu i paginacji).
+
+LayoutEngine - converts document model to logical layout structure
+(without coordinate calculations, kerning and pagination).
+
 """
 
 import re
@@ -27,7 +29,7 @@ _LIST_MARKER_REGEX = re.compile(
 
 @dataclass
 class LayoutStructure:
-    """Wynik działania LayoutEngine — logiczne grupy elementów dokumentu."""
+    """Result of LayoutEngine operation - logical groups of document elements."""
     body: List[Any] = field(default_factory=list)
     headers: Dict[str, List[Any]] = field(default_factory=lambda: {"default": []})
     footers: Dict[str, List[Any]] = field(default_factory=lambda: {"default": []})
@@ -36,8 +38,10 @@ class LayoutStructure:
 
 class LayoutEngine:
     """
-    Główny silnik interpretacji modelu dokumentu (bez pozycjonowania).
-    Odpowiada za: przypisywanie stylów, placeholdery, struktury bloków.
+
+    Main document model interpretation engine (without positioning).
+    Responsible for: assigning styles, placeholders, block structures.
+
     """
 
     def __init__(self, numbering_data: Optional[Dict[str, Any]] = None, resolve_placeholders: bool = True):
@@ -49,7 +53,7 @@ class LayoutEngine:
         self._numbering_data: Dict[str, Any] = numbering_data or {}
 
     # ----------------------------------------------------------------------
-    # Główna metoda budująca strukturę layoutu
+    # Main method building layout structure
     # ----------------------------------------------------------------------
     def build(self, model: Any) -> LayoutStructure:
         """
@@ -70,8 +74,8 @@ class LayoutEngine:
 
         layout = LayoutStructure()
         
-        # Parsuj headers i footers jeśli są dostępne w modelu
-        # Sprawdź czy model ma parser z metodami parse_header/parse_footer
+        # Parse headers and footers if available in model
+        # Check if model has parser with parse_header/parse_footer methods
         import logging
         logger = logging.getLogger(__name__)
         
@@ -96,7 +100,7 @@ class LayoutEngine:
                           f"children count: {len(header_body.children) if header_body and hasattr(header_body, 'children') else 0}")
                 if header_body and hasattr(header_body, "children"):
                     for i, header_element in enumerate(header_body.children):
-                        # Rozpoznaj typ elementu i przetwórz przez odpowiednią metodę
+                        # Recognize element type and process through appropriate method
                         header_block = self._build_header_footer_element(header_element, "header")
                         if header_block:
                             layout.headers["default"].append(header_block)
@@ -112,7 +116,7 @@ class LayoutEngine:
                           f"children count: {len(footer_body.children) if footer_body and hasattr(footer_body, 'children') else 0}")
                 if footer_body and hasattr(footer_body, "children"):
                     for i, footer_element in enumerate(footer_body.children):
-                        # Rozpoznaj typ elementu i przetwórz przez odpowiednią metodę
+                        # Recognize element type and process through appropriate method
                         footer_block = self._build_header_footer_element(footer_element, "footer")
                         if footer_block:
                             layout.footers["default"].append(footer_block)
@@ -122,16 +126,16 @@ class LayoutEngine:
                 else:
                     logger.warning(f"footer_body is None or has no children attribute")
 
-        # Pobierz elementy - sprawdź różne możliwe atrybuty
+        # Get elements - check various possible attributes
         elements = []
         if hasattr(model, "elements"):
             elements = model.elements if isinstance(model.elements, (list, tuple)) else list(model.elements) if model.elements else []
         elif hasattr(model, "body") and hasattr(model.body, "children"):
             elements = model.body.children if isinstance(model.body.children, (list, tuple)) else list(model.body.children) if model.body.children else []
         elif hasattr(model, "body") and hasattr(model.body, "paragraphs"):
-            # Jeśli body ma paragraphs, użyj ich
+            # If body has paragraphs, use them
             elements = model.body.paragraphs if isinstance(model.body.paragraphs, (list, tuple)) else list(model.body.paragraphs) if model.body.paragraphs else []
-            # Dodaj też tabele i obrazy jeśli są
+            # Also add tables and images if present
             if hasattr(model.body, "tables"):
                 tables = model.body.tables if isinstance(model.body.tables, (list, tuple)) else list(model.body.tables) if model.body.tables else []
                 elements.extend(tables)
@@ -140,7 +144,7 @@ class LayoutEngine:
                 elements.extend(images)
         
         for element in elements:
-            # Rozpoznaj typ elementu - najpierw sprawdź atrybut type, potem nazwę klasy
+            # Recognize element type - first check type attribute, then class name
             element_type = None
             if isinstance(element, dict):
                 element_type = element.get("type")
@@ -148,7 +152,7 @@ class LayoutEngine:
                 element_type = getattr(element, "type", None)
             
             if element_type is None:
-                # Sprawdź nazwę klasy
+                # Check class name
                 class_name = type(element).__name__.lower()
                 if "paragraph" in class_name:
                     element_type = "paragraph"
@@ -190,31 +194,33 @@ class LayoutEngine:
         return layout
 
     # ----------------------------------------------------------------------
-    # Mini-silniki dla poszczególnych typów
+    # Mini-engines for individual types
     # ----------------------------------------------------------------------
     def _build_header_footer_element(self, element: Any, context: str) -> Dict[str, Any]:
         """
-        Buduje blok dla elementu w headerze/footerze.
-        Rozpoznaje typ elementu (table, paragraph, image, textbox) i używa odpowiedniej metody.
-        
+
+        Builds block for element in header/footer.
+        Recognizes element type (table, paragraph, image, textbox) and uses appropriate method.
+
         Args:
-            element: Element z headera/footera
-            context: "header" lub "footer"
-        
+        element: Element from header/footer
+        context: "header" or "footer"
+
         Returns:
-            Dict z danymi bloku z odpowiednim typem
+        Dict with block data with appropriate type
+
         """
         import logging
         logger = logging.getLogger(__name__)
         
-        # Rozpoznaj typ elementu - sprawdź różne źródła
+        # Recognize element type - check various sources
         element_type = None
         
-        # 1. Sprawdź atrybut type
+        # 1. Check type attribute
         if hasattr(element, "type") and element.type:
             element_type = element.type
         
-        # 2. Sprawdź nazwę klasy
+        # 2. Check class name
         if element_type is None:
             class_name = type(element).__name__.lower()
             if "paragraph" in class_name:
@@ -226,13 +232,13 @@ class LayoutEngine:
             elif "textbox" in class_name or "txbxcontent" in class_name:
                 element_type = "textbox"
             elif "hyperlink" in class_name:
-                # Hyperlinki są obsługiwane w runach, ale jeśli jest bezpośrednio w stopce, potraktuj jako paragraf
+                # Hyperlinks are handled in runs, but if directly in footer, treat as paragraph
                 element_type = "paragraph"
             elif "field" in class_name:
-                # Pola są obsługiwane w runach, ale jeśli jest bezpośrednio w stopce, potraktuj jako paragraf
+                # Fields are handled in runs, but if directly in footer, treat as paragraph
                 element_type = "paragraph"
         
-        # 3. Sprawdź atrybuty obiektu, aby rozpoznać typ
+        # 3. Check object attributes to recognize type
         if element_type is None:
             if hasattr(element, "rows") or hasattr(element, "cells"):
                 element_type = "table"
@@ -243,7 +249,7 @@ class LayoutEngine:
             elif hasattr(element, "path") or hasattr(element, "image_path") or hasattr(element, "relationship_id"):
                 element_type = "image"
             elif hasattr(element, "content") and isinstance(getattr(element, "content", None), str):
-                # Może być textbox lub paragraph
+                # May be textbox or paragraph
                 if hasattr(element, "textbox") or "textbox" in class_name:
                     element_type = "textbox"
                 else:
@@ -253,7 +259,7 @@ class LayoutEngine:
         
         logger.debug(f"_build_header_footer_element: element type={element_type_str}, class={type(element).__name__}, context={context}")
         
-        # Przetwórz element przez odpowiednią metodę
+        # Process element through appropriate method
         if element_type_str == "table":
             block = self._build_table(element)
             block["header_footer_context"] = context
@@ -271,10 +277,10 @@ class LayoutEngine:
             block["header_footer_context"] = context
             return block
         else:
-            # Dla nieznanych typów, spróbuj rozpoznać na podstawie zawartości
+            # For unknown types, try to recognize based on content
             logger.warning(f"_build_header_footer_element: unknown element type, trying fallback. class={type(element).__name__}, context={context}")
             
-            # Spróbuj użyć _build_paragraph jako fallback (może zawierać tekst)
+            # Try to use _build_paragraph as fallback (may contain text)
             try:
                 block = self._build_paragraph(element)
                 block["header_footer_context"] = context
@@ -283,7 +289,7 @@ class LayoutEngine:
             except Exception as e:
                 logger.debug(f"_build_header_footer_element: fallback to paragraph failed: {e}")
             
-            # Ostateczny fallback - użyj metody _build_header/_build_footer
+            # Final fallback - use _build_header/_build_footer method
             if context == "header":
                 return self._build_header(element)
             else:
@@ -418,7 +424,7 @@ class LayoutEngine:
         else:
             text = getattr(element, "text", "") or getattr(element, "get_text", lambda: "")()
         
-        # Rozwiąż placeholdery
+        # Resolve placeholders
         if self.resolve_placeholders:
             text = self.placeholder_resolver.resolve_text(text)
         
@@ -434,7 +440,7 @@ class LayoutEngine:
             vml_shapes_list = element.vml_shapes if isinstance(element.vml_shapes, list) else [element.vml_shapes] if element.vml_shapes else []
             vml_shapes.extend(vml_shapes_list)
         
-        # Pobierz obrazy, textboxy i pola również z runów (dla obrazów, textboxów i pól w runach)
+        # Get images, textboxes and fields also from runs (for images, textboxes and fields in runs)
         textboxes = []
         fields = []
         run_objects = []
@@ -450,7 +456,7 @@ class LayoutEngine:
                         logger.info(f"Found {len(run_images)} images in run of paragraph")
                     images.extend(run_images)
                 
-                # Sprawdź czy run ma pola (PAGE, NUMPAGES, etc.)
+                # Check if run has fields (PAGE, NUMPAGES, etc.)
                 if hasattr(run, "children"):
                     # Pobierz style runu dla field codes
                     run_style = self.style_bridge.resolve(run, "run")
@@ -462,7 +468,7 @@ class LayoutEngine:
                                     "type": "field",
                                     "instr": field_instr,
                                     "field_type": self._detect_field_type(field_instr),
-                                    "style": run_style  # Przekaż formatowanie runu
+                                    "style": run_style  # Pass run formatting
                                 })
                         elif hasattr(child, "type") and getattr(child, "type", None) == "Field":
                             field_instr = getattr(child, "instr", "")
@@ -471,10 +477,10 @@ class LayoutEngine:
                                     "type": "field",
                                     "instr": field_instr,
                                     "field_type": self._detect_field_type(field_instr),
-                                    "style": run_style  # Przekaż formatowanie runu
+                                    "style": run_style  # Pass run formatting
                                 })
                 
-                # Sprawdź czy run ma textbox
+                # Check if run has textbox
                 if hasattr(run, "textbox") and run.textbox:
                     import logging
                     logger = logging.getLogger(__name__)
@@ -526,7 +532,7 @@ class LayoutEngine:
                         logger.info(f"  Textbox is a single item: {type(run.textbox).__name__}")
                         textboxes.append(_build_textbox_dict(run.textbox))
         
-        # Ekstraktuj właściwości paginacji i formatowania
+        # Extract pagination and formatting properties
         block_data = {
             "type": "paragraph",
             "text": text,
@@ -548,19 +554,19 @@ class LayoutEngine:
             block_data["inline_indent"] = block_data_inline_indent
         block_data["indent"] = indent_dict
         
-        # Dodaj obrazy jeśli są
+        # Add images if present
         if images:
             block_data["images"] = images
         
-        # Dodaj textboxy jeśli są
+        # Add textboxes if present
         if textboxes:
             block_data["textboxes"] = textboxes
         
-        # Dodaj VML shapes jeśli są (watermarks)
+        # Add VML shapes if present (watermarks)
         if vml_shapes:
             block_data["vml_shapes"] = vml_shapes
         
-        # Dodaj pola jeśli są
+        # Add fields if present
         if fields:
             block_data["fields"] = fields
         
@@ -574,7 +580,7 @@ class LayoutEngine:
         if run_objects:
             runs_payload: List[Dict[str, Any]] = []
             for run in run_objects:
-                # Sprawdź czy run ma field codes PRZED parsowaniem tekstu
+                # Check if run has field codes BEFORE parsing text
                 run_fields = []
                 if hasattr(run, "children"):
                     # Pobierz style runu dla field codes
@@ -642,7 +648,7 @@ class LayoutEngine:
                 if highlight:
                     run_style.setdefault("highlight", highlight)
                 
-                # Sprawdź czy run ma footnote/endnote references (w drugiej pętli)
+                # Check if run has footnote/endnote references (in second loop)
                 footnote_refs = []
                 endnote_refs = []
                 if hasattr(run, "footnote_refs") and run.footnote_refs:
@@ -655,7 +661,7 @@ class LayoutEngine:
                 elif hasattr(run, "endnote_ref"):
                     endnote_refs = [run.endnote_ref]
                 
-                # Dodaj footnote/endnote references do run_style i bezpośrednio do run dict
+                # Add footnote/endnote references to run_style and directly to run dict
                 if footnote_refs:
                     run_style["footnote_refs"] = footnote_refs
                 if endnote_refs:
@@ -668,7 +674,7 @@ class LayoutEngine:
                     "has_tab": getattr(run, "has_tab", False),
                     "has_drawing": getattr(run, "has_drawing", False),
                 }
-                # Dodaj również bezpośrednio do run dict dla łatwiejszego dostępu
+                # Also add directly to run dict for easier access
                 if footnote_refs:
                     run_dict["footnote_refs"] = footnote_refs
                 if endnote_refs:
@@ -676,15 +682,15 @@ class LayoutEngine:
                 if run_fields:
                     run_dict["fields"] = run_fields  # Dodaj field codes do run dict
                 
-                # Dodaj run do runs_payload nawet jeśli nie ma tekstu, ale ma footnote/endnote references lub field codes
-                # To zapewnia, że indeksy footnote i field codes będą renderowane
+                # Add run to runs_payload even if no text, but has footnote/endnote references or field codes
+                # This ensures footnote indices and field codes will be rendered
                 if run_text or footnote_refs or endnote_refs or run_fields or getattr(run, "has_break", False) or getattr(run, "has_tab", False) or getattr(run, "has_drawing", False):
                     runs_payload.append(run_dict)
 
             if runs_payload:
                 block_data["runs_payload"] = runs_payload
         
-        # Dodaj informacje o numeracji jeśli istnieje
+        # Add numbering information if exists
         has_numbering = bool(getattr(element, "numbering", None))
         hidden_marker = False
         if has_numbering:
@@ -1078,7 +1084,7 @@ class LayoutEngine:
         builder.print_tree_structure()
 
     # ------------------------------------------------------------------
-    # Pomocnicze metody związane z wcięciami
+    # Helper methods related to indentation
     # ------------------------------------------------------------------
 
     @staticmethod
@@ -1270,7 +1276,7 @@ class LayoutEngine:
         style = self.style_bridge.resolve(element, "table")
         rows = getattr(element, "rows", [])
         
-        # Pobierz grid (szerokości kolumn) z elementu
+        # Get grid (column widths) from element
         grid = None
         if hasattr(element, "grid"):
             grid = element.grid
@@ -1280,7 +1286,7 @@ class LayoutEngine:
         return {
             "type": "table",
             "rows": rows,
-            "grid": grid,  # Dodaj grid (szerokości kolumn) do struktury
+            "grid": grid,  # Add grid (column widths) to structure
             "style": style,
             "page_break_before": self._get_page_break_before(element),
             "page_break_after": self._get_page_break_after(element),
@@ -1290,7 +1296,7 @@ class LayoutEngine:
     def _build_image(self, element: Any) -> Dict[str, Any]:
         style = self.style_bridge.resolve(element, "image")
         
-        # Pobierz ścieżkę obrazu - obsługuj zarówno obiekty jak i dict
+        # Get image path - handle both objects and dict
         path = None
         if isinstance(element, dict):
             path = element.get("path") or element.get("image_path") or element.get("src")
@@ -1310,7 +1316,7 @@ class LayoutEngine:
         return {
             "type": "image",
             "path": path or "",
-            "image_path": path or "",  # Dla kompatybilności
+            "image_path": path or "",  # For compatibility
             "style": style,
             "page_break_before": self._get_page_break_before(element),
             "page_break_after": self._get_page_break_after(element),
@@ -1323,26 +1329,26 @@ class LayoutEngine:
         style = self.style_bridge.resolve(element, "textbox")
         content = getattr(element, "content", "") or getattr(element, "get_text", lambda: "")()
         
-        # Pobierz anchor_info jeśli element ma textbox_anchor_info
+        # Get anchor_info if element has textbox_anchor_info
         anchor_info = None
         if hasattr(element, 'textbox_anchor_info') and element.textbox_anchor_info:
             anchor_info = element.textbox_anchor_info
         elif hasattr(element, 'anchor_info') and element.anchor_info:
             anchor_info = element.anchor_info
         
-        # Jeśli content to dict, dodaj anchor_info
+        # If content is dict, add anchor_info
         if isinstance(content, dict):
             if anchor_info:
                 content["anchor_info"] = anchor_info
         elif anchor_info:
-            # Jeśli content to string, zamień na dict z anchor_info
+            # If content is string, convert to dict with anchor_info
             content = {
                 "content": content,
                 "text": str(content) if content else "",
                 "anchor_info": anchor_info
             }
         
-        # Ustaw anchor_type bezpośrednio w dict (tak jak w _build_textbox_dict)
+        # Set anchor_type directly in dict (as in _build_textbox_dict)
         anchor_type = (anchor_info or {}).get('anchor_type', 'inline') if anchor_info else 'inline'
         
         return {
@@ -1358,11 +1364,11 @@ class LayoutEngine:
     def _build_header(self, element: Any) -> Dict[str, Any]:
         style = self.style_bridge.resolve(element, "header")
         
-        # Pobierz tekst z elementu - obsługa różnych typów
+        # Get text from element - handle various types
         text = ""
         images = []
         
-        # Sprawdź czy paragraf ma obrazy na poziomie paragrafu (nie tylko w runs)
+        # Check if paragraph has images at paragraph level (not just in runs)
         if hasattr(element, "images"):
             for img in element.images:
                 images.append(img)
@@ -1372,7 +1378,7 @@ class LayoutEngine:
         elif hasattr(element, "text"):
             text = str(element.text) if element.text else ""
         elif hasattr(element, "runs"):
-            # Jeśli element ma runs, zbierz tekst i obrazy z wszystkich runs
+            # If element has runs, collect text and images from all runs
             text_parts = []
             for run in element.runs:
                 # Tekst z run
@@ -1396,13 +1402,13 @@ class LayoutEngine:
             
             text = " ".join(text_parts)
         
-        # Rozwiąż placeholdery
+        # Resolve placeholders
         if self.resolve_placeholders:
             text = self.placeholder_resolver.resolve_text(text)
         
-        # Jeśli element to tabela, spróbuj wyciągnąć tekst z tabeli
+        # If element is table, try to extract text from table
         if hasattr(element, "rows") or type(element).__name__.lower() == "table":
-            # Dla tabeli, zbierz tekst z wszystkich komórek
+            # For table, collect text from all cells
             text_parts = []
             if hasattr(element, "rows"):
                 for row in element.rows:
@@ -1418,11 +1424,11 @@ class LayoutEngine:
                                     text_parts.append(cell_text)
             text = " ".join(text_parts) if text_parts else text
         
-        # Zbuduj content - może zawierać tekst i obrazy
+        # Build content - may contain text and images
         content = {
             "text": text,
             "images": images,
-            "content": text  # Dla kompatybilności
+            "content": text  # For compatibility
         }
         
         return {
@@ -1436,18 +1442,20 @@ class LayoutEngine:
 
     def _build_footer(self, element: Any) -> Dict[str, Any]:
         """
-        Buduje blok stopki z obsługą różnych typów elementów.
-        
-        Obsługuje:
-        - Paragrafy z tekstem i obrazami
-        - Tabele
-        - Obrazy
-        - Textboxy
-        - Inne elementy specjalne
+
+        Builds footer block with support for various element types.
+
+        Supports:
+        - Paragraphs with text and images
+        - Tables
+        - Images
+        - Textboxes
+        - Other special elements
+
         """
         style = self.style_bridge.resolve(element, "footer")
         
-        # Pobierz tekst z elementu - obsługa różnych typów
+        # Get text from element - handle various types
         text = ""
         images = []
         textboxes = []
@@ -1575,12 +1583,12 @@ class LayoutEngine:
             else:
                 textboxes.append(_build_textbox_dict(tb_source))
 
-        # Sprawdź czy element ma obrazy na poziomie elementu (nie tylko w runs)
+        # Check if element has images at element level (not just in runs)
         if hasattr(element, "images"):
             images_list = element.images if isinstance(element.images, list) else [element.images] if element.images else []
             images.extend(images_list)
         
-        # Sprawdź czy element ma textboxy
+        # Check if element has textboxes
         if hasattr(element, "textbox") and element.textbox:
             textboxes_list = element.textbox if isinstance(element.textbox, list) else [element.textbox] if element.textbox else []
             for tb_item in textboxes_list:
@@ -1593,7 +1601,7 @@ class LayoutEngine:
         elif hasattr(element, "text"):
             text = str(element.text) if element.text else ""
         elif hasattr(element, "runs"):
-            # Jeśli element ma runs, zbierz tekst, obrazy, pola i textboxy z wszystkich runs
+            # If element has runs, collect text, images, fields and textboxes from all runs
             text_parts = []
             for run in element.runs:
                 # Tekst z run
@@ -1633,13 +1641,13 @@ class LayoutEngine:
                                     "field_type": self._detect_field_type(field_instr)
                                 })
             
-                # Textboxy przypisane bezpośrednio do run
+                # Textboxes assigned directly to run
                 if hasattr(run, "textbox") and run.textbox:
                     _append_textbox(run.textbox)
 
             text = " ".join(text_parts)
         elif hasattr(element, "children"):
-            # Jeśli element ma children, zbierz tekst i obrazy z wszystkich children
+            # If element has children, collect text and images from all children
             text_parts = []
             for child in element.children:
                 if hasattr(child, "get_text"):
@@ -1664,13 +1672,13 @@ class LayoutEngine:
             
             text = " ".join(text_parts)
         
-        # Rozwiąż placeholdery
+        # Resolve placeholders
         if self.resolve_placeholders:
             text = self.placeholder_resolver.resolve_text(text)
         
-        # Jeśli element to tabela, spróbuj wyciągnąć tekst z tabeli
+        # If element is table, try to extract text from table
         if hasattr(element, "rows") or type(element).__name__.lower() == "table":
-            # Dla tabeli, zbierz tekst z wszystkich komórek
+            # For table, collect text from all cells
             text_parts = []
             if hasattr(element, "rows"):
                 for row in element.rows:
@@ -1685,19 +1693,19 @@ class LayoutEngine:
                                 if cell_text:
                                     text_parts.append(cell_text)
                             
-                            # Obrazy z komórek
+                            # Images from cells
                             if hasattr(cell, "images"):
                                 cell_images = cell.images if isinstance(cell.images, list) else [cell.images] if cell.images else []
                                 images.extend(cell_images)
             text = " ".join(text_parts) if text_parts else text
         
-        # Zbuduj content - może zawierać tekst, obrazy, textboxy i pola
+        # Build content - may contain text, images, textboxes and fields
         content = {
             "text": text,
             "images": images,
             "textboxes": textboxes,
             "fields": fields,
-            "content": text  # Dla kompatybilności
+            "content": text  # For compatibility
         }
         
         return {
@@ -1724,17 +1732,17 @@ class LayoutEngine:
         }
     
     # ----------------------------------------------------------------------
-    # Helper methods dla właściwości paginacji
+    # Helper methods for pagination properties
     # ----------------------------------------------------------------------
     def _get_page_break_before(self, element: Any) -> bool:
         """Sprawdza czy element wymaga page-break-before."""
-        # Sprawdź atrybut elementu
+        # Check element attribute
         if hasattr(element, "page_break_before") and element.page_break_before:
             return True
         if hasattr(element, "break_before") and element.break_before == "page":
             return True
         
-        # Sprawdź w stylu
+        # Check in style
         style = getattr(element, "style", {})
         if isinstance(style, dict):
             if style.get("page_break_before") or style.get("break_before") == "page":
@@ -1771,13 +1779,13 @@ class LayoutEngine:
     
     def _get_page_break_after(self, element: Any) -> bool:
         """Sprawdza czy element wymaga page-break-after."""
-        # Sprawdź atrybut elementu
+        # Check element attribute
         if hasattr(element, "page_break_after") and element.page_break_after:
             return True
         if hasattr(element, "break_after") and element.break_after == "page":
             return True
         
-        # Sprawdź w stylu
+        # Check in style
         style = getattr(element, "style", {})
         if isinstance(style, dict):
             if style.get("page_break_after") or style.get("break_after") == "page":

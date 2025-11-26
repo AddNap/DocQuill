@@ -533,7 +533,7 @@ class PDFCompilerRust:
         content: Dict[str, Any],
         block: LayoutBlock,
     ) -> None:
-        # Headers mogą być paragrafem albo bardziej złożonym blokiem
+        # Headers can be paragraph or more complex block
         if isinstance(content, dict):
             layout_payload = content.get("layout_payload") or content.get("_layout_payload")
             if layout_payload and isinstance(layout_payload, dict) and layout_payload.get("lines"):

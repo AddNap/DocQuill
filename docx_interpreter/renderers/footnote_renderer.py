@@ -61,7 +61,7 @@ class FootnoteRenderer:
         Returns:
             Display number or None if not found
         """
-        # Jeśli footnote nie jest zarejestrowany, ale istnieje w self.footnotes, zarejestruj go
+        # If footnote is not registered but exists in self.footnotes, register it...
         if footnote_id not in self.footnote_map and footnote_id in self.footnotes:
             footnote_data = self.footnotes[footnote_id]
             self.register_footnote(footnote_id, footnote_data)
@@ -115,7 +115,7 @@ class FootnoteRenderer:
         
         number = self.get_footnote_number(footnote_id) or "?"
         
-        # Extract content - poprawiona ekstrakcja pełnego tekstu
+        # Extract content - improved full text extraction
         content = ""
         if isinstance(footnote_data, dict):
             content_list = footnote_data.get('content', [])
@@ -124,9 +124,9 @@ class FootnoteRenderer:
                 content_parts = []
                 for para in content_list:
                     if isinstance(para, dict):
-                        # Najpierw spróbuj pobrać pełny tekst paragrafu
+                        # First try to get full paragraph text
                         para_text = para.get('text', '')
-                        # Jeśli nie ma tekstu, zbierz z runs
+                        # If no text, collect from runs
                         if not para_text and para.get('runs'):
                             para_text = ' '.join([
                                 run.get('text', '') 
@@ -151,7 +151,7 @@ class FootnoteRenderer:
         else:
             content = str(footnote_data)
         
-        # Escape HTML w treści
+        # Escape HTML in content
         from html import escape
         content_escaped = escape(content) if content else "[Empty footnote]"
         
@@ -352,7 +352,7 @@ class FootnoteRenderer:
         Returns:
             Display number or None if not found
         """
-        # Jeśli endnote nie jest zarejestrowany, ale istnieje w self.endnotes, zarejestruj go
+        # If endnote is not registered but exists in self.endnotes, register it...
         if endnote_id not in self.endnote_map and endnote_id in self.endnotes:
             endnote_data = self.endnotes[endnote_id]
             self.register_endnote(endnote_id, endnote_data)
@@ -404,7 +404,7 @@ class FootnoteRenderer:
         
         number = self.get_endnote_number(endnote_id) or "?"
         
-        # Extract content - użyj tej samej logiki co dla footnotes
+        # Extract content - use same logic as for footnotes
         content = ""
         if isinstance(endnote_data, dict):
             content_list = endnote_data.get('content', [])

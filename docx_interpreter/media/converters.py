@@ -821,7 +821,7 @@ class MediaConverter:
             
             logger.debug(f"convert_emf_to_png invoked for {'WMF' if is_wmf else 'EMF'} image")
 
-            # WMF: spróbuj konwersji do SVG (najpierw Rust, potem Java, potem Python). Jeśli się nie uda, użyj LibreOffice.
+            # WMF: try conversion to SVG (first Rust, then Java, then Python...)
             if is_wmf:
                 # Use convert_emf_to_svg which tries Rust first, then Java, then Python
                 svg_content = self.convert_emf_to_svg(emf_data)
@@ -856,7 +856,7 @@ class MediaConverter:
                     height_px or 1,
                 )
 
-            # First convert to SVG (preferowana ścieżka dla EMF)
+            # First convert to SVG (preferred path for EMF)
             svg_content = self.convert_emf_to_svg(emf_data)
             if not svg_content:
                 png_from_soffice = self._convert_with_soffice(

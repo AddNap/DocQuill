@@ -1,10 +1,12 @@
 """
-PDFCompiler — produkcyjny renderer layoutu do PDF
--------------------------------------------------
-Przekształca UnifiedLayout w gotowy plik PDF
-z zachowaniem marginesów, header/footer, fontów i stylów.
 
-Może używać Rust renderera (pdf-writer) jako alternatywy dla ReportLab.
+PDFCompiler - production layout renderer to PDF
+-------------------------------------------------
+Transforms UnifiedLayout into ready PDF file
+preserving margins, header/footer, fonts and styles.
+
+Can use Rust renderer (pdf-writer) as alternative to ReportLab.
+
 """
 
 from __future__ import annotations
@@ -233,10 +235,12 @@ logger = logging.getLogger(__name__)
 
 class PDFCompiler:
     """
-    Produkcyjny kompilator PDF z UnifiedLayout.
-    
-    Renderuje wszystkie typy bloków (paragraph, table, image, textbox)
-    z wykorzystaniem TextMetricsEngine, TextAlignmentEngine, KerningEngine i LigatureEngine.
+
+    Production PDF compiler from UnifiedLayout.
+
+    Renders all block types (paragraph, table, image, textbox)
+    using TextMetricsEngine, TextAlignmentEngine, KerningEngine and LigatureEngine.
+
     """
 
     _IMAGE_TARGET_DPI = 192.0  # Prefer higher-than-screen DPI to avoid EMF raster degradation
@@ -255,16 +259,18 @@ class PDFCompiler:
         watermark_opacity: Optional[float] = None,
     ):
         """
-        Inicjalizacja PDFCompiler.
-        
+
+        PDFCompiler initialization.
+
         Args:
-            output_path: Ścieżka do pliku wyjściowego PDF
-            page_size: Rozmiar strony (width, height) w punktach. Jeśli None, używa A4.
-            package_reader: PackageReader do rozwiązywania ścieżek obrazów z relationship_id (opcjonalne)
-            footnote_renderer: FootnoteRenderer do renderowania odwołań do footnotes/endnotes (opcjonalne)
-            parallelism: Liczba procesów używana przy renderowaniu stron (>=1).
-            merge_tmp_dir: Opcjonalny katalog na tymczasowe fragmenty PDF (dla trybu równoległego).
-            use_rust: Jeśli True, używa Rust renderera zamiast ReportLab (wspiera wielowątkowość).
+        output_path: Path to output PDF file
+        page_size: Page size (width, height) in points. If None, uses A4.
+        package_reader: PackageReader for resolving image paths from relationship_id (optional)
+        footnote_renderer: FootnoteRenderer for rendering footnote/endnote references (optional)
+        parallelism: Number of processes used for page rendering (>=1).
+        merge_tmp_dir: Optional directory for temporary PDF fragments (for parallel mode).
+        use_rust: If True, uses Rust renderer instead of ReportLab (supports multithreading).
+
         """
         self.use_rust = use_rust
         
@@ -365,7 +371,7 @@ class PDFCompiler:
         logger.info(f"PDFCompiler zainicjalizowany: output={self.output_path}, page_size={self.page_size}, backend={'Rust' if self.use_rust else 'ReportLab'}, parallelism={self.parallelism}, package_reader={'yes' if package_reader else 'no'}, footnote_renderer={'yes' if footnote_renderer else 'no'}")
     
     # ----------------------------------------------------------------------
-    # Główna metoda kompilacji
+    # Main compilation method
     # ----------------------------------------------------------------------
 
     @staticmethod
@@ -381,21 +387,23 @@ class PDFCompiler:
     
     def compile(self, unified_layout: UnifiedLayout, timings: Optional[Dict[str, List[float]]] = None) -> Path:
         """
-        Główna metoda — renderuje wszystkie strony do PDF.
-        
+
+        Main method - renders all pages to PDF.
+
         Args:
-            unified_layout: UnifiedLayout z gotowym układem dokumentu
-            timings: Opcjonalny słownik do zbierania czasów poszczególnych operacji
-            
+        unified_layout: UnifiedLayout with ready document layout
+        timings: Optional dictionary for collecting operation times
+
         Returns:
-            Path do wygenerowanego pliku PDF
+        Path to generated PDF file
+
         """
         import time
         
         if not unified_layout.pages:
             raise ValueError("UnifiedLayout nie zawiera żadnych stron")
         
-        # Utwórz katalog wyjściowy jeśli potrzeba
+        # Create output directory if needed
         t0 = time.time()
         self.output_path.parent.mkdir(parents=True, exist_ok=True)
         if timings is not None:
@@ -444,12 +452,14 @@ class PDFCompiler:
 
     def _render_sequential_rust(self, unified_layout: UnifiedLayout, start_page_number: Optional[int] = None, timings: Optional[Dict[str, List[float]]] = None) -> None:
         """
-        Renderuj wszystkie strony sekwencyjnie używając Rust renderera.
-        
+
+        Render all pages sequentially using Rust renderer.
+
         Args:
-            unified_layout: UnifiedLayout z stronami do renderowania
-            start_page_number: Opcjonalny offset dla numerów stron
-            timings: Opcjonalny słownik do zbierania czasów poszczególnych operacji
+        unified_layout: UnifiedLayout with pages to render
+        start_page_number: Optional offset for page numbers
+        timings: Optional dictionary for collecting operation times
+
         """
         import time
         import sys
@@ -549,11 +559,13 @@ class PDFCompiler:
 
     def _render_parallel_rust(self, unified_layout: UnifiedLayout, timings: Optional[Dict[str, List[float]]] = None) -> None:
         """
-        Renderuj strony równolegle używając Rust renderera (wielowątkowość).
-        
+
+        Render pages in parallel using Rust renderer (multithreading).
+
         Args:
-            unified_layout: UnifiedLayout z stronami do renderowania
-            timings: Opcjonalny słownik do zbierania czasów poszczególnych operacji
+        unified_layout: UnifiedLayout with pages to render
+        timings: Optional dictionary for collecting operation times
+
         """
         import time
         from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -648,18 +660,20 @@ class PDFCompiler:
 
     def _render_sequential(self, unified_layout: UnifiedLayout, start_page_number: Optional[int] = None, timings: Optional[Dict[str, List[float]]] = None) -> None:
         """
-        Renderuj wszystkie strony sekwencyjnie (pojedynczy proces).
-        
+
+        Render all pages sequentially (single process).
+
         Args:
-            unified_layout: UnifiedLayout z stronami do renderowania
-            start_page_number: Opcjonalny offset dla numerów stron (dla trybu równoległego).
-                              Jeśli None, używa numerów stron z page.number bezpośrednio.
-            timings: Opcjonalny słownik do zbierania czasów poszczególnych operacji
+        unified_layout: UnifiedLayout with pages to render
+        start_page_number: Optional offset for page numbers (for parallel mode).
+        If None, uses page numbers from page.number directly.
+        timings: Optional dictionary for collecting operation times
+
         """
         import time
         
         t0 = time.time()
-        # Użyj rozmiaru strony z pierwszej strony, jeśli dostępny, w przeciwnym razie użyj self.page_size
+        # Use page size from first page if available, otherwise use self.page_size
         first_page_size = self.page_size
         if unified_layout.pages and hasattr(unified_layout.pages[0], 'size'):
             first_page_size = (unified_layout.pages[0].size.width, unified_layout.pages[0].size.height)
@@ -670,17 +684,17 @@ class PDFCompiler:
             timings['render_create_canvas'].append(time.time() - t0)
         
         for page_index, page in enumerate(unified_layout.pages, start=1):
-            # ZAWSZE używaj numeru strony z page.number (ustawiony w pipeline)
-            # page.number zawiera właściwy numer strony z oryginalnego layoutu
-            # Ustaw _current_page_number PRZED wywołaniem _render_page(), aby field codes w header/footer
-            # mogły użyć właściwego numeru strony
+            # ALWAYS use page number from page.number (set in pipeline)
+            # page.number contains proper page number from original layout
+            # Set _current_page_number BEFORE calling _render_page(), so field codes in header/footer
+            # can use proper page number
             if hasattr(page, 'number') and page.number:
                 self._current_page_number = int(page.number)
             else:
-                # Fallback: jeśli page.number nie jest ustawione, użyj pozycji strony w liście
+                # Fallback: if page.number is not set, use page position in list
                 self._current_page_number = page_index
             
-            # Ustaw rozmiar strony dla każdej strony (może się różnić między stronami)
+            # Set page size for each page (may differ between pages)
             if hasattr(page, 'size'):
                 c.setPageSize((page.size.width, page.size.height))
             
@@ -707,11 +721,13 @@ class PDFCompiler:
 
     def _render_parallel(self, unified_layout: UnifiedLayout, timings: Optional[Dict[str, List[float]]] = None) -> None:
         """
-        Renderuj strony w wielu procesach, a następnie scal wynikowe PDF-y.
-        
+
+        Render pages in multiple processes, then merge resulting PDFs.
+
         Args:
-            unified_layout: UnifiedLayout z stronami do renderowania
-            timings: Opcjonalny słownik do zbierania czasów poszczególnych operacji
+        unified_layout: UnifiedLayout with pages to render
+        timings: Optional dictionary for collecting operation times
+
         """
         if not PYPDF2_AVAILABLE:
             raise RuntimeError("PyPDF2 jest wymagany do trybu równoległego renderowania.")
@@ -746,7 +762,7 @@ class PDFCompiler:
                 chunk_path = tmp_dir / f"chunk_{idx}.pdf"
                 tasks.append((indices, str(chunk_path)))
 
-            # Przygotuj współdzielony stan dla procesów potomnych (fork).
+            # Prepare shared state for child processes (fork).
             global _PARALLEL_LAYOUT, _PARALLEL_PAGE_SIZE, _PARALLEL_PACKAGE_READER, _PARALLEL_TOTAL_PAGES
             _PARALLEL_LAYOUT = unified_layout
             _PARALLEL_PAGE_SIZE = self.page_size
@@ -771,7 +787,7 @@ class PDFCompiler:
             merger.close()
 
         finally:
-            # Sprzątanie fragmentów
+            # Cleanup fragments
             if 'chunk_files' in locals():
                 for chunk_file in chunk_files:
                     try:
@@ -815,8 +831,10 @@ class PDFCompiler:
     @staticmethod
     def _resolve_content(content: Any) -> tuple[Any, Optional[Any]]:
         """
-        Rozpakowuje BlockContent do surowego słownika lub payloadu.
-        Zwraca krotkę (raw_content, payload).
+
+        Unpacks BlockContent to raw dictionary or payload.
+        Returns tuple (raw_content, payload).
+
         """
         if isinstance(content, BlockContent):
             raw = content.raw
@@ -920,8 +938,10 @@ class PDFCompiler:
         initial_path: Optional[str],
     ) -> Optional[str]:
         """
-        Upewnia się, że obraz ma ścieżkę do pliku rastrowego (PNG/JPG). 
-        Jeśli obraz jest w formacie EMF/WMF, wykonuje konwersję do PNG.
+
+        Ensures image has path to raster file (PNG/JPG). 
+        If image is in EMF/WMF format, converts to PNG.
+
         """
         rel_id = None
         relationship_source = None
@@ -966,17 +986,17 @@ class PDFCompiler:
             suffix = None
 
         if suffix in {".wmf", ".emf"}:
-            # Najpierw sprawdź cache prekonwertowanych obrazów (z pipeline)
+            # First check preconverted images cache (from pipeline)
             if self.image_cache and rel_id:
                 cached_path = self.image_cache.get(rel_id, wait=True)
                 if cached_path and cached_path.exists():
                     logger.debug(f"Using pre-converted image from cache: {rel_id} -> {cached_path}")
                     return str(cached_path)
                 elif cached_path is None:
-                    # Cache miss - obraz nie został prekonwertowany lub konwersja się nie powiodła
+                    # Cache miss - image was not preconverted or conversion failed
                     logger.debug(f"Cache miss for {rel_id}, will convert synchronously")
             
-            # Fallback: konwertuj teraz (jeśli nie było w cache)
+            # Fallback: convert now (if not in cache)
             if image_bytes is None:
                 image_bytes = load_image_bytes()
             if image_bytes:
@@ -1001,7 +1021,7 @@ class PDFCompiler:
                 )
                 conversion_time = time.time() - t0
                 logger.debug(f"WMF/EMF conversion completed in {conversion_time:.3f}s for {rel_id or candidate_path}")
-                # Zapisz czas konwersji jeśli timings są dostępne (przez atrybut instancji)
+                # Save conversion time if timings are available (via instance attribute)
                 if hasattr(self, '_current_timings') and self._current_timings is not None:
                     if 'image_conversion_wmf_emf' not in self._current_timings:
                         self._current_timings['image_conversion_wmf_emf'] = []
@@ -1198,7 +1218,7 @@ class PDFCompiler:
                 style = dict(style) if isinstance(style, dict) else {}
                 style.update(style_override)
             marker = item.get("marker") if isinstance(item, dict) else None
-            # Dla paragrafów w tabelach sprawdź pagination_segment_index
+            # For paragraphs in tables check pagination_segment_index
             pagination_segment_index = item.get("_pagination_segment_index") if isinstance(item, dict) else None
 
             self._draw_paragraph_from_layout(
@@ -1217,7 +1237,9 @@ class PDFCompiler:
 
     def _resolve_image_path(self, image: Any) -> Optional[str]:
         """
-        Wyciąga ścieżkę obrazu z obiektu/dict i zapewnia konwersję WMF/EMF do PNG.
+
+        Extracts image path from object/dict and ensures WMF/EMF to PNG conversion.
+
         """
         if isinstance(image, dict):
             initial_path = image.get("path") or image.get("src") or image.get("image_path")
@@ -1226,7 +1248,7 @@ class PDFCompiler:
 
         resolved = self._ensure_bitmap_path(image, initial_path)
         if resolved and not Path(resolved).exists():
-            # Jeśli ścieżka nie istnieje, spróbuj utworzyć plik tymczasowy z danych
+            # If path doesn't exist, try to create temp file from data
             rel_id = None
             relationship_source = None
             part_path = None
@@ -1253,9 +1275,11 @@ class PDFCompiler:
         part_path: Optional[str] = None,
     ) -> Optional[bytes]:
         """
-        Ładuje dane obrazu z PackageReader lub systemu plików.
+
+        Loads image data from PackageReader or filesystem.
+
         """
-        # Spróbuj odczytać przez relacje DOCX
+        # Try to read through DOCX relations
         if self.package_reader and rel_id:
             try:
                 relationship = None
@@ -1289,7 +1313,7 @@ class PDFCompiler:
             except Exception as exc:
                 logger.debug(f"Nie udało się załadować obrazu z rel_id {rel_id}: {exc}")
 
-        # Spróbuj bezpośredniej ścieżki z pakietu
+        # Try direct path from package
         if self.package_reader and image_path:
             try:
                 binary = self.package_reader.get_binary_content(image_path)
@@ -1302,7 +1326,7 @@ class PDFCompiler:
             except Exception as exc:
                 logger.debug(f"Nie udało się załadować obrazu {image_path} z pakietu: {exc}")
 
-        # Spróbuj systemu plików
+        # Try filesystem
         if image_path:
             try:
                 path_obj = Path(image_path)
@@ -1315,15 +1339,17 @@ class PDFCompiler:
     
     def _render_page(self, c: canvas.Canvas, page: Any, timings: Optional[Dict[str, List[float]]] = None) -> None:
         """
-        Renderuje pojedynczą stronę.
-        
+
+        Renders single page.
+
         Args:
-            c: ReportLab Canvas
-            page: LayoutPage do renderowania
-            timings: Opcjonalny słownik do zbierania czasów poszczególnych operacji
+        c: ReportLab Canvas
+        page: LayoutPage to render
+        timings: Optional dictionary for collecting operation times
+
         """
         import time
-        # Przekaż timings do _ensure_bitmap_path przez atrybut instancji
+        # Pass timings to _ensure_bitmap_path via instance attribute
         self._current_timings = timings
         
         if hasattr(page, "number"):
@@ -1345,15 +1371,15 @@ class PDFCompiler:
         # c.setLineWidth(0.5)
         # c.rect(0, 0, width, height)
         
-        # Renderuj bloki w kolejności
-        # Najpierw renderuj headers i footers, potem resztę
-        # Sprawdź czy blok jest w headerze/footerze na podstawie block_type i content
+        # Render blocks in order
+        # First render headers and footers, then the rest
+        # Check if block is in header/footer based on block_type and content
         header_blocks = []
         footer_blocks = []
         body_blocks = []
-        watermark_blocks = []  # Watermarks są renderowane jako pierwsze
+        watermark_blocks = []  # Watermarks are rendered first
         
-        # Sprawdź czy strona powinna pomijać nagłówki i stopki
+        # Check if page should skip headers and footers
         skip_headers_footers = getattr(page, 'skip_headers_footers', False)
         
         # Profile block sorting and content resolution
@@ -1361,7 +1387,7 @@ class PDFCompiler:
         t0_resolve_content = 0.0
         resolve_content_count = 0
         for block in page.blocks:
-            # Sprawdź czy blok jest w headerze/footerze na podstawie typu lub kontekstu
+            # Check if block is in header/footer based on type or context
             t0_resolve = time.time()
             content_value, _ = self._resolve_content(block.content)
             t0_resolve_content += time.time() - t0_resolve
@@ -1371,14 +1397,14 @@ class PDFCompiler:
             
             # Wykryj watermarks: textboxy z pozycjonowaniem absolutnym w headerach
             is_watermark = False
-            # Sprawdź czy blok jest oznaczony jako watermark
+            # Check if block is marked as watermark
             if content.get("is_watermark") or block.block_type == "textbox" and header_footer_context == "header":
-                # Sprawdź czy textbox ma pozycjonowanie absolutne (anchor)
+                # Check if textbox has absolute positioning (anchor)
                 anchor_info = content.get("anchor_info") or {}
                 anchor_type = anchor_info.get("anchor_type", "")
                 position = anchor_info.get("position", {})
                 
-                # Jeśli to anchor (pozycjonowanie absolutne) lub jest oznaczony jako watermark, traktuj jako watermark
+                # If anchor (absolute positioning) or marked as watermark, treat as watermark
                 if content.get("is_watermark") or anchor_type == "anchor" or position:
                     is_watermark = True
             
@@ -1386,19 +1412,19 @@ class PDFCompiler:
                 watermark_blocks.append(block)
                 continue
             
-            # Jeśli strona ma pomijać nagłówki i stopki, nie dodawaj ich do list
+            # If page should skip headers and footers, don't add them to lists
             if skip_headers_footers:
                 if block.block_type == "header" or header_footer_context == "header":
-                    continue  # Pomiń nagłówki
+                    continue  # Skip headers
                 elif block.block_type == "footer" or header_footer_context == "footer":
-                    continue  # Pomiń stopki
+                    continue  # Skip footers
             
             if block.block_type == "header" or header_footer_context == "header":
                 header_blocks.append(block)
             elif block.block_type == "footer" or header_footer_context == "footer":
                 footer_blocks.append(block)
             elif block.block_type == "footnotes":
-                # Footnotes są renderowane po footer, ale przed końcem strony
+                # Footnotes are rendered after footer, but before page end
                 footer_blocks.append(block)  # Dodaj do footer_blocks, ale renderuj przed footer
             else:
                 body_blocks.append(block)
@@ -1427,8 +1453,8 @@ class PDFCompiler:
                 timings['render_watermarks'] = []
             timings['render_watermarks'].append(time.time() - t0)
         
-        # Renderuj w kolejności: headers, body, footnotes, footers
-        # Najpierw wyodrębnij footnotes z footer_blocks
+        # Render in order: headers, body, footnotes, footers
+        # First extract footnotes from footer_blocks
         footnote_blocks = [b for b in footer_blocks if b.block_type == "footnotes"]
         actual_footer_blocks = [b for b in footer_blocks if b.block_type != "footnotes"]
         
@@ -1442,7 +1468,7 @@ class PDFCompiler:
         
         for block in header_blocks:
             try:
-                # Sprawdź faktyczny typ bloku w content
+                # Check actual block type in content
                 content_value, _ = self._resolve_content(block.content)
                 content = content_value if isinstance(content_value, dict) else {}
                 block_type = content.get("type") or block.block_type
@@ -1492,7 +1518,7 @@ class PDFCompiler:
                 timings['render_headers_other'] = []
             timings['render_headers_other'].append(header_other_time)
         
-        # Wyodrębnij endnotes z body_blocks (są renderowane jako osobne bloki)
+        # Extract endnotes from body_blocks (rendered as separate blocks)
         endnote_blocks = [b for b in body_blocks if b.block_type == "endnotes"]
         actual_body_blocks = [b for b in body_blocks if b.block_type != "endnotes"]
         
@@ -1525,7 +1551,7 @@ class PDFCompiler:
                         self._draw_generic(c, block)
             except Exception as e:
                 logger.warning(f"Błąd podczas renderowania bloku {block.block_type}: {e}")
-                # Renderuj prosty placeholder w przypadku błędu
+                # Render simple placeholder in case of error
                 self._draw_error_placeholder(c, block, str(e))
         if timings is not None:
             if 'render_body_total' not in timings:
@@ -1576,7 +1602,7 @@ class PDFCompiler:
         t0 = time.time()
         for block in actual_footer_blocks:
             try:
-                # Sprawdź faktyczny typ bloku w content
+                # Check actual block type in content
                 content_value, _ = self._resolve_content(block.content)
                 content = content_value if isinstance(content_value, dict) else {}
                 block_type = content.get("type") or block.block_type
@@ -1601,11 +1627,11 @@ class PDFCompiler:
                 timings['render_footers'] = []
             timings['render_footers'].append(time.time() - t0)
         
-        # Wyczyść _current_timings
+        # Clear _current_timings
         self._current_timings = None
     
     # ----------------------------------------------------------------------
-    # Renderowanie bloków
+    # Block rendering
     # ----------------------------------------------------------------------
     
     def _draw_paragraph(self, c: canvas.Canvas, block: LayoutBlock) -> None:
@@ -1621,11 +1647,11 @@ class PDFCompiler:
             style = {}
         rect = block.frame
 
-        # Pobierz tekst i payload z content (przed rysowaniem tła, aby znać pełny zakres)
+        # Get text and payload from content (before drawing background to know full extent)
         content_value, payload_candidate = self._resolve_content(block.content)
         marker = content_value.get("marker") if isinstance(content_value, dict) else None
         header_footer_context = content_value.get("header_footer_context") if isinstance(content_value, dict) else None
-        # Sprawdź, czy to pierwszy segment paragrafu (dla markerów numeracji)
+        # Check if this is first paragraph segment (for numbering markers)
         pagination_segment_index = content_value.get("_pagination_segment_index") if isinstance(content_value, dict) else None
 
         paragraph_payload: Optional[ParagraphLayout] = None
@@ -1647,7 +1673,7 @@ class PDFCompiler:
                     frame_width = float(frame_info.get("width", rect.width))
                     frame_height = float(frame_info.get("height", rect.height))
                     paint_rect = Rect(frame_x, rect.y, frame_width, frame_height)
-                    # Dopasuj wysokość, jeśli dostępna w metadanych
+                    # Adjust height if available in metadata
                     if frame_height:
                         paint_rect.height = frame_height
                 except (TypeError, ValueError):
@@ -1707,11 +1733,11 @@ class PDFCompiler:
         else:
             text = str(content_value) if isinstance(content_value, (int, float)) else ""
         
-        # Renderuj obrazy jeśli są
+        # Render images if present
         if images:
             for img in images:
                 try:
-                    # Pobierz ścieżkę obrazu
+                    # Get image path
                     img_path = self._resolve_image_path(img)
                     if not img_path:
                         logger.debug(f"Image in paragraph could not be resolved: {img}")
@@ -1728,31 +1754,31 @@ class PDFCompiler:
                     elif hasattr(img, 'height'):
                         img_height = img.height
                     
-                    # Oblicz dostępny obszar dla obrazu
+                    # Calculate available area for image
                     available_width = rect.width
                     available_height = rect.height
                     
-                    # Jeśli nie ma wymiarów, użyj dostępnego obszaru
+                    # If no dimensions, use available area
                     if img_width is None or img_height is None:
                         render_width = available_width
                         render_height = available_height
                     else:
-                        # Konwertuj z EMU na punkty jeśli potrzeba
+                        # Convert from EMU to points if needed
                         from ..geometry import emu_to_points
                         if img_width > 10000:  # Prawdopodobnie EMU
                             img_width = emu_to_points(img_width)
                         if img_height > 10000:  # Prawdopodobnie EMU
                             img_height = emu_to_points(img_height)
                         
-                        # Skaluj obraz do dostępnego obszaru zachowując proporcje
+                        # Scale image to available area preserving aspect ratio
                         scale_w = available_width / img_width if img_width > 0 else 1.0
                         scale_h = available_height / img_height if img_height > 0 else 1.0
-                        scale = min(scale_w, scale_h, 1.0)  # Nie powiększaj
+                        scale = min(scale_w, scale_h, 1.0)  # Don't enlarge
                         
                         render_width = img_width * scale
                         render_height = img_height * scale
                     
-                    # Pozycja obrazu (wyśrodkowany w paragrafie)
+                    # Image position (centered in paragraph)
                     img_x = rect.x + (available_width - render_width) / 2
                     img_y = rect.y + (available_height - render_height) / 2
                     
@@ -1787,15 +1813,15 @@ class PDFCompiler:
             c.setFillColor(black)
             c.setFont("Helvetica", font_size)
         
-        # Layout tekstu z użyciem TextMetricsEngine
+        # Text layout using TextMetricsEngine
         try:
-            # Upewnij się że style jest dict
+            # Ensure style is dict
             if not isinstance(style, dict):
                 style = {}
             layout: TextLayout = self.metrics.layout_text(text, style, rect.width)
         except Exception as e:
             logger.warning(f"Błąd layoutowania tekstu: {e}, używam prostego podziału")
-            # Fallback: prosty podział na linie
+            # Fallback: simple line splitting
             words = text.split()
             lines = []
             current_line = []
@@ -1835,13 +1861,13 @@ class PDFCompiler:
                 y_cursor -= line_height
                 continue
             
-            # Oblicz szerokość tekstu
+            # Calculate text width
             try:
                 text_width = self.metrics.measure_text(line, style)["width"]
             except Exception:
                 text_width = c.stringWidth(line, font_name, font_size)
             
-            # Oblicz pozycję X z użyciem TextAlignmentEngine
+            # Calculate X position using TextAlignmentEngine
             x = self.aligner.calculate_text_position(rect, text_width, style)
             
             # Renderuj tekst
@@ -1850,7 +1876,9 @@ class PDFCompiler:
 
     def _draw_decorator(self, c: canvas.Canvas, block: LayoutBlock) -> None:
         """
-        Renderuje blok dekoratora (tło/border/shadow) wspólny dla grupy paragrafów.
+
+        Renders decorator block (background/border/shadow) common for paragraph group.
+
         """
         style = block.style or {}
         if not isinstance(style, dict):
@@ -1901,7 +1929,9 @@ class PDFCompiler:
         pagination_segment_index: Optional[int] = None,
     ) -> None:
         """
-        Renderuje paragraf bazując na gotowym ParagraphLayout (bez ponownego layoutowania).
+
+        Renders paragraph based on ready ParagraphLayout (without re-layouting).
+
         """
         import time
         t0_func = time.perf_counter()
@@ -1923,7 +1953,7 @@ class PDFCompiler:
             or payload.metadata.get("raw_style", {}).get("font_size")
             or 11.0
         )
-        # Użyj normalize_font_size do konwersji half-points na points (tak samo jak w tekście paragrafu)
+        # Use normalize_font_size to convert half-points to points (same as in paragraph text)
         try:
             from ..assembler.utils import normalize_font_size
             default_font_size = normalize_font_size(default_font_size_value) or 11.0
@@ -1949,10 +1979,10 @@ class PDFCompiler:
         if payload.lines:
             first_line_baseline = text_top - payload.lines[0].baseline_y
 
-        # Narysuj marker listy (jeśli istnieje) - tylko dla pierwszego segmentu paragrafu
-        # Marker powinien być renderowany tylko, gdy:
+        # Draw list marker (if exists) - only for first paragraph segment
+        # Marker should be rendered only when:
         # - pagination_segment_index jest None (nie jest segmentowany paragraf) LUB
-        # - pagination_segment_index jest równy 0 (pierwszy segment)
+        # - pagination_segment_index equals 0 (first segment)
         should_render_marker = marker and (pagination_segment_index is None or pagination_segment_index == 0)
         if should_render_marker:
             marker_text = (
@@ -1995,7 +2025,7 @@ class PDFCompiler:
                 or marker.get("font_ascii")
                 or default_font_name
             )
-            # Wymuś używanie font_size z pierwszego runu tekstu w paragrafie dla markera
+            # Force using font_size from first text run in paragraph for marker
             # Pobierz font_size z pierwszego runu tekstu w pierwszej linii
             marker_font_size = default_font_size
             if payload.lines and len(payload.lines) > 0:
@@ -2015,7 +2045,7 @@ class PDFCompiler:
                             except (TypeError, ValueError):
                                 first_run_font_size = default_font_size
                         marker_font_size = first_run_font_size
-                        break  # Użyj font_size z pierwszego runu tekstu
+                        break  # Use font_size from first text run
             
             
             marker_color_value = marker.get("color") or default_color_value
@@ -2029,7 +2059,7 @@ class PDFCompiler:
             if marker_text:
                 c.drawString(float(marker_x), marker_baseline, marker_text)
 
-        # Ustaw domyślne wartości dla dalszego renderingu
+        # Set default values for further rendering
         c.setFillColor(default_color)
         try:
             c.setFont(default_font_name, default_font_size)
@@ -2082,8 +2112,8 @@ class PDFCompiler:
             for inline in line.items:
                 line_content_width = max(line_content_width, inline.x + inline.width)
             
-            # Dla komórek tabeli, użyj rect.width (które uwzględnia padding komórki) zamiast line.available_width
-            # line.available_width może nie uwzględniać paddingu komórki, jeśli payload został utworzony przed obliczeniem paddingu
+            # For table cells, use rect.width (which accounts for cell padding) instead of line.available_width
+            # line.available_width may not account for cell padding if payload was created before padding calculation
             effective_available_width = max(rect.width, line.available_width)
             extra_space_total = max(effective_available_width - line_content_width, 0.0)
 
@@ -2136,10 +2166,10 @@ class PDFCompiler:
                     data = inline.data or {}
                     if inline.kind == "field":
                         text = self._resolve_field_text(data.get("field"))
-                        # Dla field codes, użyj faktycznej szerokości tekstu zamiast inline.width
-                        # aby uniknąć zbyt dużych odstępów
+                        # For field codes, use actual text width instead of inline.width
+                        # to avoid too large gaps
                         if text:
-                            # Oblicz faktyczną szerokość tekstu field code
+                            # Calculate actual field code text width
                             run_style_temp = data.get("style") or {}
                             font_name_temp = self._select_font_variant(
                                 run_style_temp.get("font_name")
@@ -2158,18 +2188,18 @@ class PDFCompiler:
                                 except (TypeError, ValueError):
                                     font_size_temp = default_font_size
                             
-                            # Oblicz faktyczną szerokość tekstu
+                            # Calculate actual text width
                             try:
                                 actual_width = c.stringWidth(text, font_name_temp, font_size_temp)
-                                # Zapisz różnicę między szacowaną a faktyczną szerokością
+                                # Save difference between estimated and actual width
                                 width_diff = actual_width - inline.width
-                                if abs(width_diff) > 0.1:  # Tylko jeśli różnica jest znacząca
-                                    # Zaktualizuj inline.width na faktyczną szerokość
+                                if abs(width_diff) > 0.1:  # Only if difference is significant
+                                    # Update inline.width to actual width
                                     inline.width = actual_width
-                                    # Dostosuj cumulative_extra, aby następne runy były przesunięte o różnicę
+                                    # Adjust cumulative_extra so next runs are shifted by the difference
                                     cumulative_extra += width_diff
                             except Exception:
-                                # Fallback: użyj oryginalnej szerokości
+                                # Fallback: use original width
                                 pass
                     else:
                         text = data.get("text") or data.get("display") or ""
@@ -2204,12 +2234,12 @@ class PDFCompiler:
                         run_style,
                     )
                     
-                    # Sprawdź czy to superscript/subscript PRZED pobraniem font_size
+                    # Check if superscript/subscript BEFORE getting font_size
                     is_superscript = run_style.get("superscript") or data.get("superscript")
                     is_subscript = run_style.get("subscript") or data.get("subscript")
                     
                     font_size_val = run_style.get("font_size") or run_style.get("size") or default_font_size
-                    # Użyj normalize_font_size do konwersji half-points na points
+                    # Use normalize_font_size to convert half-points to points
                     try:
                         from ..assembler.utils import normalize_font_size
                         font_size = normalize_font_size(font_size_val) or default_font_size
@@ -2220,13 +2250,13 @@ class PDFCompiler:
                             font_size = default_font_size
                     
                     
-                    # Jeśli font_size wygląda na zmniejszony (np. < 70% default_font_size) i mamy superscript/subscript,
-                    # to prawdopodobnie został już zmniejszony wcześniej - przywróć oryginalny rozmiar
-                    # W footnotes używamy ORYGINALNEGO font_size runu (nie zmniejszonego)
+                    # If font_size looks reduced (e.g. < 70% default_font_size) and we have superscript/subscript,
+                    # it was probably already reduced earlier - restore original size
+                    # In footnotes we use ORIGINAL run font_size (not reduced)
                     if (is_superscript or is_subscript) and font_size < default_font_size * 0.7:
-                        # Font_size został prawdopodobnie już zmniejszony, przywróć oryginalny (tak jak w footnotes)
+                        # Font_size was probably already reduced, restore original (like in footnotes)
                         original_font_size = font_size / 0.58
-                        # Nie zmniejszaj ponownie - już jest zmniejszony
+                        # Don't reduce again - already reduced
                         # font_size pozostaje bez zmian
                     else:
                         # Zapisz oryginalny font_size przed zmniejszeniem (dla obliczenia baseline_shift)
@@ -2242,16 +2272,16 @@ class PDFCompiler:
                     )
                     fill_color = self._color_to_reportlab(color_value, default_color_value)
 
-                    # Oblicz baseline_shift tak samo jak w footnotes (używając oryginalnego font_size)
-                    # W footnotes używamy: superscript_baseline_shift = font_size * 0.33 (gdzie font_size to oryginalny rozmiar)
+                    # Calculate baseline_shift same as in footnotes (using original font_size)
+                    # In footnotes we use: superscript_baseline_shift = font_size * 0.33 (where font_size is original size)
                     if is_superscript:
-                        # Zawsze użyj tego samego obliczenia co w footnotes: 0.33 * original_font_size
+                        # Always use same calculation as in footnotes: 0.33 * original_font_size
                         baseline_shift = original_font_size * 0.33
                     elif is_subscript:
-                        # Dla subscript przesunięcie w dół
+                        # For subscript shift down
                         baseline_shift = -original_font_size * 0.25
                     else:
-                        # Dla normalnego tekstu użyj baseline_shift z data (jeśli istnieje)
+                        # For normal text use baseline_shift from data (if exists)
                         baseline_shift = data.get("baseline_shift", 0.0)
                     
                     run_baseline = baseline_y + baseline_shift
@@ -2260,13 +2290,13 @@ class PDFCompiler:
                     if apply_justification and word_spacing_delta > 0.0:
                         space_multiplier = int(data.get("space_count") or 0)
                         if space_multiplier:
-                            # Dla superscript/subscript spacje powinny mieć zmniejszoną szerokość
+                            # For superscript/subscript spaces should have reduced width
                             # (proporcjonalnie do zmniejszonego font_size)
                             if is_superscript or is_subscript:
-                                # Zmniejsz szerokość spacji proporcjonalnie do zmniejszonego font_size
-                                # font_size jest już zmniejszony (0.58 * original), więc spacje też powinny być mniejsze
+                                # Reduce space width proportionally to reduced font_size
+                                # font_size is already reduced (0.58 * original), so spaces should also be smaller
                                 # Ale word_spacing_delta jest obliczony dla normalnego font_size,
-                                # więc musimy go przeskalować
+                                # so we need to scale it
                                 space_scale_factor = 0.58  # Tak samo jak zmniejszenie font_size
                                 extra_width = word_spacing_delta * space_multiplier * space_scale_factor
                             else:
@@ -2334,7 +2364,7 @@ class PDFCompiler:
                         finally:
                             c.restoreState()
                     
-                    # Renderuj odwołania do footnotes/endnotes
+                    # Render footnote/endnote references
                     footnote_refs = data.get("footnote_refs") or run_style.get("footnote_refs", [])
                     endnote_refs = data.get("endnote_refs") or run_style.get("endnote_refs", [])
                     
@@ -2346,10 +2376,10 @@ class PDFCompiler:
                                 footnote_refs = [footnote_refs]
                             elif not isinstance(footnote_refs, list):
                                 footnote_refs = []
-                            # Pobierz numery z footnote_renderer jeśli dostępny
+                            # Get numbers from footnote_renderer if available
                             for ref_id in footnote_refs:
-                                ref_number = str(ref_id)  # Fallback: użyj ID
-                                # Spróbuj pobrać numer z renderera jeśli dostępny
+                                ref_number = str(ref_id)  # Fallback: use ID
+                                # Try to get number from renderer if available
                                 if self.footnote_renderer:
                                     try:
                                         num = self.footnote_renderer.get_footnote_number(str(ref_id))
@@ -2377,36 +2407,36 @@ class PDFCompiler:
                         
                         if ref_numbers:
                             # Renderuj numery jako superskrypt (np. "1", "2")
-                            # W DOCX odwołania do footnotes są domyślnie jako superscript
-                            ref_text = "".join([str(n) for n in ref_numbers])  # Bez spacji, bezpośrednio po tekście
+                            # In DOCX footnote references are by default superscript
+                            ref_text = "".join([str(n) for n in ref_numbers])  # No spaces, directly after text
                             
-                            # Superscript: mniejszy font (około 58-60% rozmiaru) i wyżej (około 33% font_size)
+                            # Superscript: smaller font (about 58-60% size) and higher (about 33% font_size)
                             ref_font_size = font_size * 0.58  # Standardowy rozmiar superscript
                             superscript_baseline_shift = font_size * 0.33  # Standardowy baseline shift dla superscript
-                            ref_spacing = 1.0  # Odstęp między tekstem a indeksem
+                            ref_spacing = 1.0  # Spacing between text and index
                             
                             c.saveState()
                             try:
                                 c.setFont(font_name, ref_font_size)
                                 c.setFillColor(fill_color)
                                 
-                                # Jeśli run nie ma tekstu (tylko footnote_refs), renderuj indeks bezpośrednio na item_x
-                                # W przeciwnym razie renderuj po tekście
+                                # If run has no text (only footnote_refs), render index directly at item_x
+                                # Otherwise render after text
                                 if not text or text.strip() == "":
-                                    # Run z tylko footnote_refs - renderuj indeks bezpośrednio na pozycji runu
+                                    # Run with only footnote_refs - render index directly at run position
                                     ref_x = item_x
                                 else:
-                                    # Run z tekstem - renderuj indeks po tekście
-                                    # Szerokość indeksu jest już uwzględniona w inline.width przez assembler
-                                    ref_x = item_x + effective_width + ref_spacing  # Odstęp po tekście
+                                    # Run with text - render index after text
+                                    # Index width is already included in inline.width by assembler
+                                    ref_x = item_x + effective_width + ref_spacing  # Spacing after text
                                 
                                 ref_y = run_baseline + superscript_baseline_shift  # Baseline shift dla superscript
                                 c.drawString(ref_x, ref_y, ref_text)
                             finally:
                                 c.restoreState()
                             
-                            # Szerokość indeksu jest już uwzględniona w inline.width przez assembler,
-                            # więc nie trzeba dodawać do cumulative_extra
+                            # Index width is already included in inline.width by assembler,
+                            # so no need to add to cumulative_extra
 
                     cumulative_extra += extra_width
 
@@ -2460,7 +2490,7 @@ class PDFCompiler:
                             {},
                             None,
                             header_footer_context,
-                            pagination_segment_index=None,  # Textboxy inline nie są segmentowane
+                            pagination_segment_index=None,  # Inline textboxes are not segmented
                         )
             
             # End of inline items loop - measure time
@@ -2471,7 +2501,7 @@ class PDFCompiler:
         
         total_lines_time = time.perf_counter() - t0_lines
 
-        # Przywróć domyślny kolor
+        # Restore default color
         c.setFillColor(default_color)
 
         if payload.overlays:
@@ -2552,7 +2582,7 @@ class PDFCompiler:
                         textbox_style,
                         None,
                         header_footer_context,
-                        pagination_segment_index=None,  # Overlay nie są segmentowane
+                        pagination_segment_index=None,  # Overlays are not segmented
                     )
                 else:
                     textbox_style = overlay_payload.get("style") or {}
@@ -2566,14 +2596,16 @@ class PDFCompiler:
                     self._draw_textbox(c, textbox_block)
     def _parse_cell_margins(self, cell: Any, default_margin: float = 0.0) -> Dict[str, float]:
         """
-        Parsuje marginesy komórki z DOCX (twips) na punkty.
-        
+
+        Parses cell margins from DOCX (twips) to points.
+
         Args:
-            cell: Komórka (może być dict, string, lub obiekt TableCell)
-            default_margin: Domyślny margines w punktach (jeśli nie ma określonych marginesów)
-            
+        cell: Cell (can be dict, string, or TableCell object)
+        default_margin: Default margin in points (if no margins specified)
+
         Returns:
-            Dict z marginesami: {"top": float, "bottom": float, "left": float, "right": float}
+        Dict with margins: {"top": float, "bottom": float, "left": float, "right": float}
+
         """
         margins = {
             "top": default_margin,
@@ -2582,7 +2614,7 @@ class PDFCompiler:
             "right": default_margin
         }
         
-        # Pobierz marginesy z komórki
+        # Get margins from cell
         cell_margins = None
         if hasattr(cell, 'cell_margins'):
             cell_margins = cell.cell_margins
@@ -2591,9 +2623,9 @@ class PDFCompiler:
         elif isinstance(cell, dict):
             cell_margins = cell.get("margins") or cell.get("cell_margins")
         
-        # Jeśli nie ma marginesów w komórce, sprawdź w style/styles
+        # If no margins in cell, check in style/styles
         if not cell_margins:
-            # Sprawdź cell.styles (z parsera) - parser zapisuje margins w styles['margins']
+            # Check cell.styles (from parser) - parser saves margins in styles['margins']
             if isinstance(cell, dict):
                 cell_styles = cell.get("styles", {})
                 if isinstance(cell_styles, dict):
@@ -2602,7 +2634,7 @@ class PDFCompiler:
                 cell_styles = cell.styles if isinstance(cell.styles, dict) else {}
                 cell_margins = cell_styles.get("margins")
             
-            # Jeśli nadal nie ma, sprawdź w cell.style (ze style_bridge)
+            # If still none, check in cell.style (from style_bridge)
             if not cell_margins:
                 cell_style = {}
                 if hasattr(cell, 'style'):
@@ -2638,7 +2670,7 @@ class PDFCompiler:
                 else:
                     raw_value = margin_data
                 
-                # Jeśli raw_value jest pustym stringiem lub None, pomiń
+                # If raw_value is empty string or None, skip
                 if raw_value in (None, "", {}, "auto"):
                     continue
                 
@@ -2650,16 +2682,16 @@ class PDFCompiler:
                     continue
                 
                 # Konwertuj z twips na punkty
-                # W DOCX, tcMar zawsze używa dxa (twips), więc jeśli unit jest pusty, ale wartość jest duża (>50), to prawdopodobnie to twips
+                # In DOCX, tcMar always uses dxa (twips), so if unit is empty but value is large (>50), it's probably twips
                 if unit in {"dxa", "twip", "twips"}:
                     numeric = twips_to_points(numeric)
                 elif unit == "pt" or unit == "point" or unit == "points":
-                    # Już w punktach
+                    # Already in points
                     pass
                 elif not unit and abs(numeric) > 50:
-                    # Prawdopodobnie twips (typowe wartości to 100-500 twips = 5-25 pt)
+                    # Probably twips (typical values are 100-500 twips = 5-25 pt)
                     numeric = twips_to_points(numeric)
-                # Jeśli unit jest pusty i wartość jest mała, zakładamy że to już punkty
+                # If unit is empty and value is small, assume it's already points
                 
                 side_key = margin_map.get(margin_key.lower(), margin_key.lower())
                 if side_key in margins:
@@ -2829,11 +2861,13 @@ class PDFCompiler:
 
     def _draw_table(self, c: canvas.Canvas, block: LayoutBlock) -> None:
         """
-        Renderuje tabelę jako prostokąty i tekst w komórkach.
-        
+
+        Renders table as rectangles and text in cells.
+
         Args:
-            c: ReportLab Canvas
-            block: LayoutBlock typu "table"
+        c: ReportLab Canvas
+        block: LayoutBlock of type "table"
+
         """
         rect = block.frame
         content_value, _payload = self._resolve_content(block.content)
@@ -2914,11 +2948,11 @@ class PDFCompiler:
         table_has_borders = bool(table_borders_style)
         draw_default_cell_grid = False
 
-        # Debug: sprawdź czy to tabela z footer/header
+        # Debug: check if this is table from footer/header
         if hasattr(block, 'page_number'):
             logger.debug(f"Rendering table on page {block.page_number}, block_type: {block.block_type}")
         
-        # Renderuj background i border dla całej tabeli
+        # Render background and border for entire table
         try:
             draw_background(c, rect, style)
             draw_border(c, rect, style)
@@ -2939,7 +2973,7 @@ class PDFCompiler:
         cell_padding = float(style.get("cell_padding", 0.0))
         default_row_height = float(style.get("row_height", 18.0))
         
-        # Konwertuj wiersze na listy komórek
+        # Convert rows to cell lists
         processed_rows: List[List[Any]] = []
         row_styles: List[Dict[str, Any]] = []
         for row in rows:
@@ -2948,7 +2982,7 @@ class PDFCompiler:
                 processed_rows.append(list(row))
                 row_styles.append({})
             elif isinstance(row, dict):
-                # Dla dict, sprawdź czy ma cells
+                # For dict, check if has cells
                 row_style = row.get("style") if isinstance(row.get("style"), dict) else {}
                 if "cells" in row:
                     cells = row["cells"]
@@ -2959,7 +2993,7 @@ class PDFCompiler:
                         processed_rows.append([cells])
                         row_styles.append(row_style)
                 else:
-                    # Może być bezpośrednio listą komórek
+                    # May be directly a list of cells
                     processed_rows.append([row])
                     row_styles.append(row_style)
             elif hasattr(row, "cells"):
@@ -2977,23 +3011,23 @@ class PDFCompiler:
         
         rows = processed_rows
         
-        # Debug: sprawdź pierwsze wiersze tabeli
+        # Debug: check first rows of table
         if len(rows) > 0:
             logger.debug(f"Table has {len(rows)} rows, first row has {len(rows[0])} cells")
         
-        # Spróbuj pobrać wcześniej obliczone wysokości wierszy i szerokości kolumn z LayoutAssembler
+        # Try to get previously calculated row heights and column widths from LayoutAssembler
         layout_info = content.get("layout_info", {})
         row_heights = layout_info.get("row_heights")
         col_widths = layout_info.get("col_widths")
         
-        # Jeśli nie ma zapisanych wysokości, oblicz je (fallback)
+        # If no saved heights, calculate them (fallback)
         if row_heights is None or len(row_heights) != len(rows):
-            # Oblicz szerokość kolumn (równe)
+            # Calculate column widths (equal)
             num_cols = max(len(row) for row in rows) if rows else 1
             col_width = rect.width / num_cols if num_cols > 0 else rect.width
             col_widths = [col_width] * num_cols
             
-            # Oblicz wysokość każdego wiersza na podstawie zawartości komórek
+            # Calculate height of each row based on cell contents
             # row_height = max(min_row_height, max(cell.height for cell in row))
             min_row_height = default_row_height
             row_heights = []
@@ -3002,7 +3036,7 @@ class PDFCompiler:
                 cells = row if isinstance(row, list) else [row]
                 
                 for cell in cells:
-                    # Pobierz tekst komórki
+                    # Get cell text
                     cell_text = ""
                     if hasattr(cell, 'get_text'):
                         cell_text = cell.get_text()
@@ -3011,34 +3045,34 @@ class PDFCompiler:
                     else:
                         cell_text = str(cell)
                     
-                    # Pobierz style komórki
+                    # Get cell styles
                     cell_style = {}
                     if hasattr(cell, 'style'):
                         cell_style = cell.style if isinstance(cell.style, dict) else {}
                     elif isinstance(cell, dict):
                         cell_style = cell.get("style", {})
                     
-                    # Sprawdź czy komórka ma określoną wysokość
+                    # Check if cell has specified height
                     cell_height = None
                     if hasattr(cell, 'height') and cell.height is not None:
                         cell_height = float(cell.height)
                     elif isinstance(cell, dict) and 'height' in cell:
                         cell_height = float(cell.get("height"))
                     
-                    # Jeśli nie ma określonej wysokości, oblicz na podstawie tekstu
+                    # If no specified height, calculate based on text
                     if cell_height is None:
                         if cell_text:
                             try:
-                                # Użyj szerokości odpowiedniej kolumny
+                                # Use width of appropriate column
                                 cell_col_width = col_widths[cell_idx] if cell_idx < len(col_widths) else col_widths[0] if col_widths else rect.width / len(cells)
-                                # Użyj style z komórki lub style tabeli jako fallback
+                                # Use style from cell or table style as fallback
                                 cell_text_style = {**style, **cell_style}
                                 text_layout: TextLayout = self.metrics.layout_text(
                                     cell_text,
                                     cell_text_style,
                                     cell_col_width - 2 * cell_padding,
                                 )
-                                # Wysokość komórki = liczba linii * line_height + padding
+                                # Cell height = number of lines * line_height + padding
                                 cell_height = len(text_layout.lines) * text_layout.line_height + (2 * cell_padding)
                             except Exception as e:
                                 logger.debug(f"Błąd obliczania wysokości komórki: {e}, używam domyślnej")
@@ -3048,7 +3082,7 @@ class PDFCompiler:
                                 lines = max(1, len(cell_text.splitlines()))
                                 cell_height = lines * cell_font_size * cell_line_spacing + (2 * cell_padding)
                         else:
-                            # Pusta komórka - użyj minimalnej wysokości
+                            # Empty cell - use minimum height
                             cell_height = min_row_height
                 
                     if cell_height is not None:
@@ -3059,23 +3093,23 @@ class PDFCompiler:
                 row_height = max(min_row_height, max_cell_height)
                 row_heights.append(row_height)
         else:
-            # Użyj zapisanych wartości z LayoutAssembler
+            # Use saved values from LayoutAssembler
             if col_widths is None or len(col_widths) == 0:
-                # Fallback: równomierny podział
+                # Fallback: even distribution
                 num_cols = max(len(row) for row in rows) if rows else 1
                 col_width = rect.width / num_cols if num_cols > 0 else rect.width
                 col_widths = [col_width] * num_cols
             
-            # Skaluj szerokości kolumn, jeśli suma nie pasuje do szerokości tabeli
+            # Scale column widths if sum doesn't match table width
             total_width = sum(col_widths)
             if total_width > 0 and abs(total_width - rect.width) > 0.1:
                 scale = rect.width / total_width
                 col_widths = [w * scale for w in col_widths]
         
-        # Renderuj wiersze od góry
+        # Render rows from top
         y = rect.y + rect.height
         
-        # Śledź vertical merge - które komórki są częścią merge
+        # Track vertical merge - which cells are part of merge
         vertical_merge_tracker = {}  # {(row_idx, col_idx): (start_row, rowspan)}
         
         total_columns = len(col_widths) if col_widths else (max(len(row) for row in rows) if rows else 0)
@@ -3091,10 +3125,10 @@ class PDFCompiler:
             except Exception:
                 pass
             
-            # Komórki są już listą
+            # Cells are already a list
             cells = row if isinstance(row, list) else [row]
             
-            # Renderuj komórki
+            # Render cells
             col_idx = 0
             cell_idx = 0
             while cell_idx < len(cells):
@@ -3124,36 +3158,36 @@ class PDFCompiler:
                     if isinstance(vertical_merge_type, dict):
                         vertical_merge_type = vertical_merge_type.get("val")
                 
-                # Sprawdź czy komórka jest częścią vertical merge (continue)
+                # Check if cell is part of vertical merge (continue)
                 if vertical_merge_type == "continue" or (vertical_merge and vertical_merge_type != "restart"):
-                    # To jest kontynuacja merge - pomiń renderowanie, ale przesuń x
-                    # Szerokość = suma szerokości kolumn które obejmuje
+                    # This is merge continuation - skip rendering but shift x
+                    # Width = sum of column widths it spans
                     cell_width = sum(col_widths[col_idx:col_idx + grid_span]) if col_idx + grid_span <= len(col_widths) else col_widths[col_idx] if col_idx < len(col_widths) else rect.width / len(cells)
                     x += cell_width
                     col_idx += grid_span
                     cell_idx += 1
                     continue
                 
-                # Oblicz szerokość komórki (może obejmować kilka kolumn jeśli grid_span > 1)
+                # Calculate cell width (may span multiple columns if grid_span > 1)
                 if col_idx + grid_span <= len(col_widths):
                     cell_width = sum(col_widths[col_idx:col_idx + grid_span])
                 else:
-                    # Fallback: użyj szerokości jednej kolumny
+                    # Fallback: use single column width
                     cell_width = col_widths[col_idx] if col_idx < len(col_widths) else rect.width / len(cells)
                 
-                # Oblicz wysokość komórki (może obejmować kilka wierszy jeśli vertical merge)
+                # Calculate cell height (may span multiple rows if vertical merge)
                 cell_rowspan = 1
                 if vertical_merge_type == "restart":
-                    # To jest początek vertical merge - znajdź ile wierszy obejmuje
-                    # Musimy śledzić kolumny, bo grid_span może zmieniać pozycje
-                    # Dla uproszczenia, sprawdzamy następne wiersze i szukamy komórek z vMerge="continue"
-                    # w tej samej pozycji kolumny (uwzględniając grid_span)
+                    # This is start of vertical merge - find how many rows it spans
+                    # We need to track columns because grid_span can change positions
+                    # For simplicity, we check next rows and look for cells with vMerge="continue"
+                    # in same column position (accounting for grid_span)
                     current_col_pos = col_idx
                     for next_row_idx in range(row_idx + 1, len(rows)):
                         next_row = rows[next_row_idx]
                         next_cells = next_row if isinstance(next_row, list) else [next_row]
                         
-                        # Znajdź komórkę która zaczyna się w tej samej pozycji kolumny
+                        # Find cell that starts at same column position
                         next_col_pos = 0
                         found_continue = False
                         for next_cell_idx, next_cell in enumerate(next_cells):
@@ -3168,7 +3202,7 @@ class PDFCompiler:
                                     except (ValueError, TypeError):
                                         next_grid_span = 1
                             
-                            # Sprawdź czy to jest komórka w tej samej pozycji kolumny
+                            # Check if this is cell at same column position
                             if next_col_pos == current_col_pos:
                                 next_vmerge = None
                                 if hasattr(next_cell, 'vertical_merge_type'):
@@ -3188,7 +3222,7 @@ class PDFCompiler:
                         if not found_continue:
                             break
                 
-                # Oblicz wysokość komórki (suma wysokości wierszy które obejmuje)
+                # Calculate cell height (sum of row heights it spans)
                 if cell_rowspan > 1:
                     cell_height = sum(row_heights[row_idx:row_idx + cell_rowspan])
                 else:
@@ -3196,7 +3230,7 @@ class PDFCompiler:
                 
                 cell_rect = Rect(x, y - cell_height, cell_width, cell_height)
                 
-                # Renderuj background i border dla komórki
+                # Render background and border for cell
                 cell_style = {}
                 if hasattr(cell, 'style'):
                     cell_style = cell.style if isinstance(cell.style, dict) else {}
@@ -3263,8 +3297,8 @@ class PDFCompiler:
                     cell_idx += 1
                     continue
                 
-                # Pobierz tekst i obrazy z komórki
-                # Obsługa obiektów TableCell (z metodą get_text) i dict
+                # Get text and images from cell
+                # Handle TableCell objects (with get_text method) and dict
                 cell_text = ""
                 cell_images = []
                 seen_cell_images: Dict[str, bool] = {}
@@ -3281,7 +3315,7 @@ class PDFCompiler:
                 if hasattr(cell, 'get_text'):
                     # Obiekt TableCell
                     cell_text = cell.get_text()
-                    # Pobierz obrazy z komórki (TableCell dziedziczy z Body)
+                    # Get images from cell (TableCell inherits from Body)
                     if hasattr(cell, 'get_images'):
                         for img in cell.get_images() or []:
                             _add_cell_image(img)
@@ -3289,31 +3323,31 @@ class PDFCompiler:
                         for img in cell.images or []:
                             _add_cell_image(img)
                     
-                    # Sprawdź content dla obrazów (paragrafy mogą zawierać obrazy)
+                    # Check content for images (paragraphs may contain images)
                     if hasattr(cell, 'content'):
                         for item in cell.content:
-                            # Sprawdź czy to obraz
+                            # Check if this is an image
                             if hasattr(item, 'type') and item.type == 'image':
                                 _add_cell_image(item)
                             elif isinstance(item, dict) and item.get("type") == "image":
                                 _add_cell_image(item)
-                            # Sprawdź czy to drawing (może zawierać obraz)
+                            # Check if this is a drawing (may contain image)
                             elif isinstance(item, dict) and item.get("type") == "drawing":
-                                # Drawing może zawierać obraz - sprawdź content
+                                # Drawing may contain image - check content
                                 drawing_content = item.get("content", [])
                                 for drawing_item in drawing_content:
                                     if isinstance(drawing_item, dict):
-                                        # Sprawdź czy drawing_item ma relationship_id lub path
+                                        # Check if drawing_item has relationship_id or path
                                         if drawing_item.get("relationship_id") or drawing_item.get("path") or drawing_item.get("image_path"):
                                             # To jest obraz w drawing
-                                            # Jeśli ma relationship_id ale nie ma path, spróbuj pobrać path
+                                            # If has relationship_id but no path, try to get path
                                             if drawing_item.get("relationship_id") and not drawing_item.get("path") and not drawing_item.get("image_path"):
-                                                # Musimy pobrać path z relationship - na razie dodaj z relationship_id
-                                                # Path powinien być już w drawing_item jeśli był parsowany poprawnie
+                                                # Need to get path from relationship - for now add with relationship_id
+                                                # Path should already be in drawing_item if parsed correctly
                                                 logger.debug(f"Drawing item has relationship_id but no path: {drawing_item.get('relationship_id')}")
                                             _add_cell_image(drawing_item)
-                            # Sprawdź czy to paragraf z obrazami
-                            # Sprawdź czy to paragraf z obrazami
+                            # Check if this is paragraph with images
+                            # Check if this is paragraph with images
                             elif hasattr(item, 'images'):
                                 if item.images:
                                     images_list = item.images if isinstance(item.images, list) else [item.images]
@@ -3325,7 +3359,7 @@ class PDFCompiler:
                                 imgs = images if isinstance(images, list) else [images]
                                 for img in imgs:
                                     _add_cell_image(img)
-                            # Sprawdź runs w paragrafie
+                            # Check runs in paragraph
                             elif hasattr(item, 'runs'):
                                 for run in item.runs:
                                     if hasattr(run, 'images') and run.images:
@@ -3337,7 +3371,7 @@ class PDFCompiler:
                                         imgs = images if isinstance(images, list) else [images]
                                         for img in imgs:
                                             _add_cell_image(img)
-                                    # Sprawdź czy run ma drawings (dla obiektów Run)
+                                    # Check if run has drawings (for Run objects)
                                     elif hasattr(run, 'drawings') and run.drawings:
                                         for drawing in run.drawings:
                                             if hasattr(drawing, 'content'):
@@ -3348,7 +3382,7 @@ class PDFCompiler:
                                                     elif isinstance(drawing_item, dict):
                                                         if drawing_item.get("relationship_id") or drawing_item.get("path") or drawing_item.get("image_path"):
                                                             _add_cell_image(drawing_item)
-                                    # Sprawdź czy run ma drawings (dla dict)
+                                    # Check if run has drawings (for dict)
                                     elif isinstance(run, dict) and "drawings" in run:
                                         drawings = run["drawings"]
                                         for drawing in drawings:
@@ -3359,7 +3393,7 @@ class PDFCompiler:
                                                         if drawing_item.get("relationship_id") or drawing_item.get("path") or drawing_item.get("image_path"):
                                                             _add_cell_image(drawing_item)
                     
-                    # Sprawdź też children (dla obiektów Body)
+                    # Also check children (for Body objects)
                     if hasattr(cell, 'children'):
                         for child in cell.children:
                             if hasattr(child, 'type') and child.type == 'image':
@@ -3368,32 +3402,32 @@ class PDFCompiler:
                                 _add_cell_image(child)
                 elif isinstance(cell, dict):
                     cell_text = str(cell.get("text", cell.get("content", "")))
-                    # Sprawdź czy są obrazy w dict
+                    # Check if there are images in dict
                     if "images" in cell:
                         imgs = cell["images"] if isinstance(cell["images"], list) else [cell["images"]]
                         for img in imgs:
                             _add_cell_image(img)
                     elif "content" in cell:
-                        # Sprawdź content dla obrazów
+                        # Check content for images
                         content = cell["content"]
                         if isinstance(content, list):
                             for item in content:
-                                # Sprawdź czy to obraz
+                                # Check if this is an image
                                 if isinstance(item, dict) and item.get("type") == "image":
                                     _add_cell_image(item)
                                 elif hasattr(item, 'type') and item.type == 'image':
                                     _add_cell_image(item)
-                                # Sprawdź czy to drawing (może zawierać obraz)
+                                # Check if this is a drawing (may contain image)
                                 elif isinstance(item, dict) and item.get("type") == "drawing":
-                                    # Drawing może zawierać obraz - sprawdź content
+                                    # Drawing may contain image - check content
                                     drawing_content = item.get("content", [])
                                     for drawing_item in drawing_content:
                                         if isinstance(drawing_item, dict):
-                                            # Sprawdź czy drawing_item ma relationship_id lub path
+                                            # Check if drawing_item has relationship_id or path
                                             if drawing_item.get("relationship_id") or drawing_item.get("path") or drawing_item.get("image_path"):
                                                 # To jest obraz w drawing
                                                 _add_cell_image(drawing_item)
-                                # Sprawdź czy to paragraf z obrazami
+                                # Check if this is paragraph with images
                                 elif isinstance(item, dict) and "images" in item:
                                     images = item["images"]
                                     imgs = images if isinstance(images, list) else [images]
@@ -3403,28 +3437,28 @@ class PDFCompiler:
                                     images_list = item.images if isinstance(item.images, list) else [item.images]
                                     for img in images_list:
                                         _add_cell_image(img)
-                                # Sprawdź czy to paragraf z runs zawierającymi drawing
+                                # Check if this is paragraph with runs containing drawing
                                 elif isinstance(item, dict) and item.get("type") == "paragraph":
-                                    # Sprawdź runs w paragrafie
+                                    # Check runs in paragraph
                                     runs = item.get("runs", [])
                                     for run in runs:
                                         if isinstance(run, dict):
-                                            # Sprawdź czy run ma drawings
+                                            # Check if run has drawings
                                             drawings = run.get("drawings", [])
                                             for drawing in drawings:
                                                 if isinstance(drawing, dict) and drawing.get("type") == "drawing":
-                                                    # Sprawdź content w drawing
+                                                    # Check content in drawing
                                                     drawing_content = drawing.get("content", [])
                                                     for drawing_item in drawing_content:
                                                         if isinstance(drawing_item, dict):
-                                                            # Sprawdź czy drawing_item ma relationship_id lub path
+                                                            # Check if drawing_item has relationship_id or path
                                                             if drawing_item.get("relationship_id") or drawing_item.get("path") or drawing_item.get("image_path"):
                                                                 # To jest obraz w drawing
                                                                 _add_cell_image(drawing_item)
                 else:
                     cell_text = str(cell)
                 
-                # Debug: sprawdź co jest w komórce (dla wszystkich komórek w pierwszych wierszach)
+                # Debug: check what's in cell (for all cells in first rows)
                 if row_idx < 5:
                     if hasattr(cell, 'content'):
                         logger.info(f"Cell (obj) at row {row_idx}, col {col_idx} has {len(cell.content)} content items")
@@ -3456,19 +3490,19 @@ class PDFCompiler:
                                     if isinstance(d_item, dict):
                                         logger.info(f"      Drawing item {d_idx}: relationship_id={d_item.get('relationship_id')}, path={d_item.get('path')}")
                 
-                # Debug: sprawdź czy znaleziono obrazy
+                # Debug: check if images were found
                 if cell_images:
                     logger.info(f"Found {len(cell_images)} images in cell at row {row_idx}, col {col_idx}")
                 elif row_idx < 5:
                     logger.info(f"No images found in cell at row {row_idx}, col {col_idx}, cell_images={len(cell_images)}")
                 
-                # Renderuj obrazy w komórce (przed tekstem)
+                # Render images in cell (before text)
                 if cell_images:
                     logger.info(f"Found {len(cell_images)} images in cell at row {row_idx}, col {col_idx}")
                     cell_margins = self._parse_cell_margins(cell, default_margin=cell_padding)
                     for img in cell_images:
                         try:
-                            # Pobierz ścieżkę obrazu
+                            # Get image path
                             img_path = self._resolve_image_path(img)
                             
                             if not img_path:
@@ -3486,26 +3520,26 @@ class PDFCompiler:
                             elif hasattr(img, 'height'):
                                 img_height = img.height
                             
-                            # Oblicz dostępny obszar dla obrazu (z marginesami)
+                            # Calculate available area for image (with margins)
                             available_width = cell_rect.width - cell_margins["left"] - cell_margins["right"]
                             available_height = cell_rect.height - cell_margins["top"] - cell_margins["bottom"]
                             
-                            # Jeśli nie ma wymiarów, użyj dostępnego obszaru
+                            # If no dimensions, use available area
                             if img_width is None or img_height is None:
                                 render_width = available_width
                                 render_height = available_height
                             else:
-                                # Konwertuj z EMU na punkty jeśli potrzeba
+                                # Convert from EMU to points if needed
                                 from ..geometry import emu_to_points
                                 if img_width > 10000:  # Prawdopodobnie EMU
                                     img_width = emu_to_points(img_width)
                                 if img_height > 10000:  # Prawdopodobnie EMU
                                     img_height = emu_to_points(img_height)
                                 
-                                # Skaluj obraz do dostępnego obszaru zachowując proporcje
+                                # Scale image to available area preserving aspect ratio
                                 scale_w = available_width / img_width if img_width > 0 else 1.0
                                 scale_h = available_height / img_height if img_height > 0 else 1.0
-                                scale = min(scale_w, scale_h, 1.0)  # Nie powiększaj
+                                scale = min(scale_w, scale_h, 1.0)  # Don't enlarge
                                 
                                 render_width = img_width * scale
                                 render_height = img_height * scale
@@ -3514,7 +3548,7 @@ class PDFCompiler:
                                 f"Rendering image in cell: {img_path}, width={render_width}, height={render_height}"
                             )
 
-                            # Pozycja obrazu (wyrównany do górnej krawędzi)
+                            # Image position (aligned to top edge)
                             img_x = cell_rect.x + cell_margins["left"]
                             img_y = cell_rect.y + cell_rect.height - cell_margins["top"] - render_height
                             min_y = cell_rect.y + cell_margins["bottom"]
@@ -3534,44 +3568,44 @@ class PDFCompiler:
                         except Exception as e:
                             logger.debug(f"Błąd renderowania obrazu w komórce: {e}")
                 
-                # Renderuj tekst w komórce
+                # Render text in cell
                 if cell_text:
-                    # Pobierz marginesy komórki
+                    # Get cell margins
                     cell_margins = self._parse_cell_margins(cell, default_margin=cell_padding)
                     
                     c.setFont(font_name, font_size)
                     c.setFillColor(black)
-                    # Pozycja tekstu z uwzględnieniem marginesów
-                    # Dla vertical merge, tekst powinien być wyśrodkowany w pionie
+                    # Text position accounting for margins
+                    # For vertical merge, text should be vertically centered
                     text_x = x + cell_margins["left"]
                     if cell_rowspan > 1:
-                        # Wyśrodkuj tekst w pionie dla komórek z rowspan
+                        # Center text vertically for cells with rowspan
                         text_y = y - cell_height + cell_margins["bottom"] + (cell_height - cell_margins["top"] - cell_margins["bottom"]) / 2
                     else:
                         text_y = y - cell_height + cell_margins["bottom"]
                     
-                    # Użyj TextMetricsEngine do poprawnego łamania tekstu w komórce
+                    # Use TextMetricsEngine for proper text wrapping in cell
                     try:
-                        # Upewnij się że cell_style jest dict
+                        # Ensure cell_style is dict
                         if not isinstance(cell_style, dict):
                             cell_style = {}
-                        # Użyj style z komórki lub style tabeli jako fallback
+                        # Use style from cell or table style as fallback
                         cell_text_style = {**style, **cell_style}
-                        # Dostępna szerokość = szerokość komórki - marginesy lewy i prawy
+                        # Available width = cell width - left and right margins
                         text_width = cell_rect.width - cell_margins["left"] - cell_margins["right"]
                         text_layout: TextLayout = self.metrics.layout_text(cell_text, cell_text_style, text_width)
                         
-                        # Renderuj każdą linię tekstu
+                        # Render each text line
                         line_y = text_y
                         for line in text_layout.lines:
-                            if line_y < cell_rect.y:  # Nie renderuj poza komórką
+                            if line_y < cell_rect.y:  # Don't render outside cell
                                 break
                             c.drawString(text_x, line_y, line.text)
                             line_y -= text_layout.line_height
                     except Exception as e:
                         logger.debug(f"Błąd layoutowania tekstu w komórce: {e}, używam prostego drawString")
-                        # Fallback: prosty drawString (ale bez ograniczenia długości)
-                        # Podziel tekst na linie jeśli jest za długi
+                        # Fallback: simple drawString (but without length limit)
+                        # Split text into lines if too long
                         max_width = cell_rect.width - cell_margins["left"] - cell_margins["right"]
                         words = cell_text.split()
                         line_text = ""
@@ -3598,12 +3632,14 @@ class PDFCompiler:
     
     def _draw_image(self, c: canvas.Canvas, block: LayoutBlock, timings: Optional[Dict[str, List[float]]] = None) -> None:
         """
-        Renderuje obraz.
-        
+
+        Renders image.
+
         Args:
-            c: ReportLab Canvas
-            block: LayoutBlock typu "image"
-            timings: Opcjonalny słownik do zbierania czasów poszczególnych operacji
+        c: ReportLab Canvas
+        block: LayoutBlock of type "image"
+        timings: Optional dictionary for collecting operation times
+
         """
         import time
         
@@ -3616,7 +3652,7 @@ class PDFCompiler:
                 timings['image_resolve_content'] = []
             timings['image_resolve_content'].append(time.time() - t0)
         
-        # Pobierz ścieżkę do obrazu (obsługa WMF/EMF)
+        # Get path to image (WMF/EMF handling)
         t0 = time.time()
         path = self._resolve_image_path(content)
         if timings is not None:
@@ -3652,7 +3688,7 @@ class PDFCompiler:
                 timings['image_draw'].append(time.time() - t0)
         except Exception as e:
             logger.warning(f"Błąd renderowania obrazu {path}: {e}")
-            # Placeholder w przypadku błędu
+            # Placeholder in case of error
             c.setStrokeColor(Color(0.8, 0.2, 0.2))
             c.setLineWidth(1.0)
             c.rect(rect.x, rect.y, rect.width, rect.height)
@@ -3661,14 +3697,16 @@ class PDFCompiler:
     
     def _draw_watermark(self, c: canvas.Canvas, block: LayoutBlock, page_width: float, page_height: float) -> None:
         """
-        Renderuje watermark (znak wodny) na stronie.
-        Watermarks mogą być tekstem (textbox) lub obrazem, renderowane jako przezroczyste na środku strony z rotacją.
-        
+
+        Renders watermark on page.
+        Watermarks can be text (textbox) or image, rendered as transparent in center of page with rotation.
+
         Args:
-            c: ReportLab Canvas
-            block: LayoutBlock typu "textbox" lub "image" z pozycjonowaniem absolutnym w headerze
-            page_width: Szerokość strony w punktach
-            page_height: Wysokość strony w punktach
+        c: ReportLab Canvas
+        block: LayoutBlock of type "textbox" or "image" with absolute positioning in header
+        page_width: Page width in points
+        page_height: Page height in points
+
         """
         content_value, _ = self._resolve_content(block.content)
         content = content_value if isinstance(content_value, dict) else {}
@@ -3678,11 +3716,11 @@ class PDFCompiler:
         
         scale_factor = 1.5
 
-        # Sprawdź typ watermark (image, textbox lub vml_shape)
+        # Check watermark type (image, textbox or vml_shape)
         watermark_type = content.get("type", block.block_type or "textbox")
         watermark_data = content.get("content", content)
         
-        # Jeśli watermark jest VML shape (tekstowy watermark)
+        # If watermark is VML shape (text watermark)
         if watermark_type == "vml_shape" or (isinstance(watermark_data, dict) and watermark_data.get("type") == "vml_shape"):
             # Renderuj VML shape jako tekstowy watermark
             vml_data = watermark_data if isinstance(watermark_data, dict) else {}
@@ -3691,25 +3729,25 @@ class PDFCompiler:
                 logger.warning(f"VML shape watermark has no text content")
                 return
             
-            # Pobierz właściwości z VML shape
+            # Get properties from VML shape
             properties = vml_data.get("properties", {})
-            # Używamy dokładnie takiego fontu, jaki jest w VML - nie modyfikujemy nazwy
-            # W VML watermarkach, grubość fontu jest zakodowana w geometrii ścieżki (outline)
-            # Word konwertuje tekst na wektorową ścieżkę, która już ma zakodowaną grubość
-            # Jeśli font-family zawiera wariant Bold/SemiBold, będzie użyty, jeśli nie - użyjemy normalnego
+            # Use exactly the font that's in VML - don't modify name
+            # In VML watermarks, font weight is encoded in path geometry (outline)
+            # Word converts text to vector path that already has encoded weight
+            # If font-family contains Bold/SemiBold variant, it will be used, if not - we use normal
             font_name = properties.get("font_name", "Helvetica")
             if not font_name:
                 font_name = "Helvetica"
             
-            # W VML watermarkach font-size z textpath jest tylko wartością symboliczną (zwykle 1pt)
-            # Rzeczywisty rozmiar wynika z wymiarów v:shape (width i height)
-            # Oblicz rzeczywisty rozmiar czcionki na podstawie wymiarów shape
+            # In VML watermarks font-size from textpath is only symbolic value (usually 1pt)
+            # Actual size comes from v:shape dimensions (width and height)
+            # Calculate actual font size based on shape dimensions
             shape_width = properties.get("shape_width") or vml_data.get("size", {}).get("width")
             shape_height = properties.get("shape_height") or vml_data.get("size", {}).get("height")
             
-            # Jeśli nie ma wymiarów shape, użyj domyślnych wartości
+            # If no shape dimensions, use default values
             if not shape_width or not shape_height:
-                # Domyślne wymiary dla watermarku (około 400x100 pt)
+                # Default dimensions for watermark (about 400x100 pt)
                 shape_width = 400.0
                 shape_height = 100.0
                 logger.warning(f"VML shape has no dimensions, using defaults: {shape_width}x{shape_height}pt")
@@ -3720,15 +3758,15 @@ class PDFCompiler:
             shape_width *= scale_factor
             shape_height *= scale_factor
             
-            # Oblicz rzeczywisty rozmiar czcionki na podstawie wymiarów shape
-            # W VML watermarkach Word skaluje tekst tak, aby wypełnił kształt o wymiarach width x height
-            # Strategia: używamy font_size = height (109.05pt), a następnie skalujemy TYLKO szerokość do width
-            # Wysokość pozostaje niezmieniona (109.05pt)
+            # Calculate actual font size based on shape dimensions
+            # In VML watermarks Word scales text to fill shape with dimensions width x height
+            # Strategy: use font_size = height (109.05pt), then scale ONLY width to width
+            # Height remains unchanged (109.05pt)
             font_size = shape_height
             
-            # Pobierz kolor z fillcolor lub domyślny
+            # Get color from fillcolor or default
             fillcolor = properties.get("fillcolor", "silver")
-            # Konwertuj nazwy kolorów na hex
+            # Convert color names to hex
             color_map = {
                 "silver": "#C0C0C0",
                 "gray": "#808080",
@@ -3740,15 +3778,15 @@ class PDFCompiler:
             if isinstance(color, str) and not color.startswith("#"):
                 color = f"#{color}"
             
-            # Pobierz rotację z properties lub domyślną
-            # Rotacja może być już skonwertowana do zakresu -180 do 180
-            # W VML rotation:315 oznacza 315° zgodnie z ruchem wskazówek zegara
-            # W ReportLab, rotate() przyjmuje kąt gdzie dodatnie = przeciwnie do ruchu wskazówek zegara
-            # Więc musimy odwrócić znak, aby watermark był przechylony w prawą stronę
+            # Get rotation from properties or default
+            # Rotation may already be converted to range -180 to 180
+            # In VML rotation:315 means 315° clockwise
+            # In ReportLab, rotate() takes angle where positive = counter-clockwise
+            # So we need to flip sign so watermark tilts to the right
             rotation_raw = float(properties.get("rotation", -45.0))
-            rotation = -rotation_raw  # Odwróć znak, aby watermark był przechylony w prawą stronę
+            rotation = -rotation_raw  # Flip sign so watermark tilts to the right
             
-            # Domyślna przezroczystość można nadpisać globalnie lub per watermark
+            # Default transparency can be overridden globally or per watermark
             opacity = self._resolve_watermark_opacity(block, vml_data, default=0.3)
             
             # Parse color
@@ -3769,7 +3807,7 @@ class PDFCompiler:
                 c.setFillColor(watermark_color)
                 c.setStrokeColor(watermark_color)
                 
-                # Pozycja - środek strony
+                # Position - center of page
                 center_x = page_width / 2
                 center_y = page_height / 2
                 
@@ -3777,7 +3815,7 @@ class PDFCompiler:
                 c.translate(center_x, center_y)
                 c.rotate(rotation)
                 
-                # Set font - spróbuj różnych wariantów nazwy fontu
+                # Set font - try different font name variants
                 actual_font_name = font_name
                 font_variants = [
                     font_name,
@@ -3793,11 +3831,11 @@ class PDFCompiler:
                     except Exception:
                         continue
                 else:
-                    # Fallback do Helvetica jeśli żaden wariant nie zadziałał
+                    # Fallback to Helvetica if no variant worked
                     c.setFont('Helvetica', font_size)
                     actual_font_name = 'Helvetica'
                 
-                # Zmierz rzeczywistą szerokość tekstu i przeskaluj tylko szerokość
+                # Measure actual text width and scale only width
                 try:
                     actual_text_width = c.stringWidth(text, actual_font_name, font_size)
                     target_width = shape_width * 0.9
@@ -3816,15 +3854,15 @@ class PDFCompiler:
                 c.restoreState()
             return
 
-        # Jeśli watermark jest obrazem
+        # If watermark is an image
         if watermark_type == "image" or watermark_type == "Image" or isinstance(watermark_data, dict) and (watermark_data.get("path") or watermark_data.get("image_path") or watermark_data.get("relationship_id")):
             # Renderuj obraz jako watermark
             image_data = watermark_data if isinstance(watermark_data, dict) else {}
             
-            # Pobierz ścieżkę obrazu (użyj _resolve_image_path, aby skonwertować WMF/EMF do PNG)
+            # Get image path (use _resolve_image_path to convert WMF/EMF to PNG)
             img_path = self._resolve_image_path(image_data)
             if not img_path:
-                # Fallback: użyj bezpośredniej ścieżki
+                # Fallback: use direct path
                 img_path = image_data.get("path") or image_data.get("image_path")
             
             if not img_path:
@@ -3836,13 +3874,13 @@ class PDFCompiler:
             img_width = image_data.get("width", 0)
             img_height = image_data.get("height", 0)
             
-            # Konwertuj z EMU na punkty jeśli potrzeba
+            # Convert from EMU to points if needed
             if img_width > 10000:
                 img_width = emu_to_points(img_width)
             if img_height > 10000:
                 img_height = emu_to_points(img_height)
             
-            # Jeśli brak wymiarów, użyj domyślnych
+            # If no dimensions, use defaults
             if img_width <= 0 or img_height <= 0:
                 img_width = page_width * 0.8
                 img_height = img_width * 0.3  # Zachowaj proporcje
@@ -3850,19 +3888,19 @@ class PDFCompiler:
             img_width *= scale_factor
             img_height *= scale_factor
             
-            # Domyślne wartości dla watermarks
-            angle = 45.0  # Kąt obrotu (diagonalnie)
+            # Default values for watermarks
+            angle = 45.0  # Rotation angle (diagonally)
             opacity = self._resolve_watermark_opacity(block, image_data, default=0.5)
             
-            # Sprawdź czy w anchor_info są informacje o pozycji
+            # Check if anchor_info has position information
             anchor_info = content.get("anchor_info") or {}
             position = anchor_info.get("position", {})
             
-            # Pozycja - środek strony
+            # Position - center of page
             center_x = page_width / 2
             center_y = page_height / 2
             
-            # Jeśli obraz ma pozycjonowanie, użyj go
+            # If image has positioning, use it
             if position:
                 x_rel = position.get("x_rel") or position.get("relativeFrom_h", "page")
                 y_rel = position.get("y_rel") or position.get("relativeFrom_v", "page")
@@ -3872,7 +3910,7 @@ class PDFCompiler:
                 x_offset = position.get("x", 0)
                 y_offset = position.get("y", 0)
                 
-                # Konwertuj jeśli to EMU (zwykle > 10000)
+                # Convert if EMU (usually > 10000)
                 if x_offset > 10000:
                     x_offset = emu_to_points(x_offset)
                 elif x_offset > 100:
@@ -3883,7 +3921,7 @@ class PDFCompiler:
                 elif y_offset > 100:
                     y_offset = twips_to_points(y_offset)
                 
-                # Oblicz pozycję w zależności od relativeFrom
+                # Calculate position depending on relativeFrom
                 if x_rel == "page":
                     center_x = x_offset
                 elif x_rel == "margin":
@@ -3902,7 +3940,7 @@ class PDFCompiler:
             c.saveState()
             try:
                 self._apply_canvas_opacity(c, opacity)
-                # Ustaw przezroczystość
+                # Set transparency
                 from reportlab.lib import colors
                 watermark_color = colors.Color(1.0, 1.0, 1.0, alpha=opacity)
                 c.setFillColor(watermark_color)
@@ -3911,7 +3949,7 @@ class PDFCompiler:
                 c.translate(center_x, center_y)
                 c.rotate(angle)
                 
-                # Rysuj obraz wyśrodkowany
+                # Draw image centered
                 try:
                     from reportlab.lib.utils import ImageReader
                     img_reader = ImageReader(img_path)
@@ -3922,15 +3960,15 @@ class PDFCompiler:
                 c.restoreState()
             return
         
-        # Jeśli watermark jest textboxem (tekst)
+        # If watermark is textbox (text)
         # Pobierz tekst z content
         text = ""
-        # Sprawdź czy content zawiera textbox data
+        # Check if content contains textbox data
         textbox_data = content.get("content")
         if isinstance(textbox_data, dict):
             # To jest textbox dict z layout_engine
             text = textbox_data.get("text", "")
-            # Jeśli nie ma tekstu, sprawdź content w textbox_data
+            # If no text, check content in textbox_data
             if not text:
                 textbox_content = textbox_data.get("content")
                 if isinstance(textbox_content, list):
@@ -3954,11 +3992,11 @@ class PDFCompiler:
                     text = textbox_content
         
         if isinstance(content_value, dict):
-            # Spróbuj pobrać tekst z różnych miejsc
+            # Try to get text from different places
             if not text:
                 text = (content.get("content") or content.get("text") or "")
             
-            # Jeśli nie ma tekstu bezpośrednio, sprawdź runs
+            # If no text directly, check runs
             if not text:
                 runs = content.get("runs") or content.get("runs_payload") or []
                 if isinstance(runs, list):
@@ -3980,9 +4018,9 @@ class PDFCompiler:
             logger.debug(f"Watermark block has no text content. content_value={type(content_value)}, content={content}")
             return
         
-        # Pobierz właściwości watermark z style
+        # Get watermark properties from style
         font_size = float(style.get("font_size", 72.0))
-        # Konwertuj z half-points jeśli potrzeba
+        # Convert from half-points if needed
         if font_size > 100:
             font_size = font_size / 2.0
 
@@ -3996,11 +4034,11 @@ class PDFCompiler:
         if isinstance(color, str) and not color.startswith("#"):
             color = f"#{color}"
         
-        # Domyślne wartości dla watermarks
-        angle = 45.0  # Kąt obrotu (diagonalnie)
+        # Default values for watermarks
+        angle = 45.0  # Rotation angle (diagonally)
         opacity = self._resolve_watermark_opacity(block, content, default=0.5)
         
-        # Sprawdź czy w anchor_info są informacje o pozycji i rotacji
+        # Check if anchor_info has position and rotation information
         anchor_info = content.get("anchor_info") or {}
         position = anchor_info.get("position", {})
         
@@ -4022,22 +4060,22 @@ class PDFCompiler:
             c.setFillColor(watermark_color)
             c.setStrokeColor(watermark_color)
             
-            # Pozycja - środek strony
+            # Position - center of page
             center_x = page_width / 2
             center_y = page_height / 2
             
-            # Jeśli textbox ma pozycjonowanie, użyj go
+            # If textbox has positioning, use it
             if position:
                 x_rel = position.get("x_rel") or position.get("relativeFrom_h", "page")
                 y_rel = position.get("y_rel") or position.get("relativeFrom_v", "page")
                 
-                # Konwertuj EMU na punkty jeśli potrzeba
+                # Convert EMU to points if needed
                 from ..geometry import emu_to_points, twips_to_points
                 
                 x_offset = position.get("x", 0)
                 y_offset = position.get("y", 0)
                 
-                # Konwertuj jeśli to EMU (zwykle > 10000)
+                # Convert if EMU (usually > 10000)
                 if x_offset > 10000:
                     x_offset = emu_to_points(x_offset)
                 elif x_offset > 100:
@@ -4048,7 +4086,7 @@ class PDFCompiler:
                 elif y_offset > 100:
                     y_offset = twips_to_points(y_offset)
                 
-                # Oblicz pozycję w zależności od relativeFrom
+                # Calculate position depending on relativeFrom
                 if x_rel == "page":
                     center_x = x_offset
                 elif x_rel == "margin":
@@ -4069,7 +4107,7 @@ class PDFCompiler:
             
             # Set font
             try:
-                # Spróbuj użyć fontu, jeśli nie istnieje użyj Helvetica-Bold
+                # Try to use font, if doesn't exist use Helvetica-Bold
                 c.setFont(font_name, font_size)
             except Exception:
                 c.setFont('Helvetica-Bold', font_size)
@@ -4142,11 +4180,13 @@ class PDFCompiler:
 
     def _draw_textbox(self, c: canvas.Canvas, block: LayoutBlock) -> None:
         """
-        Renderuje TextBox jako prostokąt z tekstem.
-        
+
+        Renders TextBox as rectangle with text.
+
         Args:
-            c: ReportLab Canvas
-            block: LayoutBlock typu "textbox"
+        c: ReportLab Canvas
+        block: LayoutBlock of type "textbox"
+
         """
         rect = block.frame
         content_value, _ = self._resolve_content(block.content)
@@ -4176,15 +4216,17 @@ class PDFCompiler:
         font_size = float(style.get("font_size", 10))
         c.setFont(font_name, font_size)
         c.setFillColor(black)
-        c.drawString(rect.x + 5, rect.y + rect.height - 15, str(text)[:100])  # Ogranicz długość
+        c.drawString(rect.x + 5, rect.y + rect.height - 15, str(text)[:100])  # Limit length
     
     def _draw_header(self, c: canvas.Canvas, block: LayoutBlock) -> None:
         """
-        Renderuje header - podobnie jak paragraph z borders i background, obsługuje obrazy.
-        
+
+        Renders header - similar to paragraph with borders and background, supports images.
+
         Args:
-            c: ReportLab Canvas
-            block: LayoutBlock typu "header"
+        c: ReportLab Canvas
+        block: LayoutBlock of type "header"
+
         """
         style = block.style or {}
         if not isinstance(style, dict):
@@ -4198,7 +4240,7 @@ class PDFCompiler:
         except Exception as e:
             logger.debug(f"Błąd renderowania background/border header: {e}")
         
-        # Pobierz content - może zawierać tekst i obrazy
+        # Get content - may contain text and images
         content_value, _payload = self._resolve_content(block.content)
         images = []
         text = ""
@@ -4213,10 +4255,10 @@ class PDFCompiler:
         else:
             text = str(content_value) if isinstance(content_value, (int, float)) else ""
         
-        # Renderuj obrazy jeśli są
+        # Render images if present
         if images:
             x = rect.x
-            y = rect.y + rect.height / 2  # Wyśrodkowanie w pionie
+            y = rect.y + rect.height / 2  # Vertical centering
             for img in images:
                 img_width = None
                 img_height = None
@@ -4236,7 +4278,7 @@ class PDFCompiler:
                 if img_path:
                     # Renderuj obraz
                     try:
-                        # Jeśli nie ma wymiarów, użyj domyślnych
+                        # If no dimensions, use defaults
                         if img_width is None or img_height is None:
                             calc_width = rect.width / len(images) if len(images) > 1 else rect.width
                             calc_height = min(rect.height, calc_width * 0.3)  # Zachowaj proporcje
@@ -4244,7 +4286,7 @@ class PDFCompiler:
                             # Konwertuj EMU na punkty (1 EMU = 1/914400 cala, 1 cal = 72 punkty)
                             calc_width = (img_width / 914400.0) * 72
                             calc_height = (img_height / 914400.0) * 72
-                            # Dostosuj do dostępnego miejsca
+                            # Adjust to available space
                             if calc_width > rect.width:
                                 scale = rect.width / calc_width
                                 calc_width = rect.width
@@ -4263,24 +4305,26 @@ class PDFCompiler:
                             preserveAspectRatio=True,
                             mask="auto"
                         )
-                        x += calc_width + 5  # Dodaj odstęp między obrazami
+                        x += calc_width + 5  # Add spacing between images
                     except Exception as e:
                         logger.warning(f"Błąd renderowania obrazu w header: {e}")
                         import traceback
                         logger.debug(traceback.format_exc())
         
-        # Renderuj tekst jeśli jest
+        # Render text if present
         if text:
             # Renderuj tekst jak paragraph
             self._draw_paragraph(c, block)
     
     def _draw_footer(self, c: canvas.Canvas, block: LayoutBlock) -> None:
         """
-        Renderuje footer - podobnie jak paragraph z borders i background, obsługuje obrazy.
-        
+
+        Renders footer - similar to paragraph with borders and background, supports images.
+
         Args:
-            c: ReportLab Canvas
-            block: LayoutBlock typu "footer"
+        c: ReportLab Canvas
+        block: LayoutBlock of type "footer"
+
         """
         style = block.style or {}
         if not isinstance(style, dict):
@@ -4294,7 +4338,7 @@ class PDFCompiler:
         except Exception as e:
             logger.debug(f"Błąd renderowania background/border footer: {e}")
         
-        # Pobierz content - może zawierać tekst i obrazy
+        # Get content - may contain text and images
         content_value, _payload = self._resolve_content(block.content)
         images = []
         text = ""
@@ -4309,10 +4353,10 @@ class PDFCompiler:
         else:
             text = str(content_value) if isinstance(content_value, (int, float)) else ""
         
-        # Renderuj obrazy jeśli są
+        # Render images if present
         if images:
             x = rect.x
-            y = rect.y + rect.height / 2  # Wyśrodkowanie w pionie
+            y = rect.y + rect.height / 2  # Vertical centering
             for img in images:
                 img_width = None
                 img_height = None
@@ -4332,7 +4376,7 @@ class PDFCompiler:
                 if img_path:
                     # Renderuj obraz
                     try:
-                        # Jeśli nie ma wymiarów, użyj domyślnych
+                        # If no dimensions, use defaults
                         if img_width is None or img_height is None:
                             calc_width = rect.width / len(images) if len(images) > 1 else rect.width
                             calc_height = min(rect.height, calc_width * 0.3)  # Zachowaj proporcje
@@ -4340,7 +4384,7 @@ class PDFCompiler:
                             # Konwertuj EMU na punkty (1 EMU = 1/914400 cala, 1 cal = 72 punkty)
                             calc_width = (img_width / 914400.0) * 72
                             calc_height = (img_height / 914400.0) * 72
-                            # Dostosuj do dostępnego miejsca
+                            # Adjust to available space
                             if calc_width > rect.width:
                                 scale = rect.width / calc_width
                                 calc_width = rect.width
@@ -4359,24 +4403,26 @@ class PDFCompiler:
                             preserveAspectRatio=True,
                             mask="auto"
                         )
-                        x += calc_width + 5  # Dodaj odstęp między obrazami
+                        x += calc_width + 5  # Add spacing between images
                     except Exception as e:
                         logger.warning(f"Błąd renderowania obrazu w footer: {e}")
                         import traceback
                         logger.debug(traceback.format_exc())
         
-        # Renderuj tekst jeśli jest
+        # Render text if present
         if text:
             # Renderuj tekst jak paragraph
             self._draw_paragraph(c, block)
     
     def _draw_footnotes(self, c: canvas.Canvas, block: LayoutBlock) -> None:
         """
-        Renderuje blok footnotes z numerami i zawartością.
-        
+
+        Renders footnotes block with numbers and content.
+
         Args:
-            c: ReportLab Canvas
-            block: LayoutBlock typu "footnotes"
+        c: ReportLab Canvas
+        block: LayoutBlock of type "footnotes"
+
         """
         rect = block.frame
         content_value, _ = self._resolve_content(block.content)
@@ -4393,10 +4439,10 @@ class PDFCompiler:
         c.setFillColor(black)
         
         # Renderuj separator line (kreska) nad footnotes
-        # Separator ma długość 40% szerokości body i jest wyrównany do lewej
-        separator_y = rect.y + rect.height - 4.0  # 4pt od góry bloku (w PDF coordinates, Y=0 na dole)
-        separator_width = rect.width * 0.4  # 40% szerokości body
-        separator_x = rect.x  # Wyrównany do lewej
+        # Separator is 40% of body width and aligned to left
+        separator_y = rect.y + rect.height - 4.0  # 4pt from top of block (in PDF coordinates, Y=0 at bottom)
+        separator_width = rect.width * 0.4  # 40% of body width
+        separator_x = rect.x  # Aligned to left
         
         c.saveState()
         try:
@@ -4406,23 +4452,23 @@ class PDFCompiler:
         finally:
             c.restoreState()
         
-        # Pozycja startowa dla tekstu (od dołu strony w PDF coordinates)
-        # Zostaw 4pt odstępu pod separator line
-        y = separator_y - 4.0 - font_size  # Start od separator line z odstępem
+        # Starting position for text (from bottom of page in PDF coordinates)
+        # Leave 4pt spacing under separator line
+        y = separator_y - 4.0 - font_size  # Start from separator line with spacing
         x_start = rect.x
         line_height = font_size * 1.2
-        # max_width będzie obliczane dynamicznie dla każdego footnota (szerokość indeksu + odstęp)
+        # max_width will be calculated dynamically for each footnote (index width + spacing)
         
         for footnote in footnotes:
             if y < rect.y:
-                # Nie ma miejsca na więcej footnotes
+                # No space for more footnotes
                 break
             
             footnote_number = footnote.get('number', '?')
             footnote_content = footnote.get('content', '')
             
-            # Renderuj numer footnote jako superscript (tak jak w tekście głównym)
-            # Superscript: mniejszy font (58% rozmiaru) i wyżej (33% baseline shift)
+            # Render footnote number as superscript (same as in main text)
+            # Superscript: smaller font (58% size) and higher (33% baseline shift)
             ref_font_size = font_size * 0.58  # Standardowy rozmiar superscript
             superscript_baseline_shift = font_size * 0.33  # Standardowy baseline shift dla superscript
             
@@ -4431,23 +4477,23 @@ class PDFCompiler:
                 c.setFont(font_name, ref_font_size)
                 c.setFillColor(black)
                 number_text = str(footnote_number)
-                number_y = y + superscript_baseline_shift  # Wyżej niż baseline
+                number_y = y + superscript_baseline_shift  # Higher than baseline
                 c.drawString(x_start, number_y, number_text)
                 number_width = c.stringWidth(number_text, font_name, ref_font_size)
             finally:
                 c.restoreState()
             
-            # Renderuj zawartość footnote
-            # Zostaw odstęp po indeksie (2pt) i zacznij od tego miejsca
-            text_x = x_start + number_width + 2  # 2pt odstęp po indeksie
+            # Render footnote content
+            # Leave spacing after index (2pt) and start from there
+            text_x = x_start + number_width + 2  # 2pt spacing after index
             current_y = y
             
-            # Oblicz dostępną szerokość dla treści (od text_x do prawej krawędzi)
+            # Calculate available width for content (from text_x to right edge)
             max_width = rect.x + rect.width - text_x
             
-            # Wrap text jeśli potrzeba
+            # Wrap text if needed
             if isinstance(footnote_content, str):
-                # Użyj TextMetricsEngine do wrapowania tekstu
+                # Use TextMetricsEngine for text wrapping
                 try:
                     from ..text_metrics import TextMetricsEngine
                     metrics = TextMetricsEngine()
@@ -4464,7 +4510,7 @@ class PDFCompiler:
                         c.drawString(text_x, current_y, line)
                         current_y -= line_height
                 except Exception:
-                    # Fallback: prosty wrap używając stringWidth
+                    # Fallback: simple wrap using stringWidth
                     words = footnote_content.split()
                     current_line = ""
                     for word in words:
@@ -4482,9 +4528,9 @@ class PDFCompiler:
                         c.drawString(text_x, current_y, current_line)
                         current_y -= line_height
             else:
-                # Jeśli content nie jest stringiem, spróbuj przekonwertować
+                # If content is not string, try to convert
                 content_str = str(footnote_content)
-                # Wrap długi tekst
+                # Wrap long text
                 words = content_str.split()
                 current_line = ""
                 for word in words:
@@ -4502,17 +4548,19 @@ class PDFCompiler:
                     c.drawString(text_x, current_y, current_line)
                     current_y -= line_height
             
-            # Przejdź do następnej footnote
-            y = current_y - line_height * 0.5  # Dodaj odstęp między footnotes
+            # Move to next footnote
+            y = current_y - line_height * 0.5  # Add spacing between footnotes
     
     def _draw_endnotes(self, c: canvas.Canvas, block: LayoutBlock) -> None:
         """
-        Renderuje blok endnotes z numerami i zawartością.
-        Wygląda dokładnie tak samo jak footnotes.
-        
+
+        Renders endnotes block with numbers and content.
+        Looks exactly the same as footnotes.
+
         Args:
-            c: ReportLab Canvas
-            block: LayoutBlock typu "endnotes"
+        c: ReportLab Canvas
+        block: LayoutBlock of type "endnotes"
+
         """
         rect = block.frame
         content_value, _ = self._resolve_content(block.content)
@@ -4529,10 +4577,10 @@ class PDFCompiler:
         c.setFillColor(black)
         
         # Renderuj separator line (kreska) nad endnotes (tak samo jak footnotes)
-        # Separator ma długość 40% szerokości body i jest wyrównany do lewej
-        separator_y = rect.y + rect.height - 4.0  # 4pt od góry bloku (w PDF coordinates, Y=0 na dole)
-        separator_width = rect.width * 0.4  # 40% szerokości body
-        separator_x = rect.x  # Wyrównany do lewej
+        # Separator is 40% of body width and aligned to left
+        separator_y = rect.y + rect.height - 4.0  # 4pt from top of block (in PDF coordinates, Y=0 at bottom)
+        separator_width = rect.width * 0.4  # 40% of body width
+        separator_x = rect.x  # Aligned to left
         
         c.saveState()
         try:
@@ -4542,23 +4590,23 @@ class PDFCompiler:
         finally:
             c.restoreState()
         
-        # Pozycja startowa dla tekstu (od dołu strony w PDF coordinates)
-        # Zostaw 4pt odstępu pod separator line
-        y = separator_y - 4.0 - font_size  # Start od separator line z odstępem
+        # Starting position for text (from bottom of page in PDF coordinates)
+        # Leave 4pt spacing under separator line
+        y = separator_y - 4.0 - font_size  # Start from separator line with spacing
         x_start = rect.x
         line_height = font_size * 1.2
-        # max_width będzie obliczane dynamicznie dla każdego endnote (szerokość indeksu + odstęp)
+        # max_width will be calculated dynamically for each endnote (index width + spacing)
         
         for endnote in endnotes:
             if y < rect.y:
-                # Nie ma miejsca na więcej endnotes
+                # No space for more endnotes
                 break
             
             endnote_number = endnote.get('number', '?')
             endnote_content = endnote.get('content', '')
             
-            # Renderuj numer endnote jako superscript (tak jak w tekście głównym i footnotes)
-            # Superscript: mniejszy font (58% rozmiaru) i wyżej (33% baseline shift)
+            # Render endnote number as superscript (same as in main text and footnotes)
+            # Superscript: smaller font (58% size) and higher (33% baseline shift)
             ref_font_size = font_size * 0.58  # Standardowy rozmiar superscript
             superscript_baseline_shift = font_size * 0.33  # Standardowy baseline shift dla superscript
             
@@ -4567,23 +4615,23 @@ class PDFCompiler:
                 c.setFont(font_name, ref_font_size)
                 c.setFillColor(black)
                 number_text = str(endnote_number)
-                number_y = y + superscript_baseline_shift  # Wyżej niż baseline
+                number_y = y + superscript_baseline_shift  # Higher than baseline
                 c.drawString(x_start, number_y, number_text)
                 number_width = c.stringWidth(number_text, font_name, ref_font_size)
             finally:
                 c.restoreState()
             
-            # Renderuj zawartość endnote
-            # Zostaw odstęp po indeksie (2pt) i zacznij od tego miejsca
-            text_x = x_start + number_width + 2  # 2pt odstęp po indeksie
+            # Render endnote content
+            # Leave spacing after index (2pt) and start from there
+            text_x = x_start + number_width + 2  # 2pt spacing after index
             current_y = y
             
-            # Oblicz dostępną szerokość dla treści (od text_x do prawej krawędzi)
+            # Calculate available width for content (from text_x to right edge)
             max_width = rect.x + rect.width - text_x
             
-            # Wrap text jeśli potrzeba (tak samo jak footnotes)
+            # Wrap text if needed (same as footnotes)
             if isinstance(endnote_content, str):
-                # Użyj TextMetricsEngine do wrapowania tekstu
+                # Use TextMetricsEngine for text wrapping
                 try:
                     from ..text_metrics import TextMetricsEngine
                     metrics = TextMetricsEngine()
@@ -4600,7 +4648,7 @@ class PDFCompiler:
                         c.drawString(text_x, current_y, line)
                         current_y -= line_height
                 except Exception:
-                    # Fallback: prosty wrap używając stringWidth
+                    # Fallback: simple wrap using stringWidth
                     words = endnote_content.split()
                     current_line = ""
                     for word in words:
@@ -4618,9 +4666,9 @@ class PDFCompiler:
                         c.drawString(text_x, current_y, current_line)
                         current_y -= line_height
             else:
-                # Jeśli content nie jest stringiem, spróbuj przekonwertować
+                # If content is not string, try to convert
                 content_str = str(endnote_content)
-                # Wrap długi tekst
+                # Wrap long text
                 words = content_str.split()
                 current_line = ""
                 for word in words:
@@ -4638,15 +4686,17 @@ class PDFCompiler:
                     c.drawString(text_x, current_y, current_line)
                     current_y -= line_height
             
-            y = current_y - line_height * 0.5  # Odstęp między endnotes
+            y = current_y - line_height * 0.5  # Spacing between endnotes
     
     def _draw_generic(self, c: canvas.Canvas, block: LayoutBlock) -> None:
         """
-        Domyślny renderer dla nieznanych typów.
-        
+
+        Default renderer for unknown types.
+
         Args:
-            c: ReportLab Canvas
-            block: LayoutBlock o nieznanym typie
+        c: ReportLab Canvas
+        block: LayoutBlock of unknown type
+
         """
         rect = block.frame
         c.setStrokeColor(Color(0.8, 0.8, 0.8))
@@ -4658,12 +4708,14 @@ class PDFCompiler:
     
     def _draw_error_placeholder(self, c: canvas.Canvas, block: LayoutBlock, error: str) -> None:
         """
-        Renderuje placeholder błędu dla bloku.
-        
+
+        Renders error placeholder for block.
+
         Args:
-            c: ReportLab Canvas
-            block: LayoutBlock z błędem
-            error: Komunikat błędu
+        c: ReportLab Canvas
+        block: LayoutBlock with error
+        error: Error message
+
         """
         rect = block.frame
         c.setStrokeColor(Color(1.0, 0.2, 0.2))
@@ -4690,7 +4742,7 @@ class PDFCompiler:
             return ""
 
         field_type = str(field_info.get("field_type") or field_info.get("type") or "").upper()
-        # Użyj aktualnej wartości _current_page_number (ustawionej przed renderowaniem strony)
+        # Use current _current_page_number value (set before page rendering)
         current_page = self._current_page_number if self._current_page_number > 0 else 1
         total_pages = self._total_pages if self._total_pages > 0 else 1
         
@@ -4764,7 +4816,7 @@ class PDFCompiler:
                     return normalized
             anchor_value = hyperlink.get("anchor")
             if anchor_value and str(anchor_value).strip():
-                # Nie renderujemy wewnętrznych zakładek jako URL — brak odwzorowania w PDF.
+                # We don't render internal bookmarks as URL - no mapping in PDF.
                 return None
 
         text_candidate = (fallback_text or "").strip()
@@ -4773,7 +4825,9 @@ class PDFCompiler:
     @staticmethod
     def _resolve_highlight_color(value: Any) -> Optional[str]:
         """
-        Mapuje nazwy kolorów highlight na wartości HEX.
+
+        Maps highlight color names to HEX values.
+
         """
         if not value:
             return None
@@ -4805,7 +4859,9 @@ class PDFCompiler:
 
     def _color_to_reportlab(self, value: Any, fallback: str = "#000000") -> Color:
         """
-        Konwertuje różne reprezentacje koloru na obiekt ReportLab Color.
+
+        Converts various color representations to ReportLab Color object.
+
         """
         if isinstance(value, Color):
             return value
@@ -4850,7 +4906,7 @@ class PDFCompiler:
 
         hex_color = token.lstrip("#")
         
-        # Obsługa różnych formatów
+        # Handle different formats
         if len(hex_color) == 6:
             r = int(hex_color[0:2], 16) / 255.0
             g = int(hex_color[2:4], 16) / 255.0
@@ -4875,7 +4931,7 @@ def _parallel_render_chunk(task: Tuple[List[int], str]) -> str:
         raise RuntimeError("Parallel worker nie został poprawnie zainicjowany.")
 
     chunk_layout = UnifiedLayout()
-    # Kopiuj strony z oryginalnego layoutu - page.number jest już ustawiony poprawnie
+    # Copy pages from original layout - page.number is already set correctly
     chunk_layout.pages = [_PARALLEL_LAYOUT.pages[i] for i in indices]
     chunk_layout.current_page = len(chunk_layout.pages) + 1
 
@@ -4888,8 +4944,8 @@ def _parallel_render_chunk(task: Tuple[List[int], str]) -> str:
     total_pages = _PARALLEL_TOTAL_PAGES if _PARALLEL_TOTAL_PAGES > 0 else len(_PARALLEL_LAYOUT.pages)
     compiler._total_pages = max(total_pages, 1)
     
-    # W trybie równoległym page.number już zawiera właściwy numer strony z oryginalnego layoutu
-    # Nie używamy start_page_number - używamy page.number bezpośrednio
+    # In parallel mode page.number already contains proper page number from original layout
+    # We don't use start_page_number - use page.number directly
     compiler._render_sequential(chunk_layout, start_page_number=None)
     return output_path
 

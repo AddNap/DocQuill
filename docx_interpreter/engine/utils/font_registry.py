@@ -121,9 +121,11 @@ _REGISTERED: set[str] = set()
 
 def register_default_fonts() -> None:
     """
-    Rejestruje wybrane rodziny fontów (DejaVuSans/Serif) potrzebne do poprawnego
-    renderowania znaków diakrytycznych w PDF, jeżeli odpowiednie pliki *.ttf
-    znajdują się w systemie lub w katalogu projektu.
+
+    Registers selected font families (DejaVuSans/Serif) needed for proper
+    rendering of diacritical characters in PDF, if corresponding *.ttf files
+    exist in system or project directory.
+
     """
     for family, variants in FONT_VARIANTS.items():
         for suffix, candidate_names in variants.items():

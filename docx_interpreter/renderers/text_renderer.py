@@ -50,11 +50,11 @@ class TextRenderer:
         if isinstance(payload, dict) and payload.get("lines"):
             lines: List[Dict[str, Any]] = list(payload["lines"])
         elif isinstance(payload, dict) and payload.get("text"):
-            # Obsługa formatu z LayoutEngine (dict z "text")
+            # Handling format from LayoutEngine (dict with "text")
             text = payload.get("text", "")
             lines = [{"text": str(text), "offset_baseline": 0.0, "layout": None}]
         elif isinstance(payload, Iterable) and not isinstance(payload, (str, bytes)):
-            # Konwertuj wszystkie elementy na dict jeśli są stringami
+            # Convert all elements to dict if they are strings
             lines = []
             for item in payload:
                 if isinstance(item, dict):
@@ -64,7 +64,7 @@ class TextRenderer:
                 else:
                     lines.append({"text": str(item), "offset_baseline": 0.0, "layout": None})
         elif isinstance(payload, str):
-            # Jeśli payload to string, użyj go bezpośrednio
+            # If payload is string, use it directly
             lines = [{"text": payload, "offset_baseline": 0.0, "layout": None}]
         else:
             lines = [{"text": str(payload), "offset_baseline": 0.0, "layout": None}]
@@ -452,7 +452,7 @@ class TextRenderer:
                         except Exception:
                             pass
 
-                    # Renderuj footnote references jeśli są w run
+                    # Render footnote references if in run
                     if self.footnote_renderer and style.get("footnote_refs"):
                         footnote_refs = style.get("footnote_refs", [])
                         if isinstance(footnote_refs, str):

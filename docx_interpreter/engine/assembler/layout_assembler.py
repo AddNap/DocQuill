@@ -1,8 +1,10 @@
 """
-LayoutAssembler – właściwy silnik layoutu:
-- przelicza wymiary, spacing i pozycje elementów
-- obsługuje paginację i marginesy
-- przygotowuje LayoutBlock do PDFCompiler
+
+LayoutAssembler - the actual layout engine:
+- calculates dimensions, spacing and element positions
+- handles pagination and margins
+- prepares LayoutBlock for PDFCompiler
+
 """
 
 import copy
@@ -805,7 +807,7 @@ class LayoutAssembler:
         if lines_here <= 0:
             return start
 
-        # Upewnij się, że skorygowany segment nadal mieści się w dostępnej wysokości.
+        # Ensure the adjusted segment still fits within available height.
         adjusted_end = start + lines_here
         include_bottom = adjusted_end == total_lines
         adjusted_height = self._compute_paragraph_segment_height(
@@ -1171,12 +1173,12 @@ class LayoutAssembler:
         force_split_allowed = False
 
         while start < total_lines:
-            # Oblicz dostępną wysokość, uwzględniając footnotes dla bieżącej strony (tylko dla PDF)
+            # Calculate available height, accounting for footnotes for current page (PDF only)
             bottom_limit = self._page_bottom_limit
             if self._is_pdf and self.footnote_renderer:
                 footnote_height = self._calculate_footnotes_height_for_page(self.page_number)
                 if footnote_height > 0:
-                    # Dodaj wysokość footnotes do bottom_limit (footnotes zajmują miejsce nad bottom margin)
+                    # Add footnotes height to bottom_limit (footnotes occupy space above bottom margin)
                     bottom_limit = bottom_limit + footnote_height
             
             available_height = self.current_y - bottom_limit
@@ -1198,7 +1200,7 @@ class LayoutAssembler:
                     self._new_page(unified)
                     force_split_allowed = True
                     continue
-                # Jeśli mimo wszystko brak postępu, wymuś przynajmniej jedną linię.
+                # If still no progress, force at least one line.
                 break_index = min(total_lines, start + 1)
 
             force_split_allowed = False
@@ -1223,7 +1225,7 @@ class LayoutAssembler:
                 element,
                 segment_payload,
                 segment_index=segment_index,
-                segment_count=0,  # zaktualizowane później
+                segment_count=0,  # updated later
                 spacing_before=0.0,
                 spacing_after=spacing_after if is_last_segment else 0.0,
             )
@@ -1424,10 +1426,10 @@ class LayoutAssembler:
         self._new_page(unified)
         border_group_geometry: Dict[Tuple[int, int], Dict[str, Any]] = {}
         
-        # Zbierz watermarks z headerów (będą dodane do wszystkich stron po assemblowaniu)
+        # Collect watermarks from headers (will be added to all pages after assembling)
         collected_watermarks: List[Dict[str, Any]] = []
         
-        # Przetwórz headers, aby wykryć watermarks
+        # Process headers to detect watermarks
         if hasattr(layout_structure, "headers") and layout_structure.headers:
             logger.info(f"Processing {len(layout_structure.headers)} header types")
             for header_type, header_elements in layout_structure.headers.items():
@@ -1436,33 +1438,33 @@ class LayoutAssembler:
                     continue
                 logger.info(f"Processing header type '{header_type}' with {len(header_elements)} elements")
                 for i, header_element in enumerate(header_elements):
-                    # Sprawdź czy element ma textboxy z pozycjonowaniem absolutnym
+                    # Check if element has textboxes with absolute positioning
                     if isinstance(header_element, dict):
                         element_type = header_element.get("type", "")
                         logger.debug(f"Header element {i}: type={element_type}, keys={list(header_element.keys())}")
-                        # Sprawdź czy element jest paragrafem z textboxami lub obrazami (watermarks)
+                        # Check if element is paragraph with textboxes or images (watermarks)
                         if element_type == "paragraph":
-                            # Sprawdź textboxy - używamy tylko oznaczenia is_watermark z XML
+                            # Check textboxes - we only use is_watermark flag from XML
                             textboxes = header_element.get("textboxes", [])
                             for j, textbox in enumerate(textboxes):
                                 if isinstance(textbox, dict):
-                                    # Używamy tylko oznaczenia is_watermark z parsowanych danych XML
+                                    # We only use is_watermark flag from parsed XML data
                                     if textbox.get("is_watermark", False):
-                                        # To jest watermark - zapisz do późniejszego dodania
+                                        # This is a watermark - save for later addition
                                         anchor_type, anchor_info = extract_anchor_info(textbox)
                                         textbox["anchor_info"] = anchor_info
                                         textbox["is_watermark"] = True
                                         textbox["header_footer_context"] = "header"
                                         collected_watermarks.append(textbox)
                             
-                            # Sprawdź obrazy - używamy tylko oznaczenia is_watermark z XML
+                            # Check images - we only use is_watermark flag from XML
                             images = header_element.get("images", [])
                             for j, image in enumerate(images):
                                 if isinstance(image, dict):
-                                    # Używamy tylko oznaczenia is_watermark z parsowanych danych XML
+                                    # We only use is_watermark flag from parsed XML data
                                     # Nie sprawdzamy heurystyk jak behindDoc czy anchor_type
                                     if image.get("is_watermark", False):
-                                        # To jest watermark - zapisz do późniejszego dodania
+                                        # This is a watermark - save for later addition
                                         anchor_type = image.get("anchor_type", "")
                                         if "position" in image:
                                             image["anchor_info"] = {
@@ -1473,23 +1475,23 @@ class LayoutAssembler:
                                         image["header_footer_context"] = "header"
                                         collected_watermarks.append(image)
                             
-                            # Sprawdź VML shapes (watermarks tekstowe)
+                            # Check VML shapes (text watermarks)
                             vml_shapes = header_element.get("vml_shapes", [])
                             for j, vml_shape in enumerate(vml_shapes):
                                 if isinstance(vml_shape, dict):
                                     is_watermark = vml_shape.get("is_watermark", False)
                                     position_absolute = vml_shape.get("position", {}).get("absolute", False)
-                                    # VML shape jest watermarkiem jeśli ma is_watermark=True lub pozycjonowanie absolutne
+                                    # VML shape is watermark if it has is_watermark=True or absolute positioning
                                     if is_watermark or position_absolute:
-                                        # To jest watermark - zapisz do późniejszego dodania
+                                        # This is a watermark - save for later addition
                                         vml_shape["is_watermark"] = True
                                         vml_shape["header_footer_context"] = "header"
                                         collected_watermarks.append(vml_shape)
-                        # Sprawdź czy element jest bezpośrednio textboxem - używamy tylko oznaczenia is_watermark z XML
+                        # Check if element is directly a textbox - we only use is_watermark flag from XML
                         elif element_type == "textbox":
-                            # Używamy tylko oznaczenia is_watermark z parsowanych danych XML
+                            # We only use is_watermark flag from parsed XML data
                             if header_element.get("is_watermark", False):
-                                # To jest watermark - zapisz do późniejszego dodania
+                                # This is a watermark - save for later addition
                                 anchor_type, anchor_info = extract_anchor_info(header_element)
                                 header_element["anchor_info"] = anchor_info
                                 header_element["is_watermark"] = True
@@ -1503,11 +1505,11 @@ class LayoutAssembler:
         page_body_elements = layout_structure.body
 
         for element in page_body_elements:
-            # Wyciągnij footnote references z elementu przed przetwarzaniem
+            # Extract footnote references from element before processing
             if self.footnote_renderer:
                 self._extract_footnote_refs_from_element(element, self.page_number)
             
-            # Sprawdź page-break-before
+            # Check page-break-before
             if element.get("page_break_before", False):
                 self._new_page(unified)
 
@@ -1529,10 +1531,10 @@ class LayoutAssembler:
                 spacing_after = 0.0
 
             if element.get("type") == "paragraph":
-                # Ekstraktuj watermarks z paragraphów w headerach przed layoutem
+                # Extract watermarks from paragraphs in headers before layout
                 header_footer_context = element.get("header_footer_context")
                 if header_footer_context == "header" and not self._is_html:
-                    # Sprawdź czy paragraf ma textboxy z pozycjonowaniem absolutnym
+                    # Check if paragraph has textboxes with absolute positioning
                     textboxes = element.get("textboxes", [])
                     logger.debug(f"Paragraph in header has {len(textboxes)} textboxes")
                     for textbox in textboxes:
@@ -1540,7 +1542,7 @@ class LayoutAssembler:
                             anchor_type, anchor_info = extract_anchor_info(textbox)
                             logger.debug(f"Textbox anchor_type={anchor_type}, anchor_info={anchor_info}")
                             if anchor_type == "anchor":
-                                # To jest watermark - zapisz do późniejszego dodania
+                                # This is a watermark - save for later addition
                                 textbox["anchor_info"] = anchor_info
                                 textbox["is_watermark"] = True
                                 textbox["header_footer_context"] = "header"
@@ -1636,21 +1638,21 @@ class LayoutAssembler:
             self.current_y = y
             self._pending_spacing_after = spacing_after if not self._is_html else 0.0
             
-            # Sprawdź page-break-after
+            # Check page-break-after
             if element.get("page_break_after", False):
                 self._new_page(unified)
         
-        # Po zakończeniu assemblowania, dodaj bloki footnotes do wszystkich stron
+        # After assembling is complete, add footnote blocks to all pages
         if self.footnote_renderer:
             for page in unified.pages:
                 self._create_footnote_blocks(unified, page.number)
         
-        # Dodaj watermarks do wszystkich stron (po assemblowaniu, gdy wszystkie strony są już utworzone)
+        # Add watermarks to all pages (after assembling, when all pages are created)
         if collected_watermarks and not self._is_html:
             for watermark_data in collected_watermarks:
                 anchor_info = watermark_data.get("anchor_info", {})
                 sequence, source_uid = self._allocate_block_identity(watermark_data, suffix="watermark")
-                # Określ typ watermark (textbox, image lub vml_shape)
+                # Determine watermark type (textbox, image or vml_shape)
                 watermark_type = watermark_data.get("type", "textbox")
                 if watermark_type == "Image" or watermark_data.get("path") or watermark_data.get("image_path"):
                     watermark_type = "image"
@@ -1666,7 +1668,7 @@ class LayoutAssembler:
                     "header_footer_context": "header",
                     "is_watermark": True,
                 }
-                # Użyj pełnego rozmiaru strony dla watermark
+                # Use full page size for watermark
                 watermark_rect = Rect(
                     x=0.0,
                     y=0.0,
@@ -1675,10 +1677,10 @@ class LayoutAssembler:
                 )
                 watermark_block = LayoutBlock(
                     frame=watermark_rect,
-                    block_type=watermark_type,  # Użyj właściwego typu (image lub textbox)
+                    block_type=watermark_type,  # Use proper type (image or textbox)
                     content=watermark_content,
                     style=watermark_data.get("style", {}),
-                    page_number=1,  # Watermark będzie na wszystkich stronach
+                    page_number=1,  # Watermark will be on all pages
                     source_uid=source_uid,
                     sequence=sequence,
                 )
@@ -1686,22 +1688,22 @@ class LayoutAssembler:
                 for page in unified.pages:
                     page.blocks.append(watermark_block)
         
-        # Na końcu dokumentu, dodaj endnotes pod ostatnim elementem body (tylko dla PDF)
+        # At the end of document, add endnotes under the last body element (PDF only)
         if self._is_pdf and self._endnotes_collected:
             self._create_endnotes_after_body(unified)
 
-        # Dodaj header/footer bloki do każdej strony
+        # Add header/footer blocks to each page
         if hasattr(layout_structure, "headers") and layout_structure.headers:
             for header_type, header_elements in layout_structure.headers.items():
                 if not isinstance(header_elements, list):
                     continue
                 for header_element in header_elements:
                     if isinstance(header_element, dict):
-                        # Dodaj header jako blok do każdej strony
+                        # Add header as block to each page
                         for page in unified.pages:
                             header_rect = Rect(
                                 x=self.page_config.base_margins.left,
-                                y=self.page_config.page_size.height - self.page_config.base_margins.top - 20.0,  # 20pt wysokość headera
+                                y=self.page_config.page_size.height - self.page_config.base_margins.top - 20.0,  # 20pt header height
                                 width=self.page_config.page_size.width - self.page_config.base_margins.left - self.page_config.base_margins.right,
                                 height=20.0,
                             )
@@ -1716,10 +1718,10 @@ class LayoutAssembler:
                                 source_uid=source_uid,
                                 sequence=sequence,
                             )
-                            page.blocks.insert(0, header_block)  # Dodaj na początku
+                            page.blocks.insert(0, header_block)  # Add at beginning
         
-        # Footery są dodawane przez PaginationManager.apply_headers_footers(),
-        # więc nie dodajemy ich tutaj, aby uniknąć duplikacji
+        # Footers are added by PaginationManager.apply_headers_footers(),
+        # so we don't add them here to avoid duplication
         # if hasattr(layout_structure, "footers") and layout_structure.footers:
         #     for footer_type, footer_elements in layout_structure.footers.items():
         #         if not isinstance(footer_elements, list):
@@ -1751,13 +1753,15 @@ class LayoutAssembler:
 
     # ----------------------------------------------------------------------
     def _calculate_footnotes_height_for_page(self, page_number: int) -> float:
-        """Oblicza wysokość footnotes dla strony.
-        
+        """
+Calculates footnotes height for page.
+
         Args:
-            page_number: Numer strony
-            
+        page_number: Page number
+
         Returns:
-            Wysokość footnotes w punktach
+        Footnotes height in points
+
         """
         if not self.footnote_renderer:
             return 0.0
@@ -1766,26 +1770,26 @@ class LayoutAssembler:
         if not footnote_ids:
             return 0.0
         
-        # Oblicz wysokość na podstawie liczby footnotes i ich zawartości
-        font_size = 9.0  # Używamy tego samego rozmiaru co w rendererze
+        # Calculate height based on number of footnotes and their content
+        font_size = 9.0  # We use the same size as in renderer
         font_name = "DejaVuSans"
         line_height = font_size * 1.2
-        indent = 15.0  # Wcięcie dla numeru footnote
-        separator_height = 8.0  # Separator line (kreska) + odstęp (4pt separator + 4pt odstęp)
+        indent = 15.0  # Indent for footnote number
+        separator_height = 8.0  # Separator line + spacing (4pt separator + 4pt spacing)
         spacing_between = line_height * 0.5
         
-        total_height = separator_height  # Separator na górze
+        total_height = separator_height  # Separator at top
         
-        # Pobierz dostępną szerokość strony (przybliżona, będzie poprawiona w _create_footnote_blocks)
-        # Używamy domyślnej szerokości A4 minus marginesy
-        available_width = 595.0 - 136.1 - 51.0  # Przybliżona szerokość (będzie poprawiona)
+        # Get available page width (approximate, will be corrected in _create_footnote_blocks)
+        # We use default A4 width minus margins
+        available_width = 595.0 - 136.1 - 51.0  # Approximate width (will be corrected)
         
         for footnote_id in footnote_ids:
             footnote_data = self.footnote_renderer.footnotes.get(footnote_id)
             if not footnote_data:
                 continue
             
-            # Extract content - poprawiona ekstrakcja pełnego tekstu
+            # Extract content - improved full text extraction
             content = ""
             if isinstance(footnote_data, dict):
                 content_list = footnote_data.get('content', [])
@@ -1794,9 +1798,9 @@ class LayoutAssembler:
                     content_parts = []
                     for para in content_list:
                         if isinstance(para, dict):
-                            # Najpierw spróbuj pobrać pełny tekst paragrafu
+                            # First try to get full paragraph text
                             para_text = para.get('text', '')
-                            # Jeśli nie ma tekstu, zbierz z runs
+                            # If no text, collect from runs
                             if not para_text and para.get('runs'):
                                 para_text = ' '.join([
                                     run.get('text', '') 
@@ -1821,13 +1825,13 @@ class LayoutAssembler:
             else:
                 content = str(footnote_data) if footnote_data else ""
             
-            # Estimate lines needed - użyj TextMetricsEngine dla dokładniejszego pomiaru
+            # Estimate lines needed - use TextMetricsEngine for more accurate measurement
             try:
                 from ..text_metrics import TextMetricsEngine
                 metrics = TextMetricsEngine()
                 wrapped_lines = metrics.wrap_text(
                     content,
-                    available_width - indent,  # Uwzględnij wcięcie dla numeru
+                    available_width - indent,  # Account for indent for number
                     font_name=font_name,
                     font_size=font_size
                 )
@@ -1844,11 +1848,13 @@ class LayoutAssembler:
         return total_height
     
     def _extract_footnote_refs_from_element(self, element: Dict[str, Any], page_number: int) -> None:
-        """Wyciąga footnote references z elementu i rejestruje je dla strony.
-        
+        """
+Extracts footnote references from element and registers them for page.
+
         Args:
-            element: Element layoutu (paragraph, table cell, etc.) - może być dict lub obiekt
-            page_number: Numer strony
+        element: Layout element (paragraph, table cell, etc.) - can be dict or object
+        page_number: Page number
+
         """
         if not self.footnote_renderer:
             return
@@ -2015,7 +2021,7 @@ class LayoutAssembler:
             footnote_data = self.footnote_renderer.footnotes.get(footnote_id)
             number = self.footnote_renderer.get_footnote_number(footnote_id) or "?"
             
-            # Extract content - poprawiona ekstrakcja pełnego tekstu
+            # Extract content - improved full text extraction
             content = ""
             if isinstance(footnote_data, dict):
                 content_list = footnote_data.get('content', [])
@@ -2024,9 +2030,9 @@ class LayoutAssembler:
                     content_parts = []
                     for para in content_list:
                         if isinstance(para, dict):
-                            # Najpierw spróbuj pobrać pełny tekst paragrafu
+                            # First try to get full paragraph text
                             para_text = para.get('text', '')
-                            # Jeśli nie ma tekstu, zbierz z runs
+                            # If no text, collect from runs
                             if not para_text and para.get('runs'):
                                 para_text = ' '.join([
                                     run.get('text', '') 
@@ -2078,43 +2084,45 @@ class LayoutAssembler:
         page.add_block(footnote_block)
     
     def _create_endnotes_after_body(self, unified: UnifiedLayout) -> None:
-        """Tworzy endnotes pod ostatnim elementem body.
-        Endnotes są renderowane jako blok typu "endnotes" (tak samo jak footnotes).
-        
+        """
+Creates endnotes under the last body element.
+        Endnotes are rendered as block type "endnotes" (same as footnotes).
+
         Args:
-            unified: UnifiedLayout
+        unified: UnifiedLayout
+
         """
         if not self.footnote_renderer or not self._endnotes_collected:
             return
         
-        # Sprawdź czy mamy aktualną stronę
+        # Check if we have current page
         if not unified.pages:
             return
         
-        # Użyj obecnej strony i marginesów (nie tworzymy nowej strony)
+        # Use current page and margins (don't create new page)
         current_page = unified.pages[-1]
         margins = current_page.margins
         
-        # Oblicz wysokość endnotes (podobnie jak footnotes)
+        # Calculate endnotes height (similar to footnotes)
         endnote_area_height = self._calculate_endnotes_height()
         if endnote_area_height <= 0:
             return
         
-        # Sprawdź czy endnotes zmieszczą się na obecnej stronie
-        # Jeśli nie, utwórz nową stronę
+        # Check if endnotes will fit on current page
+        # If not, create new page
         available_height = self.current_y - margins.bottom
         if endnote_area_height > available_height:
-            # Endnotes nie zmieszczą się - utwórz nową stronę
+            # Endnotes won't fit - create new page
             self._new_page(unified)
             current_page = unified.pages[-1]
             margins = current_page.margins
             self.current_y = self.page_config.page_size.height - margins.top
         
-        # Oblicz pozycję endnotes (pod ostatnim elementem body)
+        # Calculate endnotes position (under last body element)
         endnote_y = self.current_y - endnote_area_height
         endnote_height = endnote_area_height
         
-        # Sortuj endnotes według numerów
+        # Sort endnotes by numbers
         sorted_endnotes = sorted(
             self._endnotes_collected,
             key=lambda e: self.footnote_renderer.get_endnote_number(e['id']) or 0
@@ -2140,9 +2148,9 @@ class LayoutAssembler:
                     content_parts = []
                     for para in content_list:
                         if isinstance(para, dict):
-                            # Najpierw spróbuj pobrać pełny tekst paragrafu
+                            # First try to get full paragraph text
                             para_text = para.get('text', '')
-                            # Jeśli nie ma tekstu, zbierz z runs
+                            # If no text, collect from runs
                             if not para_text and para.get('runs'):
                                 para_text = ' '.join([
                                     run.get('text', '') 
@@ -2193,29 +2201,31 @@ class LayoutAssembler:
         
         current_page.add_block(endnote_block)
         
-        # Zaktualizuj pozycję kursora (endnotes zajmują miejsce)
+        # Update cursor position (endnotes take up space)
         self.current_y = endnote_y
     
     def _calculate_endnotes_height(self) -> float:
-        """Oblicza wysokość endnotes (podobnie jak footnotes).
-        
+        """
+Calculates endnotes height (similar to footnotes).
+
         Returns:
-            Wysokość endnotes w punktach
+        Endnotes height in points
+
         """
         if not self.footnote_renderer or not self._endnotes_collected:
             return 0.0
         
-        # Użyj podobnej logiki jak w _calculate_footnotes_height_for_page
+        # Use similar logic as in _calculate_footnotes_height_for_page
         font_size = 9.0  # Mniejszy font dla endnotes (jak footnotes)
         font_name = "DejaVuSans"
         line_height = font_size * 1.2
-        separator_height = 8.0  # Separator line (kreska) + odstęp (4pt separator + 4pt odstęp)
+        separator_height = 8.0  # Separator line + spacing (4pt separator + 4pt spacing)
         spacing_between = line_height * 0.5
         
-        total_height = separator_height  # Separator na górze
+        total_height = separator_height  # Separator at top
         
-        # Pobierz dostępną szerokość (przybliżona)
-        available_width = 595.0 - 136.1 - 51.0  # Przybliżona szerokość (będzie poprawiona)
+        # Get available width (approximate)
+        available_width = 595.0 - 136.1 - 51.0  # Approximate width (will be corrected)
         
         for endnote_item in self._endnotes_collected:
             endnote_data = endnote_item.get('data')
@@ -2255,13 +2265,13 @@ class LayoutAssembler:
             else:
                 content = str(endnote_data) if endnote_data else ""
             
-            # Estimate lines needed - użyj TextMetricsEngine dla dokładniejszego pomiaru
+            # Estimate lines needed - use TextMetricsEngine for more accurate measurement
             try:
                 from ..text_metrics import TextMetricsEngine
                 metrics = TextMetricsEngine()
                 wrapped_lines = metrics.wrap_text(
                     content,
-                    available_width - 15.0,  # Uwzględnij wcięcie dla numeru (podobnie jak footnotes)
+                    available_width - 15.0,  # Account for indent for number (similar to footnotes)
                     font_name=font_name,
                     font_size=font_size
                 )
@@ -2277,22 +2287,22 @@ class LayoutAssembler:
         return total_height
     
     def _new_page(self, unified):
-        """Tworzy nową stronę w unified layout i resetuje pozycję kursora."""
+        """Creates new page in unified layout and resets cursor position."""
         self.page_number += 1
         margins = self.page_config.base_margins
-        # Użyj self.page_number zamiast unified.current_page, aby zapewnić synchronizację
-        # unified.new_page() używa unified.current_page, ale chcemy użyć self.page_number
-        # Więc najpierw ustaw unified.current_page na właściwą wartość PRZED wywołaniem new_page()
-        # unified.new_page() użyje unified.current_page do ustawienia page.number, a potem zwiększy unified.current_page
+        # Use self.page_number instead of unified.current_page to ensure synchronization
+        # unified.new_page() uses unified.current_page, but we want to use self.page_number
+        # So first set unified.current_page to proper value BEFORE calling new_page()
+        # unified.new_page() will use unified.current_page to set page.number, then increment unified.current_page
         unified.current_page = self.page_number
         page = unified.new_page(
             self.page_config.page_size,
             margins
         )
-        # Sprawdź czy page.number jest poprawnie ustawione (powinno być równe self.page_number)
-        # Jeśli nie, ustaw je ręcznie
+        # Check if page.number is correctly set (should equal self.page_number)
+        # If not, set it manually
         if page.number != self.page_number:
-            # Napraw: ustaw page.number ręcznie
+            # Fix: set page.number manually
             page.number = self.page_number
 
         if self.page_variator:
@@ -2303,7 +2313,7 @@ class LayoutAssembler:
             self.current_y = self.page_config.page_size.height - self.page_config.base_margins.top
             base_bottom = self.page_config.base_margins.bottom
         
-        # Uwzględnij wysokość footnotes dla nowej strony
+        # Account for footnotes height for new page
         footnote_height = 0.0
         if self.footnote_renderer:
             footnote_height = self._calculate_footnotes_height_for_page(self.page_number)
@@ -2315,20 +2325,22 @@ class LayoutAssembler:
 
     # ----------------------------------------------------------------------
     def _fits(self, block_height: float) -> bool:
-        """Sprawdza, czy blok zmieści się na stronie.
-        Uwzględnia wysokość footnotes dla bieżącej strony (tylko dla PDF).
-        Footnotes są renderowane nad bottom margin, więc zmniejszają dostępną przestrzeń.
+        """
+Checks if block will fit on page.
+        Accounts for footnotes height for current page (PDF only).
+        Footnotes are rendered above bottom margin, so they reduce available space.
+
         """
         bottom_limit = self._page_bottom_limit
         
-        # Dla PDF, uwzględnij wysokość footnotes dla bieżącej strony
+        # For PDF, account for footnotes height for current page
         if self._is_pdf and self.footnote_renderer:
             footnote_height = self._calculate_footnotes_height_for_page(self.page_number)
             if footnote_height > 0:
-                # Dodaj wysokość footnotes do bottom_limit (footnotes zajmują miejsce nad bottom margin)
-                # W PDF coordinates: Y=0 na dole, Y rośnie w górę
-                # bottom_limit to minimalna pozycja Y (od dołu strony)
-                # Jeśli mamy footnotes, muszą być nad bottom margin, więc zwiększamy bottom_limit
+                # Add footnotes height to bottom_limit (footnotes occupy space above bottom margin)
+                # In PDF coordinates: Y=0 at bottom, Y increases upward
+                # bottom_limit is minimum Y position (from page bottom)
+                # If we have footnotes, they must be above bottom margin, so we increase bottom_limit
                 bottom_limit = bottom_limit + footnote_height
         
         return (self.current_y - block_height) > bottom_limit
@@ -2336,19 +2348,21 @@ class LayoutAssembler:
     # ----------------------------------------------------------------------
     def _measure_block_height(self, element) -> float:
         """
-        Oblicza rzeczywistą wysokość elementu.
-        Używa line_breaker dla paragrafów, szacuje dla innych typów.
-        
+
+        Calculates actual element height.
+        Uses line_breaker for paragraphs, estimates for other types.
+
         Args:
-            element: Element z LayoutStructure
-            
+        element: Element from LayoutStructure
+
         Returns:
-            Wysokość w punktach
+        Height in points
+
         """
         t = element["type"]
         style = element.get("style", {})
         
-        # Oblicz dostępną szerokość
+        # Calculate available width
         available_width = (
             self.page_config.page_size.width
             - self.page_config.base_margins.left
@@ -2380,14 +2394,16 @@ class LayoutAssembler:
 
     def _measure_paragraph_height(self, element: dict, available_width: float) -> float:
         """
-        Oblicza wysokość paragrafu używając line_breaker.
-        
+
+        Calculates paragraph height using line_breaker.
+
         Args:
-            element: Element paragrafu
-            available_width: Dostępna szerokość w punktach
-            
+        element: Paragraph element
+        available_width: Available width in points
+
         Returns:
-            Wysokość w punktach
+        Height in points
+
         """
         if self._is_html:
             payload = self._ensure_paragraph_layout_payload(element, available_width)
@@ -2406,7 +2422,9 @@ class LayoutAssembler:
 
     def _prepare_block_content(self, element: dict, rect: Rect) -> BlockContent:
         """
-        Buduje standardowe BlockContent z payloadem zależnym od typu bloku.
+
+        Builds standard BlockContent with payload depending on block type.
+
         """
         block_type = element.get("type")
 
@@ -2495,7 +2513,7 @@ class LayoutAssembler:
                 }
             return BlockContent(payload=payload, raw=element)
 
-        # Inne typy - użyj GenericLayout z ewentualnymi overlayami
+        # Other types - use GenericLayout with optional overlays
         overlays: List[OverlayBox] = []
         if not self._is_html:
             for image in element.get("images", []) if isinstance(element, dict) else []:
@@ -2514,17 +2532,17 @@ class LayoutAssembler:
             for textbox in element.get("textboxes", []) if isinstance(element, dict) else []:
                 anchor_type, anchor_info = extract_anchor_info(textbox)
                 if anchor_type == "anchor":
-                    # Sprawdź czy to watermark (textbox w headerze z pozycjonowaniem absolutnym)
+                    # Check if this is watermark (textbox in header with absolute positioning)
                     header_footer_context = element.get("header_footer_context")
                     is_watermark = header_footer_context == "header" and anchor_type == "anchor"
                     
                     if is_watermark:
                         # Watermark - ekstraktuj jako osobny blok watermark
-                        # Zapisz informację o watermark w content, aby PDF compiler mógł go wykryć
+                        # Save watermark info in content so PDF compiler can detect it
                         if isinstance(textbox, dict):
                             textbox["anchor_info"] = anchor_info
                             textbox["is_watermark"] = True
-                            # Dodaj textbox do content jako watermark (będzie ekstraktowany później)
+                            # Add textbox to content as watermark (will be extracted later)
                             if "watermarks" not in element:
                                 element["watermarks"] = []
                             element["watermarks"].append(textbox)
@@ -2746,7 +2764,9 @@ class LayoutAssembler:
 
     def _build_paragraph_layout(self, element: dict, available_width: float, block_rect: Optional[Rect] = None) -> ParagraphLayout:
         """
-        Tworzy ParagraphLayout z prostą segmentacją tekstu na linie, polami i elementami inline.
+
+        Creates ParagraphLayout with simple text segmentation into lines, fields and inline elements.
+
         """
         style = self._ensure_paragraph_style(element)
         if block_rect is not None:
@@ -2839,11 +2859,11 @@ class LayoutAssembler:
         if run_font_sizes:
             max_run_font = max(run_font_sizes)
             min_run_font = min(run_font_sizes)
-            # Jeśli wszystkie runy mają ten sam (lub prawie ten sam) rozmiar, przyjmij go jako bazowy
+            # If all runs have the same (or nearly the same) size, use it as base
             if font_size is None or abs(max_run_font - min_run_font) < 0.01:
                 font_size = max_run_font
             else:
-                # W przypadku mieszanych rozmiarów zadbaj, aby bazowy font był co najmniej tak duży jak największy run
+                # For mixed sizes, ensure base font is at least as large as the largest run
                 if font_size is None or max_run_font > font_size:
                     font_size = max_run_font
 
@@ -2871,19 +2891,19 @@ class LayoutAssembler:
         indent_left = _to_float(indent_dict.get("left_pt") or indent_dict.get("left")) or 0.0
         indent_right = _to_float(indent_dict.get("right_pt") or indent_dict.get("right")) or 0.0
         indent_hanging = _to_float(indent_dict.get("hanging_pt") or indent_dict.get("hanging")) or 0.0
-        # Zawsze obliczaj first_line z left i hanging, ignorując first_line z parsera
-        # (parser może ustawić first_line_indent = -hanging_indent, co jest niepoprawne)
+        # Always calculate first_line from left and hanging, ignoring first_line from parser
+        # (parser may set first_line_indent = -hanging_indent, which is incorrect)
         if indent_hanging:
             indent_first_line = indent_left - indent_hanging
         else:
-            # Jeśli nie ma hanging, sprawdź czy first_line jest ustawione w indent_dict
+            # If no hanging, check if first_line is set in indent_dict
             indent_first_line = _to_float(indent_dict.get("first_line_pt") or indent_dict.get("first_line"))
             if indent_first_line is None:
                 indent_first_line = indent_hanging
         text_position = _to_float(indent_dict.get("text_position_pt"))
         if text_position is None:
-            # text_position to pozycja, gdzie zaczyna się tekst pierwszej linii
-            # Dla hanging indent: first_line = 0.0, więc text_position = 0.0
+            # text_position is position where first line text starts
+            # For hanging indent: first_line = 0.0, so text_position = 0.0
             # Dla first_line indent: text_position = first_line
             text_position = indent_first_line
         number_position = _to_float(indent_dict.get("number_position_pt"))
@@ -2904,7 +2924,7 @@ class LayoutAssembler:
         style["indent"] = indent_dict
 
         text_area_width = max(available_width - indent_left - indent_right, 0.0)
-        # first_line_offset może być ujemne dla hanging indent (wysunięcie pierwszej linii w lewo)
+        # first_line_offset can be negative for hanging indent (first line extends left)
         first_line_offset = text_position - indent_left
         text_width_first = max(text_area_width - first_line_offset, 0.0)
         text_width_other = text_area_width
@@ -2939,8 +2959,8 @@ class LayoutAssembler:
             or style.get("font_family")
         )
         paragraph_color = style.get("color") or style.get("font_color")
-        # Bold ze stylu akapitu może być w style["bold"] lub style["run"]["bold"]
-        # (w zależności od tego, jak parser przekazuje style)
+        # Bold from paragraph style can be in style["bold"] or style["run"]["bold"]
+        # (depending on how parser passes styles)
         paragraph_bold = bool(
             style.get("bold")
             or (isinstance(style.get("run"), dict) and style.get("run", {}).get("bold"))
@@ -2988,17 +3008,17 @@ class LayoutAssembler:
                 run_style["highlight"] = highlight_run
 
             # Logika bold zgodna z Wordem:
-            # - Jeśli styl akapitu ma bold, to domyślnie wszystko jest bold
-            # - ALE jeśli run ma explicite bold=False (inline override), to bold jest wyłączony
-            # - Jeśli run ma explicite bold=True (inline override), to bold jest włączony
-            run_bold_override = _run_attr(run, "bold", None)  # None jeśli nie ma override
+            # - If paragraph style has bold, then everything is bold by default
+            # - BUT if run has explicit bold=False (inline override), bold is disabled
+            # - If run has explicit bold=True (inline override), bold is enabled
+            run_bold_override = _run_attr(run, "bold", None)  # None if no override
             if run_bold_override is None:
-                run_bold_override = raw_style.get("bold")  # Sprawdź w raw_style
+                run_bold_override = raw_style.get("bold")  # Check in raw_style
             if run_bold_override is not None:
-                # Run ma explicite ustawiony bold (True lub False) - użyj tego
+                # Run has explicit bold set (True or False) - use it
                 run_style["bold"] = bool(run_bold_override)
             else:
-                # Run nie ma override - użyj bold ze stylu akapitu
+                # Run has no override - use bold from paragraph style
                 run_style["bold"] = bool(paragraph_bold)
             if paragraph_italic or _run_attr(run, "italic", False) or raw_style.get("italic"):
                 run_style["italic"] = True
@@ -3054,16 +3074,16 @@ class LayoutAssembler:
                     if not run_text.endswith("\n"):
                         run_text += "\n"
                 
-                # Sprawdź czy run ma footnote/endnote references
+                # Check if run has footnote/endnote references
                 footnote_refs = _run_attr(run, "footnote_refs", [])
                 endnote_refs = _run_attr(run, "endnote_refs", [])
                 has_footnote_refs = bool(footnote_refs)
                 has_endnote_refs = bool(endnote_refs)
                 
-                # Sprawdź czy run ma field codes
+                # Check if run has field codes
                 run_fields = _run_attr(run, "fields", [])
                 
-                # Dodaj run do segments nawet jeśli nie ma tekstu, ale ma footnote/endnote references lub field codes
+                # Add run to segments even if no text, but has footnote/endnote references or field codes
                 if not run_text and not _run_attr(run, "has_drawing", False) and not has_footnote_refs and not has_endnote_refs and not run_fields:
                     continue
                 run_style = _compose_run_style(run)
@@ -3083,17 +3103,17 @@ class LayoutAssembler:
             endnote_refs = segment.get("endnote_refs", [])
             segment_fields = segment.get("fields", [])  # Pobierz field codes z segmentu
             
-            # Jeśli segment ma field codes, dodaj je jako tokeny PRZED tekstem
+            # If segment has field codes, add them as tokens BEFORE text
             for field in segment_fields:
                 placeholder = format_field_placeholder(field)
                 field_style = field.get("style") or {}
-                # Użyj style z field (które zawiera formatowanie z runu), ale połącz z run_style dla innych właściwości
+                # Use style from field (which contains formatting from run), but combine with run_style for other properties
                 combined_style = dict(run_style)
                 combined_style.update(field_style)  # field_style ma priorytet (zawiera formatowanie z runu)
                 tokens.append({
                     "text": "",
                     "display": placeholder,
-                    "style": combined_style,  # Użyj połączonego style z formatowaniem z field
+                    "style": combined_style,  # Use combined style with formatting from field
                     "run": run_ref,
                     "run_id": getattr(run_ref, "id", None) if run_ref else None,
                     "field": field,  # Dodaj field do tokenu
@@ -3103,10 +3123,10 @@ class LayoutAssembler:
             idx = 0
             length = len(segment_text)
             
-            # Jeśli segment nie ma tekstu, ale ma footnote/endnote references, utwórz pusty token
+            # If segment has no text but has footnote/endnote references, create empty token
             if length == 0:
                 if footnote_refs or endnote_refs:
-                    # Utwórz pusty token z footnote_refs/endnote_refs
+                    # Create empty token with footnote_refs/endnote_refs
                     tokens.append({
                         "text": "",
                         "display": "",
@@ -3188,33 +3208,33 @@ class LayoutAssembler:
                 current_limit = text_width_other
                 continue
 
-            # Sprawdź czy token jest field code
+            # Check if token is field code
             if token.get("kind") == "field":
-                # Field code - użyj minimalnej szerokości (np. "1" dla PAGE, "10" dla NUMPAGES)
-                # aby uniknąć zbyt dużych odstępów. Faktyczna szerokość będzie dostosowana podczas renderowania
+                # Field code - use minimal width (e.g. "1" for PAGE, "10" for NUMPAGES)
+                # to avoid too large gaps. Actual width will be adjusted during rendering
                 field = token.get("field", {})
                 placeholder = token.get("display", "")
                 field_style = field.get("style") or {}
                 field_type = field.get("field_type", "").upper()
                 
-                # Użyj minimalnej szerokości dla field codes - faktyczna wartość będzie renderowana w PDF
-                # Dla PAGE użyj "1" (minimalna szerokość dla jednej cyfry)
-                # Dla NUMPAGES użyj "10" (typowa wartość dla większości dokumentów)
+                # Use minimal width for field codes - actual value will be rendered in PDF
+                # For PAGE use "1" (minimal width for one digit)
+                # For NUMPAGES use "10" (typical value for most documents)
                 if field_type == "PAGE":
-                    # Użyj minimalnej szerokości dla jednej cyfry
+                    # Use minimal width for one digit
                     estimated_value = "1"
                 elif field_type == "NUMPAGES":
-                    # Użyj typowej wartości dla większości dokumentów (2 cyfry)
+                    # Use typical value for most documents (2 digits)
                     estimated_value = "10"
                 else:
-                    # Dla innych typów użyj placeholder
+                    # For other types use placeholder
                     estimated_value = placeholder
                 
                 width = _measure_width(estimated_value, field_style)
                 token["width"] = width
                 token["space_count"] = 0
                 token["baseline_shift"] = 0.0
-                # Upewnij się, że font_size jest floatem
+                # Ensure font_size is float
                 field_font_size = normalize_font_size(field_style.get("font_size")) or font_size
                 token["font_size"] = field_font_size
                 current_tokens.append(token)
@@ -3225,7 +3245,7 @@ class LayoutAssembler:
             if display_text is None:
                 continue
             
-            # Sprawdź czy token ma footnote/endnote references
+            # Check if token has footnote/endnote references
             token_footnote_refs = token.get("footnote_refs", [])
             token_endnote_refs = token.get("endnote_refs", [])
             has_footnote_refs = bool(token_footnote_refs)
@@ -3234,13 +3254,13 @@ class LayoutAssembler:
             style_override = token.get("style") or {}
             font_size_token = normalize_font_size(style_override.get("font_size")) or font_size
             
-            # Dla superscript/subscript użyj zmniejszonego font_size do obliczenia szerokości
-            # (tak jak będzie renderowane w PDF)
+            # For superscript/subscript use reduced font_size to calculate width
+            # (as it will be rendered in PDF)
             is_superscript = style_override.get("superscript", False)
             is_subscript = style_override.get("subscript", False)
             
             if is_superscript or is_subscript:
-                # Użyj zmniejszonego font_size do pomiaru szerokości (tak jak w PDF)
+                # Use reduced font_size to measure width (as in PDF)
                 measurement_style = dict(style_override)
                 measurement_style["font_size"] = font_size_token * 0.58  # Tak samo jak w PDF
                 width = _measure_width(display_text, measurement_style)
@@ -3248,14 +3268,14 @@ class LayoutAssembler:
                 width = _measure_width(display_text, style_override)
             
             if width <= 0.0 and display_text:
-                # Fallback: użyj zmniejszonego font_size dla superscript/subscript
+                # Fallback: use reduced font_size for superscript/subscript
                 if is_superscript or is_subscript:
                     fallback_char_width_scaled = fallback_char_width * 0.58
                 else:
                     fallback_char_width_scaled = fallback_char_width
                 width = max(len(display_text), 1) * fallback_char_width_scaled
             
-            # Jeśli token ma footnote_refs/endnote_refs, oblicz szerokość indeksów
+            # If token has footnote_refs/endnote_refs, calculate index width
             if has_footnote_refs or has_endnote_refs:
                 # Pobierz numery footnote/endnote
                 ref_numbers = []
@@ -3277,21 +3297,21 @@ class LayoutAssembler:
                             ref_numbers.append(str(ref_id))
                 
                 if ref_numbers:
-                    # Utwórz tekst indeksu (bez spacji między numerami)
+                    # Create index text (no spaces between numbers)
                     ref_text = "".join(ref_numbers)
-                    # Indeksy są renderowane jako superscript (font_size * 0.58)
+                    # Indices are rendered as superscript (font_size * 0.58)
                     ref_font_size = font_size_token * 0.58
-                    # Oblicz szerokość indeksu
+                    # Calculate index width
                     ref_style = dict(style_override)
                     ref_style["font_size"] = ref_font_size
                     ref_width = _measure_width(ref_text, ref_style)
                     if ref_width <= 0.0:
-                        # Fallback: oszacuj szerokość
+                        # Fallback: estimate width
                         ref_width = ref_font_size * len(ref_text) * 0.6
-                    # Dodaj odstęp (1pt) między tekstem a indeksem
+                    # Add spacing (1pt) between text and index
                     ref_spacing = 1.0
-                    # Jeśli token ma tekst, dodaj szerokość indeksu do szerokości tokenu
-                    # Jeśli token nie ma tekstu, szerokość to tylko szerokość indeksu + odstęp
+                    # If token has text, add index width to token width
+                    # If token has no text, width is only index width + spacing
                     if width > 0.0:
                         width = width + ref_width + ref_spacing
                     else:
@@ -3305,7 +3325,7 @@ class LayoutAssembler:
                 # Baseline shift tak samo jak w footnotes: 0.33 * font_size (gdzie font_size to oryginalny rozmiar)
                 token["baseline_shift"] = font_size_token * 0.33
             elif is_subscript:
-                # Dla subscript przesunięcie w dół
+                # For subscript shift down
                 token["baseline_shift"] = -font_size_token * 0.25
             else:
                 token["baseline_shift"] = 0.0
@@ -3313,7 +3333,7 @@ class LayoutAssembler:
             # Zachowaj oryginalny font_size (nie zmniejszaj go tutaj - PDF compiler to zrobi)
             token["font_size"] = font_size_token
 
-            # Nie pomijaj tokenu jeśli ma footnote/endnote references, nawet jeśli nie ma tekstu
+            # Don't skip token if it has footnote/endnote references, even if no text
             if not current_tokens and not display_text.strip() and not has_footnote_refs and not has_endnote_refs:
                 continue
 
@@ -3341,10 +3361,10 @@ class LayoutAssembler:
         marker_data = element.get("marker") if isinstance(element, dict) else None
         has_visible_marker = isinstance(marker_data, dict) and not marker_data.get("hidden_marker")
 
-        # Jeżeli paragraf NIE ma widocznego markera (czyli nie jest prawdziwą listą),
-        # a Word ustawił left == hanging (pseudo-lista), to tekst powinien wrócić
-        # do lewego marginesu. Listy numerowane mają marker i powinny zachować
-        # text_position = indent_left, więc nie dotykamy ich.
+        # If paragraph does NOT have visible marker (i.e. is not a real list),
+        # and Word set left == hanging (pseudo-list), text should return
+        # to left margin. Numbered lists have marker and should preserve
+        # text_position = indent_left, so we don't touch them.
         if (
             not has_visible_marker
             and indent_hanging
@@ -3369,9 +3389,9 @@ class LayoutAssembler:
             max_descent = 0.0
 
             for token in line_info.get("tokens", []):
-                # Sprawdź czy token jest field code
+                # Check if token is field code
                 if token.get("kind") == "field":
-                    # To jest field code - użyj specjalnego renderowania
+                    # This is field code - use special rendering
                     field = token.get("field", {})
                     placeholder = token.get("display", "")
                     field_style = field.get("style") or {}
@@ -3404,7 +3424,7 @@ class LayoutAssembler:
                     max_ascent = max(max_ascent, inline.ascent)
                     max_descent = max(max_descent, inline.descent)
                 else:
-                    # To jest zwykły token tekstowy
+                    # This is regular text token
                     style_override = dict(style)
                     style_override.update(token.get("style") or {})
                     font_size_token = normalize_font_size(token.get("font_size")) or font_size
@@ -3482,8 +3502,8 @@ class LayoutAssembler:
                 last_line.height = item_height
                 last_line.block_height = item_height
 
-        # Field codes są już dodane jako tokeny w odpowiednim miejscu, więc nie trzeba ich dodawać tutaj
-        # (zostały już dodane podczas przetwarzania segmentów)
+        # Field codes are already added as tokens in proper place, so no need to add them here
+        # (they were already added during segment processing)
 
         # Obrazy inline lub absolutne
         for image in images:
@@ -3674,28 +3694,32 @@ class LayoutAssembler:
 
     def _measure_table_height(self, element: dict) -> float:
         """
-        Oblicza wysokość tabeli używając TableLayoutEngine.
-        
+
+        Calculates table height using TableLayoutEngine.
+
         Args:
-            element: Element tabeli
-            
+        element: Table element
+
         Returns:
-            Wysokość w punktach
+        Height in points
+
         """
         return self._layout_table(element)
     
     def _layout_table(self, element: dict) -> float:
         """
-        Precyzyjne layoutowanie tabeli z wieloma kolumnami, paddingiem i wysokością wierszy.
-        
+
+        Precise table layout with multiple columns, padding and row heights.
+
         Args:
-            element: Element tabeli z rows
-            
+        element: Table element with rows
+
         Returns:
-            Całkowita wysokość tabeli w punktach
-        
+        Total table height in points
+
         Side effects:
-            Zapisuje obliczone row_heights w element['layout_info']['row_heights']
+        Saves calculated row_heights in element['layout_info']['row_heights']
+
         """
         self._ensure_layout_tree(element)
 
@@ -3808,9 +3832,9 @@ class LayoutAssembler:
             else:
                 cell_padding = float(style.get("cell_padding", 0.0))
         
-        # Oblicz wysokość każdego wiersza
+        # Calculate height of each row
         # row_height = max(min_row_height, max(cell.height for cell in row))
-        # Wysokość wiersza jest dynamiczna: max(min_row_height_z_DOCX, wysokość_zawartości)
+        # Row height is dynamic: max(min_row_height_from_DOCX, content_height)
         row_heights = []
         vmerge_state: Dict[int, Dict[str, Any]] = {}
 
@@ -3898,7 +3922,7 @@ class LayoutAssembler:
             if row_height_points is not None and row_height_points < 0:
                 row_height_points = None
 
-            # Pobierz komórki z wiersza
+            # Get cells from row
             if isinstance(row, list):
                 cells = row
             elif isinstance(row, dict) and "cells" in row:
@@ -3908,9 +3932,9 @@ class LayoutAssembler:
             else:
                 cells = []
             
-            # Oblicz wysokość każdej komórki
-            # Użyj szerokości kolumny dla tej komórki (lub domyślnej szerokości)
-            # Uwzględnij grid_span (colspan) - komórka może obejmować kilka kolumn
+            # Calculate height of each cell
+            # Use column width for this cell (or default width)
+            # Account for grid_span (colspan) - cell may span multiple columns
             cell_heights: List[float] = []
             col_idx = 0
             cell_idx = 0
@@ -3930,21 +3954,21 @@ class LayoutAssembler:
                         except (ValueError, TypeError):
                             grid_span = 1
                 
-                # Pobierz marginesy komórki
+                # Get cell margins
                 cell_margins = parse_cell_margins(
                     cell,
                     default_margin=cell_padding,
                     table_defaults=table_default_margins,
                 )
                 
-                # Oblicz szerokość komórki (suma szerokości kolumn które obejmuje)
+                # Calculate cell width (sum of column widths it spans)
                 if col_idx + grid_span <= len(col_widths):
                     cell_col_width = sum(col_widths[col_idx:col_idx + grid_span])
                 else:
-                    # Fallback: użyj szerokości jednej kolumny
+                    # Fallback: use single column width
                     cell_col_width = col_widths[col_idx] if col_idx < len(col_widths) else col_widths[0] if col_widths else 100.0
                 
-                # Dostępna szerokość = szerokość komórki - marginesy lewy i prawy
+                # Available width = cell width - left and right margins
                 available_width = cell_col_width - cell_margins["left"] - cell_margins["right"]
                 
                 vmerge_val = None
@@ -4031,7 +4055,7 @@ class LayoutAssembler:
 
             row_heights.append(row_height)
         
-        # Zapisz row_heights i col_widths w strukturze elementu dla późniejszego użycia w PDFCompiler
+        # Save row_heights and col_widths in element structure for later use in PDFCompiler
         layout_info = element.setdefault("layout_info", {})
         layout_info["row_heights"] = row_heights
         layout_info["col_widths"] = col_widths
@@ -4042,7 +4066,7 @@ class LayoutAssembler:
         if table_vertical_alignment:
             layout_info["table_vertical_alignment"] = table_vertical_alignment
  
-        # Sumuj wysokości wierszy + spacing
+        # Sum row heights + spacing
         total_height = sum(row_heights)
         if len(row_heights) > 1:
             total_height += spacing_between_rows * (len(row_heights) - 1)
@@ -4056,7 +4080,7 @@ class LayoutAssembler:
                     if spacing_vertical > 0.0:
                         total_height += spacing_vertical * (len(row_heights) - 1)
         
-        # Dodaj marginesy tabeli jeśli są
+        # Add table margins if present
         table_margin_top = float(style.get("margin_top", 0.0))
         table_margin_bottom = float(style.get("margin_bottom", 0.0))
         total_height += table_margin_top + table_margin_bottom
@@ -4407,8 +4431,8 @@ class LayoutAssembler:
             for child in children:
                 element = child.source
                 element_dict = coerce_element_dict(element, child.kind)
-                # DOCX renderers ignorują spacing_before/after wewnątrz komórek tabel,
-                # więc pomijamy je przy kalkulacji wysokości.
+                # DOCX renderers ignore spacing_before/after inside table cells,
+                # so we skip them when calculating height.
                 spacing_before = 0.0
                 spacing_after = 0.0
                 block_height = _measure_node(child)

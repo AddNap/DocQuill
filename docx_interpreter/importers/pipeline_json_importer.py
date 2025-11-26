@@ -1,15 +1,8 @@
 """
-Importer JSON do UnifiedLayout i Document Model.
 
-Umożliwia odwrócenie procesu: JSON → UnifiedLayout → Document Model → DOCX
+JSON importer to UnifiedLayout and Document Model.
 
-UWAGA: To jest uproszczona konwersja - UnifiedLayout ma pozycjonowanie i paginację,
-które nie są w Document Model. Ta implementacja odtwarza podstawową strukturę dokumentu.
-
-Używa podejścia podobnego do normalize_docx:
-1. JSON → UnifiedLayout (deserializacja)
-2. UnifiedLayout → Document Model (uproszczona konwersja)
-3. Document Model → DOCX (przez DOCXExporter)
+Enables reversing...
 """
 
 import json
@@ -29,17 +22,17 @@ logger = logging.getLogger(__name__)
 
 class PipelineJSONImporter:
     """
-    Importer JSON zoptymalizowanego formatu pipeline.
-    
-    Konwertuje JSON z powrotem do UnifiedLayout, a następnie do Document Model.
+
+    JSON importer for optimized pipeline format.
+
+    Converts...
     """
     
     def __init__(self, json_data: Optional[Dict[str, Any]] = None, json_path: Optional[Path] = None, source_docx_path: Optional[Path] = None):
         """
+
         Args:
-            json_data: Dane JSON (dict) - jeśli podane, json_path jest ignorowany
-            json_path: Ścieżka do pliku JSON
-            source_docx_path: Ścieżka do oryginalnego DOCX (dla odczytu header/footer)
+        json_data: JSON data (dict) - if provided,...
         """
         if json_data is not None:
             self.json_data = json_data
@@ -59,7 +52,7 @@ class PipelineJSONImporter:
         self.media_list: List[Dict[str, Any]] = []
         self._load_maps()
         
-        # Załaduj package_reader jeśli mamy source_docx_path
+        # Load package_reader if we have source_docx_path
         if self.source_docx_path and self.source_docx_path.exists():
             from ..parser.package_reader import PackageReader
             from ..parser.xml_parser import XMLParser
@@ -67,7 +60,7 @@ class PipelineJSONImporter:
             self._xml_parser = XMLParser(self._package_reader)
     
     def _load_maps(self):
-        """Ładuje mapy stylów i media z JSON."""
+        """Loads style and media maps from JSON."""
         # Style
         styles = self.json_data.get('styles', [])
         self.styles_list = styles
@@ -91,7 +84,7 @@ class PipelineJSONImporter:
         
         pages_data = self.json_data.get('pages', [])
         for page_data in pages_data:
-            # Deserializuj stronę
+            # Deserialize page
             page = self._deserialize_page(page_data)
             unified_layout.pages.append(page)
         
@@ -101,13 +94,13 @@ class PipelineJSONImporter:
         return unified_layout
     
     def _deserialize_page(self, page_data: Dict[str, Any]) -> LayoutPage:
-        """Deserializuje stronę z JSON."""
+        """Deserializes page from JSON."""
         # Size
         size_data = page_data.get('size', [595.0, 842.0])
         if isinstance(size_data, list) and len(size_data) >= 2:
             size = Size(size_data[0], size_data[1])
         else:
-            size = Size(595.0, 842.0)  # Domyślnie A4
+            size = Size(595.0, 842.0)  # Default A4
         
         # Margins
         margins_data = page_data.get('margins', [72, 72, 72, 72])
@@ -119,9 +112,9 @@ class PipelineJSONImporter:
                 left=margins_data[3]
             )
         else:
-            margins = Margins(72, 72, 72, 72)  # Domyślnie 1 cal
+            margins = Margins(72, 72, 72, 72)  # Default 1 inch
         
-        # Utwórz stronę
+        # Create page
         page = LayoutPage(
             number=page_data.get('n', 1),
             size=size,
@@ -167,13 +160,13 @@ class PipelineJSONImporter:
         sequence = block_data.get('seq')
         media_id = block_data.get('m')  # Media ID z JSON
         
-        # Jeśli mamy media_id, dodaj go do content (dla późniejszego użycia)
+        # If we have media_id, add it to content (for later use)
         if media_id is not None:
             if isinstance(content, dict):
                 content['_media_id'] = media_id
-                content['m'] = media_id  # Dodaj też jako 'm' dla zgodności
+                content['m'] = media_id  # Also add as 'm' for compatibility
             else:
-                # Jeśli content nie jest dict, stwórz dict
+                # If content is not dict, create dict
                 content = {
                     'type': block_type,
                     'm': media_id,
@@ -197,31 +190,31 @@ class PipelineJSONImporter:
         
         content_type = content_data.get('type', '')
         
-        # Paragraph - może być bezpośrednio lub w BlockContent
+        # Paragraph - may be directly or in BlockContent
         if content_type == 'paragraph' or (block_type == 'paragraph' and content_type != 'BlockContent'):
             para_dict = {
                 'type': 'paragraph',
                 'text': content_data.get('text', '')
             }
-            # Dodaj runs jeśli są (z eksportu JSON)
+            # Add runs if present (from JSON export)
             if 'runs' in content_data:
                 para_dict['runs'] = content_data.get('runs', [])
-            # Dodaj list info jeśli jest
+            # Add list info if present
             if 'list' in content_data:
                 para_dict['list'] = content_data.get('list')
-            # Dodaj paragraph_properties jeśli są
+            # Add paragraph_properties if present
             if 'paragraph_properties' in content_data:
                 para_dict['paragraph_properties'] = content_data.get('paragraph_properties')
             return para_dict
         
         # Table
         if content_type == 'table' or block_type == 'table':
-            # Zwróć pełną strukturę tabeli z JSON (zachowaj wszystkie dane)
+            # Return full table structure from JSON (preserve all data)
             table_dict = {
                 'type': 'table',
                 'rows': content_data.get('rows', [])
             }
-            # Dodaj dodatkowe właściwości tabeli jeśli są
+            # Add additional table properties if present
             if 'columns' in content_data:
                 table_dict['columns'] = content_data.get('columns')
             if 'style' in content_data:
@@ -240,16 +233,16 @@ class PipelineJSONImporter:
             }
             
             if media_id is not None and isinstance(media_id, int) and media_id < len(self.media_list):
-                # Użyj danych z media_list
+                # Use data from media_list
                 media = self.media_list[media_id]
                 image_dict['path'] = media.get('path')
                 image_dict['rel_id'] = media.get('rel_id')
                 image_dict['width'] = media.get('width')
                 image_dict['height'] = media.get('height')
-                # Dodaj media_id dla późniejszego użycia
+                # Add media_id for later use
                 image_dict['m'] = media_id
             else:
-                # Fallback - wyciągnij bezpośrednio z content_data
+                # Fallback - extract directly from content_data
                 image_dict['path'] = content_data.get('path')
                 image_dict['rel_id'] = content_data.get('rel_id')
                 image_dict['width'] = content_data.get('width')
@@ -265,14 +258,14 @@ class PipelineJSONImporter:
             # Deserializuj payload rekurencyjnie
             payload = self._deserialize_content(payload_data, block_type)
             
-            # Jeśli payload to dict, zachowaj strukturę
+            # If payload is dict, preserve structure
             result = {
                 'type': 'BlockContent',
                 'payload': payload
             }
             
-            # WAŻNE: Zachowaj runs, list, paragraph_properties z content_data
-            # (są one bezpośrednio w content, nie w payload)
+            # IMPORTANT: Preserve runs, list, paragraph_properties from content_data
+            # (they are directly in content, not in payload)
             if 'runs' in content_data:
                 result['runs'] = content_data.get('runs', [])
             if 'list' in content_data:
@@ -280,40 +273,36 @@ class PipelineJSONImporter:
             if 'paragraph_properties' in content_data:
                 result['paragraph_properties'] = content_data.get('paragraph_properties')
             
-            # Dodaj raw jeśli istnieje
+            # Add raw if exists
             if 'raw' in content_data:
                 result['raw'] = content_data.get('raw')
             
             return result
         
-        # Generic - może zawierać text, runs, list, etc.
+        # Generic - may contain text, runs, list, etc.
         if content_type == 'generic':
-            # Zwróć cały content_data (może zawierać text, data, runs, list, etc.)
-            # To jest ważne, bo wiele bloków ma type: "generic" ale zawiera runs, list, etc.
+            # Return entire content_data (may contain text, data, runs, list, etc.)
+            # This is important because many blocks have type: "generic" but contain runs, list...
             return content_data
         
-        # Sprawdź czy content_data ma runs, list, paragraph_properties bezpośrednio (niezależnie od type)
-        # To jest dla bloków gdzie runs/list są bezpośrednio w content (nie w payload)
+        # Check if content_data has runs, list, paragraph_properties directly...
+        # This is for blocks where runs/list are directly in content (not in payload)
         if 'runs' in content_data or 'list' in content_data or 'paragraph_properties' in content_data:
-            # Zwróć cały content_data z zachowaniem struktury
+            # Return entire content_data with preserved structure
             return content_data
         
-        # Domyślnie zwróć content_data
+        # By default return content_data
         return content_data
     
     def to_document_model(self) -> Any:
         """
-        Konwertuje JSON do Document Model.
-        
-        Obsługuje dwa formaty JSON:
-        1. Nowy format: body, headers, footers (z LayoutStructure)
-        2. Stary format: pages z blokami (z UnifiedLayout)
-        
-        Returns:
-            Document Model (obiekt z atrybutami body, headers, footers)
+
+        Converts JSON to Document Model.
+
+        Handles...
         """
-        # Utwórz model dokumentu podobny do tego z parsera
-        # Używamy SimpleNamespace lub dict do symulacji modelu
+        # Create document model similar to one from parser
+        # Using SimpleNamespace or dict to simulate model
         from types import SimpleNamespace
         
         body = SimpleNamespace()
@@ -325,11 +314,11 @@ class PipelineJSONImporter:
         headers = {}
         footers = {}
         
-        # Sprawdź czy JSON ma nowy format (body, headers, footers)
+        # Check if JSON has new format (body, headers, footers)
         has_new_format = 'body' in self.json_data or 'headers' in self.json_data or 'footers' in self.json_data
         
         if has_new_format:
-            # Nowy format - bezpośrednio z LayoutStructure
+            # New format - directly from LayoutStructure
             # Eksportuj body elementy
             body_elements = self.json_data.get('body', [])
             for element_data in body_elements:
@@ -361,12 +350,12 @@ class PipelineJSONImporter:
                         if self._element_from_dict(elem) is not None
                     ]
         else:
-            # Stary format - użyj UnifiedLayout
+            # Old format - use UnifiedLayout
             unified_layout = self.to_unified_layout()
             
-            # Najpierw spróbuj załadować headers/footers z oryginalnego DOCX (jeśli dostępny)
+            # First try to load headers/footers from original DOCX (if available)
             if self._xml_parser and self._package_reader:
-                # Załaduj headers/footers z oryginalnego dokumentu używając rId z sekcji
+                # Load headers/footers from original document using rId from sections
                 sections = self.json_data.get('sections', [])
             for section in sections:
                 # Headers
@@ -375,11 +364,11 @@ class PipelineJSONImporter:
                     hdr_type = hdr_ref.get('type', 'default')
                     hdr_id = hdr_ref.get('id')  # rId
                     if hdr_id:
-                        # Znajdź plik header odpowiadający rId
+                        # Find header file corresponding to rId
                         header_path = self._find_header_footer_path(hdr_id, 'header')
                         if header_path:
                             try:
-                                # Użyj parse_header bezpośrednio
+                                # Use parse_header directly
                                 # Tymczasowo ustaw _current_part_path dla parsera
                                 old_part_path = getattr(self._xml_parser, '_current_part_path', None)
                                 old_rel_file = getattr(self._xml_parser, '_current_relationship_file', None)
@@ -388,7 +377,7 @@ class PipelineJSONImporter:
                                 
                                 header_body = self._xml_parser.parse_header()
                                 
-                                # Przywróć stare wartości
+                                # Restore old values
                                 if old_part_path:
                                     self._xml_parser._current_part_path = old_part_path
                                 if old_rel_file:
@@ -411,11 +400,11 @@ class PipelineJSONImporter:
                     ftr_type = ftr_ref.get('type', 'default')
                     ftr_id = ftr_ref.get('id')  # rId
                     if ftr_id:
-                        # Znajdź plik footer odpowiadający rId
+                        # Find footer file corresponding to rId
                         footer_path = self._find_header_footer_path(ftr_id, 'footer')
                         if footer_path:
                             try:
-                                # Użyj parse_footer bezpośrednio
+                                # Use parse_footer directly
                                 # Tymczasowo ustaw _current_part_path dla parsera
                                 old_part_path = getattr(self._xml_parser, '_current_part_path', None)
                                 old_rel_file = getattr(self._xml_parser, '_current_relationship_file', None)
@@ -424,7 +413,7 @@ class PipelineJSONImporter:
                                 
                                 footer_body = self._xml_parser.parse_footer()
                                 
-                                # Przywróć stare wartości
+                                # Restore old values
                                 if old_part_path:
                                     self._xml_parser._current_part_path = old_part_path
                                 if old_rel_file:
@@ -441,16 +430,16 @@ class PipelineJSONImporter:
                             except Exception as e:
                                 logger.warning(f"Failed to parse footer {ftr_id}: {e}")
                 
-            # Użyj set do deduplikacji headers/footers na podstawie ich zawartości
-            # Klucz to hash zawartości, wartość to element
+            # Use set to deduplicate headers/footers based on their content
+            # Key is content hash, value is element
             seen_headers = {}  # hash -> element
             seen_footers = {}  # hash -> element
             
-            # Przejdź przez wszystkie strony i zbierz elementy body (zawsze)
-            # Headers/footers mogą być już załadowane z DOCX, ale body zawsze trzeba przetworzyć
+            # Go through all pages and collect body elements (always)
+            # Headers/footers may already be loaded from DOCX, but body always needs...
             # TYLKO dla starego formatu (gdy unified_layout istnieje)
             for page in unified_layout.pages:
-                # Sprawdź mapowanie header/footer z JSON (jeśli dostępne)
+                # Check header/footer mapping from JSON (if available)
                 page_data = None
             for p_data in self.json_data.get('pages', []):
                 if p_data.get('n') == page.number:
@@ -461,18 +450,18 @@ class PipelineJSONImporter:
             footer_indices = set(page_data.get('f', [])) if page_data else set()
             
             for i, block in enumerate(page.blocks):
-                # Header bloki - sprawdź zarówno header_indices jak i block_type
-                # WAŻNE: Jeśli header jest już załadowany z oryginalnego DOCX, pomiń bloki header z unified_layout
+                # Header blocks - check both header_indices and block_type
+                # IMPORTANT: If header is already loaded from original DOCX, skip blocks...
                 is_header = (i in header_indices) or (block.block_type == 'header')
                 if is_header:
-                    # Jeśli header jest już załadowany z oryginalnego DOCX, pomiń bloki z unified_layout
+                    # If header is already loaded from original DOCX, skip blocks from unified layout
                     if headers or footers:
-                        # Header/footer już załadowany z DOCX, pomiń
+                        # Header/footer already loaded from DOCX, skip
                         continue
                     
                     element = self._block_to_model_element(block)
                     if element:
-                        # Utwórz hash zawartości dla deduplikacji
+                        # Create content hash for deduplication
                         content_hash = self._get_content_hash(element)
                         if content_hash not in seen_headers:
                             seen_headers[content_hash] = element
@@ -481,19 +470,19 @@ class PipelineJSONImporter:
                         headers['default'].append(element)
                     continue
                 
-                # Footer bloki - sprawdź zarówno footer_indices jak i block_type
-                # WAŻNE: Jeśli footer jest już załadowany z oryginalnego DOCX, pomiń bloki footer z unified_layout
+                # Create content hash for deduplication
+                # IMPORTANT: If footer is already loaded from original DOCX, skip blocks...
                 is_footer = (i in footer_indices) or (block.block_type == 'footer')
                 if is_footer:
-                    # Jeśli footer jest już załadowany z oryginalnego DOCX, pomiń bloki z unified_layout
-                    # (żeby uniknąć duplikacji i dodawania tabel z footera do body)
+                    # If footer is already loaded from original DOCX, skip blocks from unified layout
+                    # (to avoid duplication and adding tables from footer to body)
                     if headers or footers:
-                        # Footer już załadowany z DOCX, pomiń
+                        # Footer already loaded from DOCX, skip
                         continue
                     
                     element = self._block_to_model_element(block)
                     if element:
-                        # Utwórz hash zawartości dla deduplikacji
+                        # Create content hash for deduplication
                         content_hash = self._get_content_hash(element)
                         if content_hash not in seen_footers:
                             seen_footers[content_hash] = element
@@ -502,7 +491,7 @@ class PipelineJSONImporter:
                         footers['default'].append(element)
                     continue
                 
-                # Pomiń decorator
+                # Skip decorator
                 if block.block_type == 'decorator':
                     continue
                 
@@ -517,12 +506,12 @@ class PipelineJSONImporter:
                     elif block.block_type == 'image':
                         body.images.append(element)
         
-        # Utwórz model dokumentu
+        # Create document model
         model = SimpleNamespace()
         model.body = body
         model.headers = headers
         model.footers = footers
-        model.elements = body.children  # Dla kompatybilności
+        model.elements = body.children  # For compatibility
         
         # Dodaj _sections z JSON (dla regenerate_wordml)
         # Konwertuj sections z JSON na format oczekiwany przez XMLExporter
@@ -531,7 +520,7 @@ class PipelineJSONImporter:
         for json_section in json_sections:
             section = {}
             
-            # Skopiuj podstawowe właściwości sekcji
+            # Copy basic section properties
             if 'page_size' in json_section:
                 section['page_size'] = json_section['page_size']
             if 'margins' in json_section:
@@ -539,18 +528,18 @@ class PipelineJSONImporter:
             if 'orientation' in json_section:
                 section['orientation'] = json_section['orientation']
             
-            # Konwertuj headers/footers z JSON (pełne elementy) na referencje z rId
-            # Musimy znaleźć rId dla headers/footers używając relacji
+            # Convert headers/footers from JSON (full elements) to references with rId
+            # We need to find rId for headers/footers using relationships
             section_headers = []
             section_footers = []
             
-            # Mapuj headers/footers z modelu na rId używając relacji
-            # Najpierw sprawdź, czy mamy już załadowane headers/footers w modelu
-            # i użyj ich do mapowania na rId
+            # Map headers/footers from model to rId using relationships
+            # First check if we already have loaded headers/footers in model
+            # and use them to map to rId
             header_type_to_rId = {}  # typ -> rId
             footer_type_to_rId = {}  # typ -> rId
             
-            # Sprawdź relacje w document.xml.rels (jeśli dostępne)
+            # Check relationships in document.xml.rels (if available)
             if self._package_reader:
                 try:
                     rels_path = 'word/_rels/document.xml.rels'
@@ -570,7 +559,7 @@ class PipelineJSONImporter:
                             target = rel.get('Target', '')
                             
                             if 'header' in rel_type.lower():
-                                # Określ typ header (default, first, even, odd)
+                                # Determine header type (default, first, even, odd)
                                 hdr_type = 'default'
                                 if 'first' in target.lower():
                                     hdr_type = 'first'
@@ -582,7 +571,7 @@ class PipelineJSONImporter:
                                 header_type_to_rId[hdr_type] = rel_id
                             
                             elif 'footer' in rel_type.lower():
-                                # Określ typ footer (default, first, even, odd)
+                                # Determine footer type (default, first, even, odd)
                                 ftr_type = 'default'
                                 if 'first' in target.lower():
                                     ftr_type = 'first'
@@ -603,19 +592,19 @@ class PipelineJSONImporter:
                                     if hdr_id:
                                         section_headers.append({'type': hdr_type, 'id': hdr_id})
                         elif isinstance(json_headers, dict):
-                            # Headers jako dict z typami (nowy format) - użyj header_type_to_rId
+                            # Headers as dict with types (new format) - use header_type_to_rId
                             for hdr_type in json_headers.keys():
                                 if hdr_type in header_type_to_rId:
                                     section_headers.append({'type': hdr_type, 'id': header_type_to_rId[hdr_type]})
                                 elif hdr_type == 'first' and 'first' not in header_type_to_rId:
-                                    # Fallback: jeśli 'first' nie istnieje, użyj 'default' lub pierwszego dostępnego
+                                    # Fallback: if 'first' doesn't exist, use 'default' or first available
                                     if 'default' in header_type_to_rId:
                                         section_headers.append({'type': hdr_type, 'id': header_type_to_rId['default']})
                                     elif header_type_to_rId:
                                         first_rId = list(header_type_to_rId.values())[0]
                                         section_headers.append({'type': hdr_type, 'id': first_rId})
                                 elif hdr_type == 'default' and 'default' not in header_type_to_rId and header_type_to_rId:
-                                    # Fallback: użyj pierwszego dostępnego rId
+                                    # Fallback: use first available rId
                                     first_rId = list(header_type_to_rId.values())[0]
                                     section_headers.append({'type': hdr_type, 'id': first_rId})
                         
@@ -629,19 +618,19 @@ class PipelineJSONImporter:
                                     if ftr_id:
                                         section_footers.append({'type': ftr_type, 'id': ftr_id})
                         elif isinstance(json_footers, dict):
-                            # Footers jako dict z typami (nowy format) - użyj footer_type_to_rId
+                            # Footers as dict with types (new format) - use footer_type_to_rId
                             for ftr_type in json_footers.keys():
                                 if ftr_type in footer_type_to_rId:
                                     section_footers.append({'type': ftr_type, 'id': footer_type_to_rId[ftr_type]})
                                 elif ftr_type == 'default' and 'default' not in footer_type_to_rId and footer_type_to_rId:
-                                    # Fallback: użyj pierwszego dostępnego rId
+                                    # Fallback: use first available rId
                                     first_rId = list(footer_type_to_rId.values())[0]
                                     section_footers.append({'type': ftr_type, 'id': first_rId})
                 
                 except Exception as e:
                     logger.debug(f"Failed to map header/footer references: {e}")
             
-            # Jeśli nie znaleziono rId, spróbuj użyć relacji z JSON sections
+            # If rId not found, try to use relationships from JSON sections
             if not section_headers and not section_footers:
                 json_headers = json_section.get('headers', [])
                 json_footers = json_section.get('footers', [])
@@ -663,19 +652,14 @@ class PipelineJSONImporter:
     
     def _find_header_footer_path(self, rel_id: str, hf_type: str) -> Optional[str]:
         """
-        Znajduje ścieżkę do pliku header/footer na podstawie rel_id.
-        
-        Args:
-            rel_id: Relationship ID (np. 'rId8')
-            hf_type: 'header' lub 'footer'
-            
-        Returns:
-            Ścieżka do pliku header/footer lub None
+
+        Finds path to header/footer file based on rel_id.
+        ...
         """
         if not self._package_reader:
             return None
         
-        # Sprawdź relationships w document.xml.rels
+        # Check relationships in document.xml.rels
         rels_path = 'word/_rels/document.xml.rels'
         try:
             rels_xml = self._package_reader.get_xml_content(rels_path)
@@ -686,7 +670,7 @@ class PipelineJSONImporter:
                 for rel in root.findall('.//r:Relationship', ns):
                     if rel.get('Id') == rel_id:
                         target = rel.get('Target', '')
-                        # Normalizuj ścieżkę
+                        # Normalize path
                         if target.startswith('/'):
                             target = target[1:]
                         elif not target.startswith('word/'):
@@ -707,32 +691,28 @@ class PipelineJSONImporter:
         Returns:
             Element modelu lub None
         """
-        # Sprawdź typ elementu
+        # Check element type
         if hasattr(child, 'runs'):
-            # Paragraph - już jest w formacie modelu
+            # Paragraph - already in model format
             return child
         elif hasattr(child, 'rows'):
-            # Table - już jest w formacie modelu
+            # Table - already in model format
             return child
         elif hasattr(child, 'path') or hasattr(child, 'rel_id'):
-            # Image - już jest w formacie modelu
+            # Image - already in model format
             return child
         
         return None
     
     def _get_content_hash(self, element: Any) -> str:
         """
-        Tworzy hash zawartości elementu dla deduplikacji.
-        
-        Args:
-            element: Element (Paragraph, Table, Image, etc.)
-            
-        Returns:
-            Hash string reprezentujący zawartość
+
+        Creates content hash of element for deduplication.
+        ...
         """
         import hashlib
         
-        # Zbierz tekstową reprezentację zawartości
+        # Collect text representation of content
         content_parts = []
         
         if hasattr(element, 'runs') and element.runs:
@@ -758,12 +738,12 @@ class PipelineJSONImporter:
             # Image
             content_parts.append(str(element.path))
         
-        # Jeśli nie ma zawartości, użyj typu elementu jako hash
+        # If no content, use element type as hash
         if not content_parts:
             element_type = type(element).__name__
             content_parts.append(element_type)
         
-        # Utwórz hash z zawartości
+        # Create hash from content
         content_str = '|'.join(content_parts)
         return hashlib.md5(content_str.encode('utf-8')).hexdigest()
     
@@ -785,7 +765,7 @@ class PipelineJSONImporter:
             return None
         
         if element_type == 'paragraph':
-            # Utwórz Paragraph
+            # Create Paragraph
             from ..models.paragraph import Paragraph
             paragraph = Paragraph()
             paragraph.id = element_data.get('id') or f"para_{id(element_data)}"
@@ -807,7 +787,7 @@ class PipelineJSONImporter:
                     run.color = run_data.get('color')
                     paragraph.runs.append(run)
             else:
-                # Fallback - jeśli nie ma runs, utwórz run z tekstem
+                # Fallback - if no runs, create run with text
                 from ..models.run import Run
                 text = element_data.get('text', '')
                 if text:
@@ -815,7 +795,7 @@ class PipelineJSONImporter:
                     run.text = text
                     paragraph.runs = [run]
             
-            # Dodaj list info jeśli jest dostępne
+            # Add list info if available
             list_info = element_data.get('list')
             if list_info:
                 level = list_info.get('level', 0)
@@ -826,7 +806,7 @@ class PipelineJSONImporter:
             return paragraph
         
         elif element_type == 'table':
-            # Utwórz Table
+            # Create Table
             from ..models.table import Table, TableRow, TableCell
             table = Table()
             table.id = element_data.get('id') or f"table_{id(element_data)}"
@@ -841,7 +821,7 @@ class PipelineJSONImporter:
                 row.cells = []
                 for cell_data in cells_data:
                     cell = TableCell()
-                    # Serializuj bloki w komórce
+                    # Serialize blocks in cell
                     blocks_data = cell_data.get('blocks', [])
                     cell.children = []
                     for block_data in blocks_data:
@@ -859,7 +839,7 @@ class PipelineJSONImporter:
             return table
         
         elif element_type == 'image':
-            # Utwórz Image
+            # Create Image
             from ..models.image import Image
             image = Image()
             image.path = element_data.get('path')
@@ -874,52 +854,52 @@ class PipelineJSONImporter:
         """Konwertuje LayoutBlock na element Document Model (obiekt Paragraph/Table/Image)."""
         block_type = block.block_type
         
-        # Header i footer bloki są traktowane tak samo jak paragrafy/tabele/obrazy
-        # w zależności od ich zawartości
+        # Header and footer blocks are treated the same as paragraphs/tables/images...
+        # depending on their content
         if block_type in ('header', 'footer'):
-            # Sprawdź zawartość bloku - może być paragraph, table, image
+            # Check block content - may be paragraph, table, image
             if isinstance(block.content, dict):
                 content_type = block.content.get('type')
                 if content_type == 'table':
-                    # Traktuj jako tabelę
+                    # Treat as table
                     block_type = 'table'
                 elif content_type == 'image':
                     # Traktuj jako obraz
                     block_type = 'image'
                 else:
-                    # Domyślnie traktuj jako paragraf
+                    # By default treat as paragraph
                     block_type = 'paragraph'
             else:
-                # Domyślnie traktuj jako paragraf
+                # By default treat as paragraph
                 block_type = 'paragraph'
         
         if block_type == 'paragraph':
-            # Utwórz Paragraph
+            # Create Paragraph
             paragraph = Paragraph()
             paragraph.id = block.source_uid or f"para_{id(block)}"
             paragraph.style = block.style.copy() if block.style else {}
             
-            # Sprawdź czy content ma runs (z eksportu JSON)
+            # Check if content has runs (from JSON export)
             runs_data = None
             list_info = None
             if isinstance(block.content, dict):
-                # Sprawdź bezpośrednio 'runs'
+                # Check directly 'runs'
                 if 'runs' in block.content:
                     runs_data = block.content.get('runs', [])
-                # Sprawdź w payload.runs (dla BlockContent)
+                # Check in payload.runs (for BlockContent)
                 elif 'payload' in block.content:
                     payload = block.content.get('payload', {})
                     if isinstance(payload, dict):
                         if 'runs' in payload:
                             runs_data = payload.get('runs', [])
-                        # Sprawdź też list w payload
+                        # Also check list in payload
                         if 'list' in payload:
                             list_info = payload.get('list')
-                # Sprawdź bezpośrednio 'list'
+                # Check directly 'list'
                 if 'list' in block.content:
                     list_info = block.content.get('list')
             
-            # Jeśli mamy runs, użyj ich (zachowaj formatowanie)
+            # If we have runs, use them (preserve formatting)
             if runs_data:
                 paragraph.runs = []
                 for run_data in runs_data:
@@ -953,7 +933,7 @@ class PipelineJSONImporter:
                         
                         paragraph.runs.append(run)
             else:
-                # Fallback: Wyciągnij tekst i utwórz pojedynczy Run
+                # Fallback: Extract text and create single Run
                 text = self._extract_text_from_content(block.content)
                 if text:
                     run = Run()
@@ -961,7 +941,7 @@ class PipelineJSONImporter:
                     run.style = block.style.get('run_style', {}) if isinstance(block.style, dict) else {}
                     paragraph.runs = [run]
             
-            # Dodaj informacje o liście jeśli są
+            # Add list information if available
             if list_info and isinstance(list_info, dict):
                 # Ustaw paragraf jako element listy
                 level = list_info.get('level', 0)
@@ -969,45 +949,45 @@ class PipelineJSONImporter:
                 if numbering_id:
                     # Konwertuj numbering_id na odpowiedni format
                     try:
-                        # Spróbuj jako int
+                        # Try as int
                         numbering_id_int = int(numbering_id)
                         paragraph.set_list(level=level, numbering_id=numbering_id_int)
                     except (ValueError, TypeError):
-                        # Użyj jako string
+                        # Use as string
                         paragraph.set_list(level=level, numbering_id=str(numbering_id))
                 else:
-                    # Użyj domyślnego numbering_id
+                    # Use default numbering_id
                     paragraph.set_list(level=level, numbering_id=1)
             
             return paragraph
         
         elif block_type == 'table':
-            # Utwórz Table
+            # Create Table
             from ..models.table import TableRow, TableCell
             
             table = Table()
             table.id = block.source_uid or f"table_{id(block)}"
             table.style = block.style.copy() if block.style else {}
             
-            # Wyciągnij wiersze
+            # Extract rows
             rows_data = self._extract_table_rows(block.content)
             table.rows = []
             
             for row_data in rows_data:
-                # Utwórz TableRow
+                # Create TableRow
                 table_row = TableRow()
                 
                 for cell_data in row_data:
-                    # Utwórz TableCell
+                    # Create TableCell
                     table_cell = TableCell()
                     table_cell.id = f"cell_{id(table_cell)}"
                     
-                    # Wyciągnij tekst z komórki
+                    # Extract text from cell
                     cell_text = ''
                     if isinstance(cell_data, dict):
-                        # Sprawdź bezpośrednio 'text'
+                        # Check directly 'text'
                         cell_text = cell_data.get('text', '')
-                        # Sprawdź w 'blocks' (zagnieżdżone bloki w komórce)
+                        # Check in 'blocks' (nested blocks in cell)
                         if not cell_text and 'blocks' in cell_data:
                             blocks = cell_data.get('blocks', [])
                             text_parts = []
@@ -1018,7 +998,7 @@ class PipelineJSONImporter:
                                         text_parts.append(block_text)
                             cell_text = ' '.join(text_parts)
                     
-                    # Dodaj paragraf z tekstem do komórki
+                    # Add paragraph with text to cell
                     if cell_text:
                         cell_para = Paragraph()
                         cell_para.id = f"para_{id(cell_para)}"
@@ -1028,7 +1008,7 @@ class PipelineJSONImporter:
                         cell_para.runs = [cell_run]
                         table_cell.children.append(cell_para)
                     
-                    # Dodaj właściwości komórki (colspan, rowspan, borders, margins)
+                    # Add cell properties (colspan, rowspan, borders, margins)
                     if isinstance(cell_data, dict):
                         if 'colspan' in cell_data:
                             table_cell.grid_span = cell_data.get('colspan', 1)
@@ -1046,25 +1026,25 @@ class PipelineJSONImporter:
             return table
         
         elif block_type == 'image':
-            # Utwórz Image
+            # Create Image
             image = Image()
             image.id = block.source_uid or f"image_{id(block)}"
             
-            # Sprawdź media_id z content (zapisanego w _deserialize_block)
+            # Check media_id from content (saved in _deserialize_block)
             media_id = None
             if isinstance(block.content, dict):
-                # Sprawdź _media_id (zapisany podczas deserializacji)
+                # Check _media_id (saved during deserialization)
                 media_id = block.content.get('_media_id')
-                # Fallback - sprawdź 'm' bezpośrednio
+                # Fallback - check 'm' directly
                 if media_id is None:
                     media_id = block.content.get('m')
-                # Sprawdź w payload
+                # Check in payload
                 if media_id is None and 'payload' in block.content:
                     payload = block.content['payload']
                     if isinstance(payload, dict):
                         media_id = payload.get('m')
             
-            # Jeśli mamy media_id, użyj danych z media_list
+            # If we have media_id, use data from media_list
             if media_id is not None and isinstance(media_id, int) and media_id < len(self.media_list):
                 media_info = self.media_list[media_id]
                 image.path = media_info.get('path')
@@ -1075,7 +1055,7 @@ class PipelineJSONImporter:
                 if 'height' in media_info:
                     image.height = media_info.get('height')
             else:
-                # Fallback - wyciągnij bezpośrednio z content
+                # Fallback - extract directly from content
                 if isinstance(block.content, dict):
                     image.path = block.content.get('path') or self._extract_image_path(block.content)
                     image.rel_id = block.content.get('rel_id') or self._extract_image_rel_id(block.content)
@@ -1094,7 +1074,7 @@ class PipelineJSONImporter:
                 return None
     
     def _block_to_element(self, block: LayoutBlock) -> Optional[Dict[str, Any]]:
-        """Konwertuje LayoutBlock na element dict (dla kompatybilności)."""
+        """Converts LayoutBlock to element dict (for compatibility)."""
         element = self._block_to_model_element(block)
         if element is None:
             return None
@@ -1120,67 +1100,65 @@ class PipelineJSONImporter:
         return None
     
     def _extract_text_from_content(self, content: Any, depth: int = 0) -> str:
-        """Wyciąga tekst z content (rekurencyjnie).
-        
-        Struktura w JSON:
-        - BlockContent: {type: "BlockContent", payload: {type: "generic", text: "..."}}
-        - ParagraphLayout: {type: "paragraph", text: "..."}
-        - TableLayout: {type: "table", rows: [...]}
         """
-        if depth > 10:  # Ochrona przed nieskończoną rekursją
+Extracts text from content (recursively).
+
+        Structure in...
+        """
+        if depth > 10:  # Protection against infinite recursion
             return ''
         
         if content is None:
             return ''
         
         if isinstance(content, str):
-            # Jeśli to nie jest tylko typ (np. "paragraph"), zwróć jako tekst
+            # If this is not just type (e.g. "paragraph"), return as text
             if content and content not in ['paragraph', 'table', 'image', 'BlockContent', 'generic']:
                 return content
             return ''
         
         if isinstance(content, dict):
-            # PRIORYTET 1: Sprawdź bezpośrednio 'text' (dla ParagraphLayout)
+            # PRIORITY 1: Check directly 'text' (for ParagraphLayout)
             if 'text' in content:
                 text = content.get('text', '')
                 if text and isinstance(text, str) and len(text.strip()) > 0:
                     return text
             
-            # PRIORYTET 2: Sprawdź w payload.text (dla BlockContent z generic/paragraph)
+            # PRIORITY 2: Check in payload.text (for BlockContent with generic/paragraph...)
             if 'payload' in content:
                 payload = content['payload']
                 if isinstance(payload, dict):
-                    # Sprawdź payload.text (najczęstszy przypadek - BlockContent z generic payload)
+                    # Check payload.text (most common case - BlockContent with generic paragraph)
                     if 'text' in payload:
                         text = payload.get('text', '')
                         if text and isinstance(text, str) and len(text.strip()) > 0:
                             return text
-                    # Sprawdź czy payload ma type: "paragraph" z text
+                    # Check if payload has type: "paragraph" with text
                     if payload.get('type') == 'paragraph' and 'text' in payload:
                         text = payload.get('text', '')
                         if text and isinstance(text, str) and len(text.strip()) > 0:
                             return text
-                    # Rekurencyjnie przeszukaj payload (może być zagnieżdżony)
+                    # Recursively search payload (may be nested)
                     payload_text = self._extract_text_from_content(payload, depth + 1)
                     if payload_text:
                         return payload_text
             
-            # PRIORYTET 3: Sprawdź w innych możliwych lokalizacjach
+            # PRIORITY 3: Check in other possible locations
             for key in ['value', 'data', 'content', 'text_content']:
                 if key in content:
                     text = self._extract_text_from_content(content[key], depth + 1)
                     if text:
                         return text
             
-            # PRIORYTET 4: Rekurencyjnie przeszukaj wszystkie wartości (ale pomiń 'type')
+            # PRIORITY 4: Recursively search all values (but skip 'type'...)
             for key, value in content.items():
-                if key not in ['type', 'blocks']:  # Pomiń pole 'type' i 'blocks' (dla tabel)
+                if key not in ['type', 'blocks']:  # Skip 'type' field and 'blocks' (for tables)
                     text = self._extract_text_from_content(value, depth + 1)
                     if text:
                         return text
         
         if isinstance(content, list):
-            # Zbierz tekst z wszystkich elementów
+            # Collect text from all elements
             texts = []
             for item in content:
                 text = self._extract_text_from_content(item, depth + 1)
@@ -1191,21 +1169,20 @@ class PipelineJSONImporter:
         return ''
     
     def _extract_table_rows(self, content: Any) -> List[List[Dict[str, Any]]]:
-        """Wyciąga wiersze tabeli z content.
-        
-        Struktura w JSON:
-        - BlockContent: {type: "BlockContent", payload: {type: "table", rows: [...]}}
-        - TableLayout: {type: "table", rows: [...]}
-        - Dict z type: "table" i rows: [...] (z _deserialize_content)
+        """
+Extracts table rows from content.
+
+        Structure in JSON:
+        ...
         """
         if isinstance(content, dict):
-            # PRIORYTET 1: Sprawdź bezpośrednio 'rows' (dla TableLayout lub dict z _deserialize_content)
+            # PRIORITY 1: Check directly 'rows' (for TableLayout or dict with _...)
             if 'rows' in content:
                 rows = content.get('rows', [])
                 if rows:
                     return rows
             
-            # PRIORYTET 2: Sprawdź w payload.rows (dla BlockContent z table)
+            # PRIORITY 2: Check in payload.rows (for BlockContent with table)
             if 'payload' in content:
                 payload = content['payload']
                 if isinstance(payload, dict):
@@ -1213,17 +1190,17 @@ class PipelineJSONImporter:
                         rows = payload.get('rows', [])
                         if rows:
                             return rows
-                    # Sprawdź czy payload to dict z type: "table"
+                    # Check if payload is dict with type: "table"
                     if payload.get('type') == 'table' and 'rows' in payload:
                         return payload.get('rows', [])
             
-            # PRIORYTET 3: Sprawdź w 'table' (dla zagnieżdżonych tabel)
+            # PRIORITY 3: Check in 'table' (for nested tables)
             if 'table' in content:
                 table_data = content.get('table', {})
                 if isinstance(table_data, dict) and 'rows' in table_data:
                     return table_data.get('rows', [])
             
-            # PRIORYTET 4: Sprawdź czy content to dict z type: "table" (z _deserialize_content)
+            # PRIORITY 4: Check if content is dict with type: "table" (from _deserialize...)
             if content.get('type') == 'table' and 'rows' in content:
                 rows = content.get('rows', [])
                 if rows:
@@ -1232,13 +1209,13 @@ class PipelineJSONImporter:
         return []
     
     def _extract_image_path(self, content: Any) -> Optional[str]:
-        """Wyciąga ścieżkę obrazu z content."""
+        """Extracts image path from content."""
         if isinstance(content, dict):
             return content.get('path')
         return None
     
     def _extract_image_rel_id(self, content: Any) -> Optional[str]:
-        """Wyciąga rel_id obrazu z content."""
+        """Extracts image rel_id from content."""
         if isinstance(content, dict):
             return content.get('rel_id')
         return None

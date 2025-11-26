@@ -1,28 +1,30 @@
 """
-Proste wysokopoziomowe API dla DocQuill.
 
-Główny punkt wejścia dla użytkowników - prosty i intuicyjny interfejs.
+Simple high-level API for DocQuill.
 
-Przykład użycia:
-    >>> from docx_interpreter import Document
-    >>> 
-    >>> # Otwórz dokument
-    >>> doc = Document('plik.docx')
-    >>> 
-    >>> # Pobierz model
-    >>> model = doc.to_model()
-    >>> 
-    >>> # Przetwórz przez pipeline
-    >>> layout = doc.pipeline()
-    >>> 
-    >>> # Renderuj do PDF
-    >>> doc.to_pdf('output.pdf', backend='rust')
-    >>> 
-    >>> # Renderuj do HTML
-    >>> doc.to_html('output.html')
-    >>> 
-    >>> # Normalizuj dokument
-    >>> doc_normalized = doc.normalize('normalized.docx')
+Main entry point for users - simple and intuitive interface.
+
+Usage example:
+>>> from docx_interpreter import Document
+>>> 
+>>> # Open document
+>>> doc = Document('file.docx')
+>>> 
+>>> # Get model
+>>> model = doc.to_model()
+>>> 
+>>> # Process through pipeline
+>>> layout = doc.pipeline()
+>>> 
+>>> # Render to PDF
+>>> doc.to_pdf('output.pdf', backend='rust')
+>>> 
+>>> # Render to HTML
+>>> doc.to_html('output.html')
+>>> 
+>>> # Normalize document
+>>> doc_normalized = doc.normalize('normalized.docx')
+
 """
 
 from __future__ import annotations
@@ -33,7 +35,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# Import głównych klas
+# Import main classes
 from .document_api import Document as DocumentAPI
 from .engine.placeholder_engine import PlaceholderEngine, PlaceholderInfo
 from .merger import DocumentMerger, MergeOptions
@@ -52,30 +54,32 @@ __all__ = [
 
 class Document:
     """
-    Proste wysokopoziomowe API do pracy z dokumentami DOCX.
-    
-    Główna klasa dla użytkowników - prosty i intuicyjny interfejs.
-    
+
+    Simple high-level API for working with DOCX documents.
+
+    Main class for users - simple and intuitive interface.
+
     Examples:
-        >>> from docx_interpreter import Document
-        >>> 
-        >>> # Otwórz dokument
-        >>> doc = Document('plik.docx')
-        >>> 
-        >>> # Pobierz model
-        >>> model = doc.to_model()
-        >>> 
-        >>> # Przetwórz przez pipeline
-        >>> layout = doc.pipeline()
-        >>> 
-        >>> # Renderuj do PDF
-        >>> doc.to_pdf('output.pdf', backend='rust')
-        >>> 
-        >>> # Renderuj do HTML
-        >>> doc.to_html('output.html')
-        >>> 
-        >>> # Normalizuj dokument
-        >>> doc_normalized = doc.normalize('normalized.docx')
+    >>> from docx_interpreter import Document
+    >>> 
+    >>> # Open document
+    >>> doc = Document('file.docx')
+    >>> 
+    >>> # Get model
+    >>> model = doc.to_model()
+    >>> 
+    >>> # Process through pipeline
+    >>> layout = doc.pipeline()
+    >>> 
+    >>> # Render to PDF
+    >>> doc.to_pdf('output.pdf', backend='rust')
+    >>> 
+    >>> # Render to HTML
+    >>> doc.to_html('output.html')
+    >>> 
+    >>> # Normalize document
+    >>> doc_normalized = doc.normalize('normalized.docx')
+
     """
     
     def __init__(
@@ -84,15 +88,17 @@ class Document:
         document_model: Optional[Any] = None
     ):
         """
-        Tworzy nowy dokument lub otwiera z pliku.
-        
+
+        Creates a new document or opens from file.
+
         Args:
-            file_path: Ścieżka do pliku DOCX (opcjonalne)
-            document_model: Opcjonalny istniejący model dokumentu (opcjonalne)
-            
+        file_path: Path to DOCX file (optional)
+        document_model: Optional existing document model (optional)
+
         Examples:
-            >>> doc = Document('plik.docx')
-            >>> doc = Document()  # Pusty dokument
+        >>> doc = Document('file.docx')
+        >>> doc = Document()  # Empty document
+
         """
         self._file_path = Path(file_path) if file_path else None
         self._package_reader = None
@@ -111,7 +117,7 @@ class Document:
             self._api = DocumentAPI()
     
     def _load_document(self):
-        """Ładuje dokument z pliku."""
+        """Loads document from file."""
         if not self._file_path or not self._file_path.exists():
             raise FileNotFoundError(f"Dokument nie znaleziony: {self._file_path}")
         
@@ -123,7 +129,7 @@ class Document:
         self._body = self._xml_parser.parse_body()
         self._sections = self._xml_parser.parse_sections()
         
-        # Utwórz adapter dla DocumentAPI
+        # Create adapter for DocumentAPI
         class DocumentAdapter:
             def __init__(self, body_obj, parser, sections=None):
                 self.elements = body_obj.children if hasattr(body_obj, 'children') else []
@@ -131,7 +137,7 @@ class Document:
                 self._sections = sections or []
         
         self._model = DocumentAdapter(self._body, self._xml_parser, self._sections)
-        # Dodaj _file_path do modelu, aby DocumentAPI.save() mógł go użyć jako szablonu
+        # Add _file_path to model so DocumentAPI.save() can use it as template
         if hasattr(self._model, '__dict__'):
             self._model._file_path = self._file_path
         self._api = DocumentAPI(self._model)
@@ -139,43 +145,49 @@ class Document:
     @classmethod
     def open(cls, file_path: Union[str, Path]) -> "Document":
         """
-        Otwiera dokument z pliku DOCX (alternatywny sposób).
-        
+
+        Opens document from DOCX file (alternative method).
+
         Args:
-            file_path: Ścieżka do pliku DOCX
-            
+        file_path: Path to DOCX file
+
         Returns:
-            Document: Otworzony dokument
-            
+        Document: Opened document
+
         Examples:
-            >>> doc = Document.open("template.docx")
+        >>> doc = Document.open("template.docx")
+
         """
         return cls(file_path)
     
     @classmethod
     def create(cls) -> "Document":
         """
-        Tworzy nowy pusty dokument.
-        
+
+        Creates a new empty document.
+
         Returns:
-            Document: Nowy pusty dokument
-            
+        Document: New empty document
+
         Examples:
-            >>> doc = Document.create()
-            >>> doc.add_paragraph("Tytuł", style="Heading1")
+        >>> doc = Document.create()
+        >>> doc.add_paragraph("Title", style="Heading1")
+
         """
         return cls()
     
     def to_model(self) -> Any:
         """
-        Zwraca model dokumentu (body, headers, footers).
-            
+
+        Returns document model (body, headers, footers).
+
         Returns:
-            Model dokumentu z parsera
-            
+        Document model from parser
+
         Examples:
-            >>> model = doc.to_model()
-            >>> print(model.elements)  # Lista elementów
+        >>> model = doc.to_model()
+        >>> print(model.elements)  # List of elements
+
         """
         if self._model is None:
             raise ValueError("Dokument nie został załadowany. Użyj Document('plik.docx')")
@@ -190,21 +202,23 @@ class Document:
         target: str = "pdf"
     ):
         """
-        Przepuszcza dokument przez silnik layoutu i assembler.
-        
+
+        Processes document through layout engine and assembler.
+
         Args:
-            page_size: Rozmiar strony (width, height) w punktach. Domyślnie A4 (595, 842)
-            margins: Marginesy (top, bottom, left, right) w punktach. Domyślnie (72, 72, 72, 72)
-            apply_headers_footers: Czy stosować nagłówki i stopki
-            validate: Czy wykonać walidację
-            target: Cel renderowania ("pdf", "html", "docx")
-            
+        page_size: Page size (width, height) in points. Default A4 (595, 842)
+        margins: Margins (top, bottom, left, right) in points. Default (72, 72, 72, 72)
+        apply_headers_footers: Whether to apply headers and footers
+        validate: Whether to perform validation
+        target: Rendering target ("pdf", "html", "docx")
+
         Returns:
-            UnifiedLayout: Przetworzony layout gotowy do renderowania
-            
+        UnifiedLayout: Processed layout ready for rendering
+
         Examples:
-            >>> layout = doc.pipeline()
-            >>> layout = doc.pipeline(page_size=(842, 595), margins=(50, 50, 50, 50))
+        >>> layout = doc.pipeline()
+        >>> layout = doc.pipeline(page_size=(842, 595), margins=(50, 50, 50, 50))
+
         """
         from .engine.layout_pipeline import LayoutPipeline
         from .engine.geometry import Size, Margins, twips_to_points
@@ -220,7 +234,7 @@ class Document:
             page_size = (595.0, 842.0)  # A4
         
         if margins is None:
-            # Pobierz marginesy z DOCX lub użyj domyślnych
+            # Get margins from DOCX or use defaults
             page_margins = Margins(top=72, bottom=72, left=72, right=72)
             if self._sections and len(self._sections) > 0:
                 section = self._sections[0]
@@ -249,16 +263,16 @@ class Document:
             base_margins=page_margins
         )
         
-        # Utwórz pipeline
+        # Create pipeline
         self._pipeline = LayoutPipeline(page_config, target=target)
         
-        # Prekonwersja obrazów
+        # Image preconversion
         if self._package_reader:
             self._xml_parser.image_cache = self._pipeline.image_cache
             media_converter = MediaConverter()
             preconvert_images_from_model(self._body, self._package_reader, self._pipeline.image_cache, media_converter)
             
-            # Prekonwersja obrazów z headerów i footerów
+            # Image preconversion from headers and footers
             if hasattr(self._xml_parser, 'parse_header'):
                 header_body = self._xml_parser.parse_header()
                 if header_body:
@@ -269,13 +283,13 @@ class Document:
                 if footer_body:
                     preconvert_images_from_model(footer_body, self._package_reader, self._pipeline.image_cache, media_converter)
             
-            # Oczekiwanie na konwersję obrazów
+            # Waiting for image conversion
             self._pipeline.image_cache.wait_for_all(timeout=60.0)
         
         # Przetwarzanie
         self._pipeline.layout_assembler.package_reader = self._package_reader
         
-        # Przygotuj footnote_renderer jeśli dostępny
+        # Prepare footnote_renderer if available
         if self._package_reader:
             try:
                 from .parser.notes_parser import NotesParser
@@ -308,28 +322,30 @@ class Document:
         validate: bool = False
     ) -> Path:
         """
-        Renderuje dokument do PDF.
-        
+
+        Renders document to PDF.
+
         Args:
-            output_path: Ścieżka do pliku wyjściowego PDF
-            backend: Silnik renderowania ("rust" lub "reportlab")
-            page_size: Rozmiar strony (width, height) w punktach
-            margins: Marginesy (top, bottom, left, right) w punktach
-            parallelism: Liczba procesów (1 = sequential)
-            watermark_opacity: Przezroczystość watermarków (0.0-1.0)
-            apply_headers_footers: Czy stosować nagłówki i stopki
-            validate: Czy wykonać walidację
-            
+        output_path: Path to output PDF file
+        backend: Rendering engine ("rust" or "reportlab")
+        page_size: Page size (width, height) in points
+        margins: Margins (top, bottom, left, right) in points
+        parallelism: Number of processes (1 = sequential)
+        watermark_opacity: Watermark opacity (0.0-1.0)
+        apply_headers_footers: Whether to apply headers and footers
+        validate: Whether to perform validation
+
         Returns:
-            Path: Ścieżka do wygenerowanego pliku PDF
-            
+        Path: Path to generated PDF file
+
         Examples:
-            >>> doc.to_pdf('output.pdf', backend='rust')
-            >>> doc.to_pdf('output.pdf', backend='rust', page_size=(842, 595), margins=(50, 50, 50, 50))
+        >>> doc.to_pdf('output.pdf', backend='rust')
+        >>> doc.to_pdf('output.pdf', backend='rust', page_size=(842, 595), margins=(50, 50, 50, 50))
+
         """
         from .engine.pdf.pdf_compiler import PDFCompiler
         
-        # Jeśli layout nie został jeszcze przetworzony, zrób to teraz
+        # If layout has not been processed yet, do it now
         if self._unified_layout is None:
             self.pipeline(
                 page_size=page_size,
@@ -367,24 +383,26 @@ class Document:
         source_docx: Optional[Union[str, Path]] = None
     ) -> "Document":
         """
-        Tworzy Document z JSON (odwrócenie procesu to_json).
-        
-        Używa podejścia podobnego do normalize_docx:
-        1. JSON → UnifiedLayout (deserializacja)
-        2. UnifiedLayout → Document Model (uproszczona konwersja)
-        3. Document Model → DOCX (przez DOCXExporter)
-        
+
+        Creates Document from JSON (reverse of to_json process).
+
+        Uses approach similar to normalize_docx:
+        1. JSON → UnifiedLayout (deserialization)
+        2. UnifiedLayout → Document Model (simplified conversion)
+        3. Document Model → DOCX (via DOCXExporter)
+
         Args:
-            json_path: Ścieżka do pliku JSON
-            output_docx: Opcjonalna ścieżka do zapisu DOCX (jeśli None, tworzy z sufiksem)
-            source_docx: Opcjonalna ścieżka do oryginalnego DOCX (dla kopiowania mediów)
-            
+        json_path: Path to JSON file
+        output_docx: Optional path to save DOCX (if None, creates with suffix)
+        source_docx: Optional path to original DOCX (for copying media)
+
         Returns:
-            Document: Nowy dokument z JSON
-            
+        Document: New document from JSON
+
         Examples:
-            >>> doc = Document.from_json('document.json', 'output.docx')
-            >>> doc = Document.from_json('document.json')  # Tworzy document_from_json.docx
+        >>> doc = Document.from_json('document.json', 'output.docx')
+        >>> doc = Document.from_json('document.json')  # Creates document_from_json.docx
+
         """
         from .importers.pipeline_json_importer import PipelineJSONImporter
         from .export.docx_exporter import DOCXExporter
@@ -399,10 +417,10 @@ class Document:
         # Konwertuj do Document Model
         model = importer.to_document_model()
         
-        # Dodaj importer do modelu, aby DOCXExporter mógł uzyskać dostęp do media_list
+        # Add importer to model so DOCXExporter can access media_list
         if hasattr(model, '__dict__'):
             model._importer = importer
-            # Dodaj też source_docx jeśli podano (dla kopiowania mediów)
+            # Also add source_docx if provided (for copying media)
             if source_docx:
                 model._source_docx = Path(source_docx)
         
@@ -410,28 +428,28 @@ class Document:
         if output_docx is None:
             output_docx = json_path.with_name(f"{json_path.stem}_from_json.docx")
         
-        # Przekaż source_docx_path do eksportera, aby użył go jako szablonu
+        # Pass source_docx_path to exporter to use as template
         exporter = DOCXExporter(model, source_docx_path=source_docx)
         success = exporter.export(output_docx)
         
         if not success:
             raise RuntimeError(f"Nie udało się zapisać DOCX: {output_docx}")
         
-        # Zwróć Document z modelem (nie otwieraj DOCX ponownie, bo traci zawartość)
-        # Utwórz Document z modelem bezpośrednio
-        doc = cls.__new__(cls)  # Utwórz instancję bez wywoływania __init__
+        # Return Document with model (don't open DOCX again as it loses content)
+        # Create Document with model directly
+        doc = cls.__new__(cls)  # Create instance without calling __init__
         doc._file_path = Path(output_docx)
         doc._model = model
         doc._body = model.body
         doc._sections = getattr(model, '_sections', [])
-        doc._package_reader = None  # Nie mamy package_reader dla dokumentów z JSON
+        doc._package_reader = None  # We don't have package_reader for documents from JSON
         doc._xml_parser = None
         doc._pipeline = None
         doc._unified_layout = None
         doc._api = None
         
-        # WAŻNE: Zachowaj informacje z JSON (sections, headers, footers) w dokumencie,
-        # aby były dostępne podczas eksportu JSON
+        # IMPORTANT: Preserve information from JSON (sections, headers, footers) in document,
+        # so they are available during JSON export
         if hasattr(importer, 'json_data'):
             doc._json_data = importer.json_data
             doc._json_sections = importer.json_data.get('sections', [])
@@ -454,26 +472,28 @@ class Document:
         margins: Optional[Tuple[float, float, float, float]] = None,
     ) -> Dict[str, Any]:
         """
-        Eksportuje dokument do JSON (z pipeline).
-        
+
+        Exports document to JSON (from pipeline).
+
         Args:
-            output_path: Ścieżka do pliku wyjściowego (opcjonalne, jeśli None zwraca dict)
-            optimized: Czy użyć zoptymalizowanej wersji (deduplikacja stylów, kompaktowa struktura)
-            include_raw_content: Czy dołączyć surowe dane content (zwiększa rozmiar)
-            page_size: Rozmiar strony (width, height) w punktach
-            margins: Marginesy (top, bottom, left, right) w punktach
-            
+        output_path: Path to output file (optional, if None returns dict)
+        optimized: Whether to use optimized version (style deduplication, compact structure)
+        include_raw_content: Whether to include raw content data (increases size)
+        page_size: Page size (width, height) in points
+        margins: Margins (top, bottom, left, right) in points
+
         Returns:
-            Słownik z danymi JSON lub None jeśli zapisano do pliku
-            
+        Dictionary with JSON data or None if saved to file
+
         Examples:
-            >>> doc = Document('plik.docx')
-            >>> doc.to_json('output.json')
-            >>> json_data = doc.to_json()  # Zwraca dict
+        >>> doc = Document('file.docx')
+        >>> doc.to_json('output.json')
+        >>> json_data = doc.to_json()  # Returns dict
+
         """
-        # Upewnij się, że pipeline został uruchomiony
+        # Ensure pipeline has been run
         if self._unified_layout is None:
-            # Wywołaj metodę pipeline() bezpośrednio (nie właściwość)
+            # Call pipeline() method directly (not property)
             from .engine.layout_pipeline import LayoutPipeline
             from .engine.geometry import Size, Margins
             from .engine.page_engine import PageConfig
@@ -494,10 +514,10 @@ class Document:
                 base_margins=page_margins
             )
             
-            # Utwórz pipeline
+            # Create pipeline
             self._pipeline = LayoutPipeline(page_config, target="pdf")
             
-            # Prekonwersja obrazów
+            # Image preconversion
             if self._package_reader:
                 self._xml_parser.image_cache = self._pipeline.image_cache
                 media_converter = MediaConverter()
@@ -518,7 +538,7 @@ class Document:
             # Przetwarzanie
             self._pipeline.layout_assembler.package_reader = self._package_reader
             
-            # Przygotuj footnote_renderer jeśli dostępny
+            # Prepare footnote_renderer if available
             if self._package_reader:
                 try:
                     from .parser.notes_parser import NotesParser
@@ -530,17 +550,17 @@ class Document:
                 except Exception:
                     pass
             
-            # Dla dokumentów z JSON, upewnij się że model ma body z children
+            # For documents from JSON, ensure model has body with children
             # LayoutPipeline oczekuje modelu z atrybutem 'elements'
             if not hasattr(self._model, 'elements'):
-                # Utwórz adapter jeśli model ma body zamiast elements
+                # Create adapter if model has body instead of elements
                 class DocumentAdapter:
                     def __init__(self, model):
                         # Pobierz elementy z body.children
                         if hasattr(model, 'body') and hasattr(model.body, 'children'):
                             self.elements = model.body.children if isinstance(model.body.children, (list, tuple)) else list(model.body.children) if model.body.children else []
                         elif hasattr(model, 'body'):
-                            # Jeśli body nie ma children, spróbuj paragraphs + tables + images
+                            # If body has no children, try paragraphs + tables + images
                             elements = []
                             if hasattr(model.body, 'paragraphs'):
                                 elements.extend(model.body.paragraphs if isinstance(model.body.paragraphs, (list, tuple)) else list(model.body.paragraphs) if model.body.paragraphs else [])
@@ -551,18 +571,18 @@ class Document:
                             self.elements = elements
                         else:
                             self.elements = []
-                        # Parser może być w modelu lub w importerze
+                        # Parser may be in model or importer
                         self.parser = getattr(model, '_xml_parser', None) or (getattr(model, '_importer', None) and getattr(model._importer, '_xml_parser', None))
                         # Kopiuj sekcje z modelu
                         self._sections = getattr(model, '_sections', None) or getattr(model, '_json_sections', None) or []
                 
-                # Użyj adaptera jeśli model nie ma elements
+                # Use adapter if model has no elements
                 model_to_process = DocumentAdapter(self._model)
             else:
                 model_to_process = self._model
             
             # Dla eksportu JSON, nie stosuj headers/footers - eksportuj z LayoutStructure
-            # aby zachować rozdzielenie body/headers/footers (tabele z footera nie będą mylone z tabelami z body)
+            # to preserve body/headers/footers separation (footer tables won't be confused with body tables)
             self._unified_layout = self._pipeline.process(
                 model_to_process,
                 apply_headers_footers=False,  # Nie stosuj headers/footers dla JSON
@@ -580,16 +600,16 @@ class Document:
                 xml_parser=self._xml_parser,
                 document=self
             )
-            # Eksportuj z LayoutStructure zamiast UnifiedLayout, aby zachować rozdzielenie body/headers/footers
+            # Export from LayoutStructure instead of UnifiedLayout to preserve body/headers/footers separation
             layout_structure = self._pipeline.layout_structure
             if layout_structure:
                 result = exporter.export_from_layout_structure(
                     layout_structure,
-                    self._unified_layout,  # Używamy UnifiedLayout tylko dla geometrii stron
+                    self._unified_layout,  # We use UnifiedLayout only for page geometry
                     Path(output_path) if output_path else None
                 )
             else:
-                # Fallback do starej metody jeśli layout_structure nie jest dostępne
+                # Fallback to old method if layout_structure is not available
                 result = exporter.export(
                     self._unified_layout,
                     Path(output_path) if output_path else None
@@ -600,7 +620,7 @@ class Document:
             # TODO: Implementacja dla non-optimized
             raise NotImplementedError("Non-optimized export not yet implemented")
         
-        # Zawsze zwracaj result (nawet jeśli zapisano do pliku)
+        # Always return result (even if saved to file)
         return result
     
     def to_html(
@@ -616,28 +636,30 @@ class Document:
         page_max_width: float = 960.0
     ) -> Path:
         """
-        Renderuje dokument do HTML.
-        
+
+        Renders document to HTML.
+
         Args:
-            output_path: Ścieżka do pliku wyjściowego HTML
-            editable: Czy HTML ma być edytowalny (contenteditable)
-            page_size: Rozmiar strony (width, height) w punktach
-            margins: Marginesy (top, bottom, left, right) w punktach
-            apply_headers_footers: Czy stosować nagłówki i stopki
-            validate: Czy wykonać walidację
-            embed_images_as_data_uri: Czy osadzać obrazy jako data URI
-            page_max_width: Maksymalna szerokość strony w CSS (px)
-        
+        output_path: Path to output HTML file
+        editable: Whether HTML should be editable (contenteditable)
+        page_size: Page size (width, height) in points
+        margins: Margins (top, bottom, left, right) in points
+        apply_headers_footers: Whether to apply headers and footers
+        validate: Whether to perform validation
+        embed_images_as_data_uri: Whether to embed images as data URI
+        page_max_width: Maximum page width in CSS (px)
+
         Returns:
-            Path: Ścieżka do wygenerowanego pliku HTML
-            
+        Path: Path to generated HTML file
+
         Examples:
-            >>> doc.to_html('output.html')
-            >>> doc.to_html('output.html', editable=True)
+        >>> doc.to_html('output.html')
+        >>> doc.to_html('output.html', editable=True)
+
         """
         from .engine.html.html_compiler import HTMLCompiler, HTMLCompilerConfig
         
-        # Jeśli layout nie został jeszcze przetworzony, zrób to teraz
+        # If layout has not been processed yet, do it now
         if self._unified_layout is None:
             self.pipeline(
                 page_size=page_size,
@@ -664,18 +686,20 @@ class Document:
         output_path: Optional[Union[str, Path]] = None
     ) -> "Document":
         """
-        Normalizuje dokument (czyści style, merguje runs, poprawia formatowanie).
-        
+
+        Normalizes document (cleans styles, merges runs, fixes formatting).
+
         Args:
-            output_path: Ścieżka do zapisu znormalizowanego dokumentu. 
-                        Jeśli None, tworzy plik z sufiksem "_normalized"
-        
+        output_path: Path to save normalized document. 
+        If None, creates file with "_normalized" suffix
+
         Returns:
-            Document: Nowy znormalizowany dokument
-            
+        Document: New normalized document
+
         Examples:
-            >>> doc_normalized = doc.normalize('normalized.docx')
-            >>> doc_normalized = doc.normalize()  # Tworzy plik z sufiksem "_normalized"
+        >>> doc_normalized = doc.normalize('normalized.docx')
+        >>> doc_normalized = doc.normalize()  # Creates file with "_normalized" suffix
+
         """
         try:
             from .normalize import normalize_docx
@@ -690,10 +714,10 @@ class Document:
             output_path=output_path
         )
         
-        # Zwróć nowy Document z znormalizowanym plikiem
+        # Return new Document with normalized file
         return Document(normalized_path)
     
-    # Delegacja do DocumentAPI dla pozostałych metod
+    # Delegation to DocumentAPI for remaining methods
     @property
     def body(self):
         """Zwraca body dokumentu."""
@@ -731,7 +755,7 @@ class Document:
         scope: str = "body",
         case_sensitive: bool = False
     ) -> int:
-        """Zastępuje tekst w dokumencie."""
+        """Replaces text in document."""
         return self._api.replace_text(old_text, new_text, scope, case_sensitive)
     
     def fill_placeholders(
@@ -740,7 +764,7 @@ class Document:
         multi_pass: bool = False,
         max_passes: int = 5
     ) -> int:
-        """Wypełnia placeholdery w dokumencie (Jinja-like)."""
+        """Fills placeholders in document (Jinja-like)."""
         return self._api.fill_placeholders(data, multi_pass, max_passes)
     
     def process_conditional_block(self, block_name: str, show: bool) -> bool:
@@ -748,11 +772,11 @@ class Document:
         return self._api.process_conditional_block(block_name, show)
     
     def create_numbered_list(self):
-        """Tworzy listę numerowaną."""
+        """Creates numbered list."""
         return self._api.create_numbered_list()
     
     def create_bullet_list(self):
-        """Tworzy listę punktową."""
+        """Creates bullet list."""
         return self._api.create_bullet_list()
     
     def merge(
@@ -760,7 +784,7 @@ class Document:
         other: Union["Document", str, Path],
         page_break: bool = False
     ) -> None:
-        """Łączy dokument z innym dokumentem."""
+        """Merges document with another document."""
         self._api.merge(other, page_break)
     
     def append(
@@ -776,7 +800,7 @@ class Document:
         other: Union["Document", str, Path],
         page_break: bool = False
     ) -> None:
-        """Dodaje dokument na początku."""
+        """Prepends document at the beginning."""
         self._api.prepend(other, page_break)
     
     def merge_selective(
@@ -784,7 +808,7 @@ class Document:
         sources: Dict[str, Union["Document", str, Path]],
         page_break: bool = False
     ) -> None:
-        """Zaawansowane selektywne łączenie elementów z różnych dokumentów."""
+        """Advanced selective merging of elements from different documents."""
         self._api.merge_selective(sources, page_break)
     
     def merge_headers(
@@ -792,7 +816,7 @@ class Document:
         source: Union["Document", str, Path],
         header_types: Optional[List[str]] = None
     ) -> None:
-        """Łączy nagłówki z dokumentu źródłowego."""
+        """Merges headers from source document."""
         self._api.merge_headers(source, header_types)
     
     def merge_footers(
@@ -800,7 +824,7 @@ class Document:
         source: Union["Document", str, Path],
         footer_types: Optional[List[str]] = None
     ) -> None:
-        """Łączy stopki z dokumentu źródłowego."""
+        """Merges footers from source document."""
         self._api.merge_footers(source, footer_types)
     
     def apply_layout(
@@ -821,7 +845,7 @@ class Document:
         output_path: Union[str, Path],
         editable: bool = False
     ) -> None:
-        """Renderuje dokument do HTML (legacy - użyj to_html())."""
+        """Renders document to HTML (legacy - use to_html())."""
         return self.to_html(output_path, editable=editable)
     
     def render_pdf(
@@ -829,12 +853,12 @@ class Document:
         output_path: Union[str, Path],
         engine: str = "reportlab"
     ) -> None:
-        """Renderuje dokument do PDF (legacy - użyj to_pdf())."""
+        """Renders document to PDF (legacy - use to_pdf())."""
         backend = "rust" if engine == "rust" else "reportlab"
         return self.to_pdf(output_path, backend=backend)
     
     def extract_placeholders(self) -> List[PlaceholderInfo]:
-        """Wyciąga wszystkie placeholdery z dokumentu."""
+        """Extracts all placeholders from document."""
         return self._api.extract_placeholders()
     
     def update_from_html_file(
@@ -859,37 +883,41 @@ class Document:
         font_name: str = "Arial"
     ):
         """
-        Dodaje watermark (znak wodny) do dokumentu.
-        
+
+        Adds watermark to document.
+
         Args:
-            text: Tekst watermarku
-            angle: Kąt obrotu w stopniach (domyślnie 45)
-            opacity: Przezroczystość 0.0-1.0 (domyślnie 0.5)
-            color: Kolor tekstu (domyślnie #CCCCCC)
-            font_size: Rozmiar czcionki w punktach (domyślnie 72)
-            font_name: Nazwa czcionki (domyślnie Arial)
-            
+        text: Watermark text
+        angle: Rotation angle in degrees (default 45)
+        opacity: Opacity 0.0-1.0 (default 0.5)
+        color: Text color (default #CCCCCC)
+        font_size: Font size in points (default 72)
+        font_name: Font name (default Arial)
+
         Returns:
-            Watermark: Utworzony watermark
-            
+        Watermark: Created watermark
+
         Examples:
-            >>> doc.add_watermark("CONFIDENTIAL", angle=45, opacity=0.3)
-            >>> doc.add_watermark("DRAFT", color="#FF0000", opacity=0.5)
+        >>> doc.add_watermark("CONFIDENTIAL", angle=45, opacity=0.3)
+        >>> doc.add_watermark("DRAFT", color="#FF0000", opacity=0.5)
+
         """
         return self._api.add_watermark(text, angle, opacity, color, font_size, font_name)
     
     def get_watermarks(self) -> List[Any]:
         """
-        Zwraca listę watermarków w dokumencie.
-        
+
+        Returns list of watermarks in document.
+
         Returns:
-            Lista watermarków
+        List of watermarks
+
         """
         return self._api.get_watermarks()
     
     @property
     def watermarks(self) -> List[Any]:
-        """Zwraca listę watermarków (property)."""
+        """Returns list of watermarks (property)."""
         return self._api.watermarks
     
     # ======================================================================
@@ -902,14 +930,16 @@ class Document:
         copy_properties: bool = True
     ) -> None:
         """
-        Łączy sekcje z dokumentu źródłowego (właściwości strony, marginesy).
-        
+
+        Merges sections from source document (page properties, margins).
+
         Args:
-            source: Dokument źródłowy
-            copy_properties: Czy kopiować właściwości sekcji
-            
+        source: Source document
+        copy_properties: Whether to copy section properties
+
         Examples:
-            >>> doc.merge_sections("template.docx", copy_properties=True)
+        >>> doc.merge_sections("template.docx", copy_properties=True)
+
         """
         return self._api.merge_sections(source, copy_properties)
     
@@ -918,13 +948,15 @@ class Document:
         source: Union["Document", str, Path]
     ) -> None:
         """
-        Łączy style z dokumentu źródłowego.
-        
+
+        Merges styles from source document.
+
         Args:
-            source: Dokument źródłowy
-            
+        source: Source document
+
         Examples:
-            >>> doc.merge_styles("style_template.docx")
+        >>> doc.merge_styles("style_template.docx")
+
         """
         return self._api.merge_styles(source)
     
@@ -934,14 +966,16 @@ class Document:
     
     def get_metadata(self) -> Dict[str, Any]:
         """
-        Pobiera metadane dokumentu.
-        
+
+        Gets document metadata.
+
         Returns:
-            Słownik z metadanymi (core_properties, app_properties, custom_properties)
-            
+        Dictionary with metadata (core_properties, app_properties, custom_properties)
+
         Examples:
-            >>> metadata = doc.get_metadata()
-            >>> print(metadata['core_properties']['title'])
+        >>> metadata = doc.get_metadata()
+        >>> print(metadata['core_properties']['title'])
+
         """
         if self._package_reader is None:
             raise ValueError("Dokument nie został załadowany. Użyj Document('plik.docx')")
@@ -953,7 +987,7 @@ class Document:
         return self.get_metadata()
     
     def get_title(self) -> Optional[str]:
-        """Zwraca tytuł dokumentu."""
+        """Returns document title."""
         metadata = self.get_metadata()
         return metadata.get('core_properties', {}).get('title')
     
@@ -968,7 +1002,7 @@ class Document:
         return metadata.get('core_properties', {}).get('subject')
     
     def get_keywords(self) -> Optional[str]:
-        """Zwraca słowa kluczowe dokumentu."""
+        """Returns document keywords."""
         metadata = self.get_metadata()
         return metadata.get('core_properties', {}).get('keywords')
     
@@ -988,21 +1022,23 @@ class Document:
         apply_headers_footers: bool = True
     ) -> Tuple[Any, bool, List[str], List[str]]:
         """
-        Waliduje layout dokumentu i zwraca wyniki.
-        
+
+        Validates document layout and returns results.
+
         Args:
-            page_size: Rozmiar strony (width, height) w punktach
-            margins: Marginesy (top, bottom, left, right) w punktach
-            apply_headers_footers: Czy stosować nagłówki i stopki
-            
+        page_size: Page size (width, height) in points
+        margins: Margins (top, bottom, left, right) in points
+        apply_headers_footers: Whether to apply headers and footers
+
         Returns:
-            Tuple (UnifiedLayout, is_valid, errors, warnings)
-            
+        Tuple (UnifiedLayout, is_valid, errors, warnings)
+
         Examples:
-            >>> layout, is_valid, errors, warnings = doc.validate_layout()
-            >>> if not is_valid:
-            ...     print("Błędy:", errors)
-            ...     print("Ostrzeżenia:", warnings)
+        >>> layout, is_valid, errors, warnings = doc.validate_layout()
+        >>> if not is_valid:
+        ...     print("Errors:", errors)
+        ...     print("Warnings:", warnings)
+
         """
         from .engine.layout_pipeline import LayoutPipeline
         from .engine.geometry import Size, Margins, twips_to_points
@@ -1044,7 +1080,7 @@ class Document:
             base_margins=page_margins
         )
         
-        # Utwórz pipeline i użyj process_with_validation
+        # Create pipeline and use process_with_validation
         pipeline = LayoutPipeline(page_config)
         pipeline.layout_assembler.package_reader = self._package_reader
         
@@ -1056,16 +1092,18 @@ class Document:
         return unified_layout, is_valid, errors, warnings
     
     # ======================================================================
-    # Właściwości dla dostępu do wewnętrznych obiektów
+    # Properties for accessing internal objects
     # ======================================================================
     
     @property
     def pipeline(self) -> Optional[Any]:
         """
-        Zwraca obiekt LayoutPipeline (jeśli został utworzony).
-        
+
+        Returns LayoutPipeline object (if created).
+
         Returns:
-            LayoutPipeline lub None
+        LayoutPipeline or None
+
         """
         return self._pipeline
     
@@ -1092,10 +1130,12 @@ class Document:
     @property
     def layout(self) -> Optional[Any]:
         """
-        Zwraca UnifiedLayout (jeśli został przetworzony).
-        
+
+        Returns UnifiedLayout (if processed).
+
         Returns:
-            UnifiedLayout lub None
+        UnifiedLayout or None
+
         """
         return self._unified_layout
     
@@ -1105,15 +1145,17 @@ class Document:
     
     def get_stats(self) -> Dict[str, Any]:
         """
-        Zwraca statystyki dokumentu.
-        
+
+        Returns document statistics.
+
         Returns:
-            Słownik ze statystykami (paragraphs, tables, images, etc.)
-        
+        Dictionary with statistics (paragraphs, tables, images, etc.)
+
         Examples:
-            >>> stats = doc.get_stats()
-            >>> print(f"Paragrafów: {stats['paragraphs']}")
-            >>> print(f"Tabel: {stats['tables']}")
+        >>> stats = doc.get_stats()
+        >>> print(f"Paragraphs: {stats['paragraphs']}")
+        >>> print(f"Tables: {stats['tables']}")
+
         """
         if self._body is None:
             return {
@@ -1142,7 +1184,7 @@ class Document:
                 elif hasattr(child, 'get_src') or hasattr(child, 'image_path'):
                     stats['images'] += 1
         
-        # Dodaj statystyki z metadanych jeśli dostępne
+        # Add statistics from metadata if available
         try:
             metadata = self.get_metadata()
             app_props = metadata.get('app_properties', {})
@@ -1157,29 +1199,33 @@ class Document:
     
     def get_sections(self) -> List[Dict[str, Any]]:
         """
-        Zwraca listę sekcji dokumentu.
-    
+
+        Returns list of document sections.
+
         Returns:
-            Lista sekcji z właściwościami (margins, page_size, etc.)
-        
+        List of sections with properties (margins, page_size, etc.)
+
         Examples:
-            >>> sections = doc.get_sections()
-            >>> print(f"Liczba sekcji: {len(sections)}")
-    """
+        >>> sections = doc.get_sections()
+        >>> print(f"Number of sections: {len(sections)}")
+
+        """
         if self._sections is None:
             return []
         return self._sections.copy() if isinstance(self._sections, list) else [self._sections]
     
     def get_styles(self) -> Dict[str, Any]:
         """
-        Zwraca informacje o stylach w dokumencie.
-        
+
+        Returns information about styles in document.
+
         Returns:
-            Słownik ze stylami
-            
+        Dictionary with styles
+
         Examples:
-            >>> styles = doc.get_styles()
-            >>> print(f"Dostępne style: {list(styles.keys())}")
+        >>> styles = doc.get_styles()
+        >>> print(f"Available styles: {list(styles.keys())}")
+
         """
         if self._xml_parser is None:
             return {}
@@ -1196,14 +1242,16 @@ class Document:
     
     def get_numbering(self) -> Dict[str, Any]:
         """
-        Zwraca informacje o numeracji w dokumencie.
-        
-    Returns:
-            Słownik z informacjami o numeracji
-        
-    Examples:
-            >>> numbering = doc.get_numbering()
-            >>> print(f"Liczba definicji numeracji: {len(numbering.get('definitions', []))}")
+
+        Returns information about numbering in document.
+
+        Returns:
+        Dictionary with numbering information
+
+        Examples:
+        >>> numbering = doc.get_numbering()
+        >>> print(f"Number of numbering definitions: {len(numbering.get('definitions', []))}")
+
         """
         if self._xml_parser is None:
             return {}
@@ -1222,7 +1270,7 @@ class Document:
         return {}
 
 
-# Convenience functions dla jeszcze prostszego użycia
+# Convenience functions for even simpler usage
 def open_document(file_path: Union[str, Path]) -> Document:
     """Otwiera dokument z pliku DOCX (convenience function)."""
     return Document.open(file_path)
@@ -1239,7 +1287,7 @@ def fill_template(
     output_path: Union[str, Path],
     multi_pass: bool = False
 ) -> Document:
-    """Wypełnia szablon placeholderami i zwraca dokument (convenience function)."""
+    """Fills template with placeholders and returns document (convenience function)."""
     doc = Document.open(template_path)
     doc.fill_placeholders(data, multi_pass=multi_pass)
     if output_path:
@@ -1253,7 +1301,7 @@ def merge_documents(
     output_path: Union[str, Path],
     page_breaks: bool = True
 ) -> Document:
-    """Łączy wiele dokumentów w jeden (convenience function)."""
+    """Merges multiple documents into one (convenience function)."""
     doc = Document.open(target_path)
     for source_path in source_paths:
         doc.append(source_path, page_break=page_breaks)

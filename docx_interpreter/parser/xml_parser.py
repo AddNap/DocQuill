@@ -330,13 +330,13 @@ class XMLParser:
         try:
             elements = []
             for child in node:
-                # Sprawdź czy child to sdt (Structured Document Tag)
+                # Check if child is sdt (Structured Document Tag)
                 tag = child.tag.split("}")[-1] if "}" in child.tag else child.tag
                 if tag == "sdt":
-                    # Parsuj zawartość sdt (sdtContent)
+                    # Parse sdt content (sdtContent)
                     sdt_content = child.find(".//w:sdtContent", self.ns)
                     if sdt_content is not None:
-                        # Parsuj wszystkie elementy wewnątrz sdtContent
+                        # Parse all elements inside sdtContent
                         for sdt_child in sdt_content:
                             element = self.parse_element(sdt_child, parent)
                             if element:
@@ -555,7 +555,7 @@ class XMLParser:
                         try:
                             margins[attr] = int(val)
                         except (ValueError, TypeError):
-                            # Jeśli nie można przekonwertować, spróbuj jako string
+                            # If conversion fails, try as string
                             margins[attr] = val
                 if margins:
                     section_props['margins'] = margins
@@ -584,12 +584,12 @@ class XMLParser:
                 val = cols.get(f"{{{self.ns['w']}}}num")
                 if val:
                     columns['num'] = int(val)
-                # Parse space attribute - zawsze sprawdź, nawet jeśli None w dict
+                # Parse space attribute - always check, even if None in dict
                 val = cols.get(f"{{{self.ns['w']}}}space")
                 if val:
                     columns['space'] = int(val)
-                # Jeśli element cols istnieje, zawsze dodaj columns (nawet jeśli puste)
-                # To pozwala na eksport pustego cols jeśli był w oryginalnym XML
+                # If cols element exists, always add columns (even if empty)
+                # This allows exporting empty cols if it was in original XML
                 section_props['columns'] = columns
             
             # Parse section break type (w:type)
@@ -924,11 +924,11 @@ class XMLParser:
                         if hasattr(paragraph, 'hanging_indent') and paragraph.hanging_indent and not paragraph.first_line_indent:
                             paragraph.first_line_indent = -paragraph.hanging_indent
 
-                    # Numbering - najpierw z style, potem bezpośrednio z pPr
+                    # Numbering - first from style, then directly from pPr
                     if "numbering" in style:
                         paragraph.numbering = style["numbering"]
                     else:
-                        # Sprawdź bezpośrednio w pPr (paragraph properties)
+                        # Check directly in pPr (paragraph properties)
                         p_pr = p_node.find("w:pPr", self.ns)
                         if p_pr is not None:
                             num_pr = p_pr.find("w:numPr", self.ns)
@@ -1344,14 +1344,14 @@ class XMLParser:
             # Preserve anchor properties (useful for layout comparisons)
             properties = dict(anchor_element.attrib) if anchor_element is not None else {}
             
-            # Pobierz ścieżkę obrazu z relationship jeśli jest rel_id
+            # Get image path from relationship if there is rel_id
             image_path = None
             if rel_id:
                 try:
-                    # Pobierz relationship target - użyj tego samego podejścia co header_footer_parser
+                    # Get relationship target - use same approach as header_footer...
                     relationship_source = self._current_relationship_file or "word/_rels/document.xml.rels"
                     logger.info(f"Parsing image with relationship_id={rel_id}, relationship_source={relationship_source}, part_path={self._current_part_path}")
-                    # Jeśli relationship_source nie kończy się na .rels, dodaj _rels/ i .rels
+                    # If relationship_source doesn't end with .rels, add _rels/ and .rels...
                     if not relationship_source.endswith('.rels'):
                         # Dla document.xml, relationship_source to "word/_rels/document.xml.rels"
                         # Dla header1.xml, relationship_source to "word/_rels/header1.xml.rels"
@@ -1366,12 +1366,12 @@ class XMLParser:
                         rel_data = relationships[rel_id]
                         rel_target = rel_data.get("target", "")
                         if rel_target:
-                            # Pobierz pełną ścieżkę do obrazu
-                            # rel_target to ścieżka względna w DOCX, np. "media/image2.jpeg"
-                            # Musimy zbudować pełną ścieżkę w wyekstraktowanym katalogu
+                            # Get full path to image
+                            # rel_target is relative path in DOCX, e.g. "media/image2.jpeg"
+                            # We need to build full path in extracted directory
                             from pathlib import Path
                             extract_to = self.package_reader.extract_to
-                            # rel_target może być już z "word/" lub bez
+                            # rel_target may already have "word/" or not
                             if rel_target.startswith("word/"):
                                 image_path = Path(extract_to) / rel_target
                             else:
@@ -1397,8 +1397,8 @@ class XMLParser:
                 "parent": parent,
                 "relationship_source": self._current_relationship_file,
                 "part_path": self._current_part_path,
-                "path": image_path,  # Dodaj ścieżkę obrazu
-                "image_path": image_path  # Dla kompatybilności
+                "path": image_path,  # Add image path
+                "image_path": image_path  # For compatibility
             }
         except Exception as e:
             logger.error(f"Failed to parse image: {e}")
@@ -1407,13 +1407,13 @@ class XMLParser:
     def _parse_field(self, field_node, parent) -> Dict[str, Any]:
         """Parse field element (fldSimple)."""
         try:
-            # fldSimple ma atrybut w:instr z instrukcją pola
+            # fldSimple has w:instr attribute with field instruction
             instr = field_node.get("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}instr", "")
             if not instr:
-                # Spróbuj bez namespace
+                # Try without namespace
                 instr = field_node.get("instr", "")
             
-            # Sprawdź czy jest tekst wynikowy (w:t w fldSimple)
+            # Check if there is result text (w:t in fldSimple)
             result_text = ""
             t_elem = field_node.find("w:t", self.ns)
             if t_elem is not None and t_elem.text:
@@ -1425,7 +1425,7 @@ class XMLParser:
                 "result": result_text
             }
             
-            # Dodaj pole do run.children jeśli parent to run
+            # Add field to run.children if parent is run
             if parent and hasattr(parent, "add_child"):
                 parent.add_child(field_dict)
             
@@ -1480,12 +1480,12 @@ class XMLParser:
                         if current_field is not None:
                             field_runs.append(i)
                             # Create Field object
-                            # NIE używaj result z XML - to jest tylko wynik z dokumentu źródłowego
-                            # Zamiast tego użyjemy dynamicznego rozwiązania podczas renderowania
+                            # DO NOT use result from XML - this is only result from source document
+                            # Instead we will use dynamic resolution during rendering
                             field_dict = {
                                 "type": "Field",
                                 "instr": current_field["instr"].strip(),
-                                "result": ""  # Nie używaj result z XML - będzie rozwiązane dynamicznie
+                                "result": ""  # Don't use result from XML - will be resolved dynamically
                             }
                             # Mark runs as processed (we'll skip them during normal parsing)
                             # To obejmuje wszystkie runy: begin, instrText, separate, result text, end
@@ -1513,8 +1513,8 @@ class XMLParser:
                         field_runs.append(i)
                 
                 # Collect result text (between separate and end)
-                # UWAGA: Nie zbieramy result text - to jest tylko wynik z dokumentu źródłowego
-                # Zamiast tego oznaczymy runy z tekstem między separate a end jako część field code
+                # NOTE: We don't collect result text - this is only result from source document...
+                # Instead we will mark runs with text between separate and end as part of...
                 if current_field is not None:
                     # Check if we're past the separate marker
                     has_separate = any(
@@ -1522,19 +1522,19 @@ class XMLParser:
                         for fld_char in fld_chars
                     )
                     if has_separate:
-                        # Jesteśmy w części result - oznaczymy ten run jako część field code
-                        # (tekst między separate a end nie powinien być parsowany jako zwykły tekst)
+                        # We are in result part - mark this run as part of field code
+                        # (text between separate and end should not be parsed as regular text...)
                         field_runs.append(i)
                     elif len(field_runs) > 1:
-                        # Sprawdź czy już przeszliśmy przez separate (czyli jesteśmy w części result)
-                        # Sprawdź poprzednie runy czy mają separate
+                        # Check if we already passed through separate (i.e. we are in result part...)
+                        # Check previous runs if they have separate
                         for prev_idx in range(i):
                             if prev_idx < len(runs):
                                 prev_run = runs[prev_idx]
                                 prev_fld_chars = prev_run.findall("w:fldChar", self.ns)
                                 for prev_fld_char in prev_fld_chars:
                                     if prev_fld_char.get(f"{{{ns_w}}}fldCharType", "") == "separate":
-                                        # Jesteśmy w części result - oznaczymy ten run jako część field code
+                                        # We are in result part - mark this run as part of field code
                                         field_runs.append(i)
                                         break
         except Exception as e:
@@ -1918,28 +1918,28 @@ class XMLParser:
                             try:
                                 width_pt = float(value.replace("pt", "").strip())
                                 vml_data["size"]["width"] = width_pt
-                                vml_data["properties"]["shape_width"] = width_pt  # Zapisz również w properties dla łatwego dostępu
+                                vml_data["properties"]["shape_width"] = width_pt  # Also save in properties for easy access
                             except (ValueError, TypeError):
                                 pass
                         elif key == "height":
                             try:
                                 height_pt = float(value.replace("pt", "").strip())
                                 vml_data["size"]["height"] = height_pt
-                                vml_data["properties"]["shape_height"] = height_pt  # Zapisz również w properties dla łatwego dostępu
+                                vml_data["properties"]["shape_height"] = height_pt  # Also save in properties for easy access
                             except (ValueError, TypeError):
                                 pass
                         elif key == "position" and value == "absolute":
                             vml_data["position"]["absolute"] = True
                             vml_data["is_watermark"] = True  # Absolute positioning often indicates watermark
                         elif key == "rotation":
-                            # Rotacja może być w stylu (np. "rotation:315")
+                            # Rotation may be in style (e.g. "rotation:315")
                             try:
                                 rotation_from_style = float(value)
                                 # Konwertuj do zakresu -180 do 180 (315° = -45°)
                                 if rotation_from_style > 180:
                                     rotation_from_style = rotation_from_style - 360
                                 vml_data["properties"]["rotation"] = rotation_from_style
-                                # Jeśli nie ma rotacji z atrybutu, użyj tej ze stylu
+                                # If no rotation from attribute, use one from style
                                 if not rotation:
                                     rotation = str(rotation_from_style)
                             except (ValueError, TypeError):
@@ -2199,8 +2199,8 @@ class XMLParser:
                                 run.images = []
                             run.images.append(image)
                             # Also add to parent paragraph if it's a paragraph
-                            # Zawsze ustaw parent.images, nawet jeśli parent nie ma tego atrybutu
-                            # To pozwoli _measure_cell_height znaleźć obrazy w paragrafach
+                            # Always set parent.images, even if parent doesn't have this attribute
+                            # This will allow _measure_cell_height to find images in paragraphs
                             if parent:
                                 parent_type = type(parent).__name__
                                 logger.info(f"xml_parser: Adding image to parent, parent_type={parent_type}, hasattr(parent, 'images')={hasattr(parent, 'images')}")
@@ -2213,7 +2213,7 @@ class XMLParser:
                                     parent.add_image(image)
                                     logger.info(f"xml_parser: Added image via parent.add_image()")
                                 else:
-                                    # Jeśli parent nie ma atrybutu images, utwórz go
+                                    # If parent doesn't have images attribute, create it
                                     parent.images = [image]
                                     parent_id = getattr(parent, 'id', None)
                                     logger.info(f"xml_parser: Created parent.images and added image, parent.images now has 1 image, parent.id={parent_id}, parent type={type(parent).__name__}")
@@ -2338,7 +2338,7 @@ class XMLParser:
         elif vert_align == 'subscript':
             run.set_subscript(True)
         
-        # Resolve run_style reference if present (odwołanie do stylu z styles.xml)
+        # Resolve run_style reference if present (reference to style from styles.xml...)
         run_style_id = style.get('run_style')
         if run_style_id and self.style_manager:
             try:
@@ -2775,7 +2775,7 @@ class XMLParser:
                 logger.debug("No header found")
                 return None
             
-            # Ustaw relationship file dla headerów, żeby obrazy miały poprawne ścieżki
+            # Set relationship file for headers so images have correct paths...
             previous_part = self._current_part_path
             previous_rel = self._current_relationship_file
             self._current_part_path = "word/header1.xml"
@@ -2802,7 +2802,7 @@ class XMLParser:
                 logger.info(f"Parsed header with {len(header_body.children)} elements")
                 return header_body
             finally:
-                # Przywróć poprzednie wartości
+                # Restore previous values
                 self._current_part_path = previous_part
                 self._current_relationship_file = previous_rel
             
@@ -2824,7 +2824,7 @@ class XMLParser:
                 logger.debug("No footer found")
                 return None
             
-            # Ustaw relationship file dla footerów, żeby obrazy miały poprawne ścieżki
+            # Set relationship file for footers so images have correct paths...
             previous_part = self._current_part_path
             previous_rel = self._current_relationship_file
             self._current_part_path = "word/footer1.xml"
@@ -2877,7 +2877,7 @@ class XMLParser:
                 logger.info(f"Parsed footer with {len(footer_body.children)} elements")
                 return footer_body
             finally:
-                # Przywróć poprzednie wartości
+                # Restore previous values
                 self._current_part_path = previous_part
                 self._current_relationship_file = previous_rel
             

@@ -1,11 +1,13 @@
 """
-Placeholder Engine - zarządzanie placeholderami w dokumentach DOCX (Jinja-like).
 
-Obsługuje:
-- Wyciąganie placeholderów z dokumentu
-- Zastępowanie placeholderów danymi z automatycznym formatowaniem
+Placeholder Engine - managing placeholders in DOCX documents (Jinja-like).
+
+Supports:
+- Extracting placeholders from document
+- Replacing placeholders with data with automatic formatting
 - Custom blocks (QR, TABLE, IMAGE, LIST, etc.)
 - Conditional blocks (START_/END_)
+
 """
 
 from __future__ import annotations
@@ -35,30 +37,34 @@ class PlaceholderInfo:
 
 class PlaceholderEngine:
     """
-    Engine do zarządzania placeholderami w dokumentach DOCX (Jinja-like).
-    
-    Obsługuje 20+ typów placeholderów zgodnie z konwencją Docling:
-    - TEXT:nazwa - zwykły tekst
-    - QR:nazwa - kod QR
-    - TABLE:nazwa - tabela
-    - IMAGE:nazwa - obraz
-    - DATE:nazwa - data
-    - LIST:nazwa - lista
-    - CURRENCY:nazwa - waluta
-    - PHONE:nazwa - telefon
-    - ... i wiele innych
+
+    Engine for managing placeholders in DOCX documents (Jinja-like).
+
+    Supports 20+ placeholder types according to Docling convention:
+    - TEXT:name - plain text
+    - QR:name - QR code
+    - TABLE:name - table
+    - IMAGE:name - image
+    - DATE:name - date
+    - LIST:name - list
+    - CURRENCY:name - currency
+    - PHONE:name - phone
+    - ... and many others
+
     """
     
-    # Regex do wykrywania placeholderów (obsługuje {{ }} i { })
-    PLACEHOLDER_PATTERN = re.compile(r"""
-        (?P<brace_open>\{\{|\{)        # {{ lub {
-        \s*
-        (?P<name>[^{}]+?)              # nazwa (może zawierać dwukropek)
-        \s*
-        (?P<brace_close>\}\}|\})       # }} lub }
-    """, re.VERBOSE)
+    # Regex for detecting placeholders (supports {{ }} and { })
+    """
+
+    (?P<brace_open>\{\{|\{)        # {{ or {
+    \s*
+    (?P<name>[^{}]+?)              # name (may contain colon)
+    \s*
+    (?P<brace_close>\}\}|\})       # }} or }
+
+    """
     
-    # Typy placeholderów
+    # Placeholder types
     PLACEHOLDER_TYPES = {
         'TEXT': 'text',
         'QR': 'qr',
@@ -107,19 +113,23 @@ class PlaceholderEngine:
     
     def __init__(self, document: Any) -> None:
         """
-        Inicjalizuje placeholder engine.
-        
+
+        Initializes placeholder engine.
+
         Args:
-            document: Dokument (musi mieć body z paragraphs/tables)
+        document: Document (must have body with paragraphs/tables)
+
         """
         self.document = document
     
     def extract_placeholders(self) -> List[PlaceholderInfo]:
         """
-        Wyciąga wszystkie placeholdery z dokumentu.
-        
+
+        Extracts all placeholders from document.
+
         Returns:
-            Lista obiektów PlaceholderInfo
+        List of PlaceholderInfo objects
+
         """
         placeholders: Dict[str, PlaceholderInfo] = {}
         
@@ -137,7 +147,7 @@ class PlaceholderEngine:
                 if not run_text:
                     continue
                 
-                # Znajdź wszystkie placeholdery w runie
+                # Find all placeholders in run
                 for match in self.PLACEHOLDER_PATTERN.finditer(run_text):
                     name = match.group('name').strip()
                     
@@ -194,15 +204,17 @@ class PlaceholderEngine:
         max_passes: int = 5
     ) -> int:
         """
-        Wypełnia wszystkie placeholdery w dokumencie.
-        
+
+        Fills all placeholders in document.
+
         Args:
-            data: Słownik {placeholder_name: value}
-            multi_pass: Czy używać wieloprzebiegowego renderowania
-            max_passes: Maksymalna liczba przebiegów
-            
+        data: Dictionary {placeholder_name: value}
+        multi_pass: Whether to use multi-pass rendering
+        max_passes: Maximum number of passes
+
         Returns:
-            Liczba zastąpionych placeholderów
+        Number of replaced placeholders
+
         """
         total_replacements = 0
         
@@ -223,17 +235,19 @@ class PlaceholderEngine:
     
     def _fill_placeholders_single_pass(self, data: Dict[str, Any]) -> int:
         """
-        Wypełnia placeholdery w pojedynczym przebiegu.
-        
+
+        Fills placeholders in single pass.
+
         Args:
-            data: Słownik {placeholder_name: value}
-            
+        data: Dictionary {placeholder_name: value}
+
         Returns:
-            Liczba zastąpionych placeholderów
+        Number of replaced placeholders
+
         """
         replacements = 0
         
-        # Sortuj dane według typu (priorytet: conditional → custom blocks → text)
+        # Sort data by type (priority: conditional → custom blocks → text)
         # 1. Conditional blocks (START_/END_)
         for key in list(data.keys()):
             if key.startswith('START_'):
@@ -275,7 +289,7 @@ class PlaceholderEngine:
                 if self.insert_formula(key, value):
                     replacements += 1
         
-        # 3. Text placeholders (najpóźniej, bo custom blocks mogą je generować)
+        # 3. Text placeholders (last, because custom blocks can generate them)
         for key, value in data.items():
             ph_type = self._classify_placeholder(key)
             
@@ -316,15 +330,17 @@ class PlaceholderEngine:
         preserve_formatting: bool = True
     ) -> int:
         """
-        Zastępuje placeholder w dokumencie.
-        
+
+        Replaces placeholder in document.
+
         Args:
-            key: Nazwa placeholdera (np. "TEXT:Nazwa" lub "Nazwa")
-            value: Wartość zastępcza
-            preserve_formatting: Czy zachować formatowanie runów
-            
+        key: Placeholder name (e.g. "TEXT:Name" or "Name")
+        value: Replacement value
+        preserve_formatting: Whether to preserve run formatting
+
         Returns:
-            Liczba zastąpień
+        Number of replacements
+
         """
         patterns = self._get_placeholder_patterns(key)
         replacements = 0
@@ -333,7 +349,7 @@ class PlaceholderEngine:
         if not body:
             return 0
         
-        # Zastąp w paragrafach
+        # Replace in paragraphs
         paragraphs = self._get_paragraphs(body)
         for para in paragraphs:
             for pattern in patterns:
@@ -348,7 +364,7 @@ class PlaceholderEngine:
                             self._set_run_text(run, run_text.replace(pattern, value))
                             replacements += 1
         
-        # Zastąp w tabelach
+        # Replace in tables
         tables = self._get_tables(body)
         for table in tables:
             rows = self._get_table_rows(table)
@@ -373,22 +389,24 @@ class PlaceholderEngine:
     
     def process_conditional_block(self, block_name: str, show: bool) -> bool:
         """
-        Przetwarza blok warunkowy (START_nazwa / END_nazwa).
-        
+
+        Processes conditional block (START_name / END_name).
+
         Args:
-            block_name: Nazwa bloku
-            show: Czy pokazać blok (True) czy usunąć (False)
-            
+        block_name: Block name
+        show: Whether to show block (True) or remove (False)
+
         Returns:
-            True jeśli przetworzono
+        True if processed
+
         """
         if show:
-            # Pokaż - usuń tylko markery START_ i END_
+            # Show - remove only START_ and END_ markers
             self.replace_placeholder(f"START_{block_name}", "", preserve_formatting=False)
             self.replace_placeholder(f"END_{block_name}", "", preserve_formatting=False)
             return True
         else:
-            # Ukryj - usuń całą sekcję między START_ a END_
+            # Hide - remove entire section between START_ and END_
             return self._remove_section_between(f"START_{block_name}", f"END_{block_name}")
     
     def _classify_placeholder(self, name: str) -> str:
@@ -401,23 +419,25 @@ class PlaceholderEngine:
         Returns:
             Typ placeholdera (text, qr, table, etc.)
         """
-        # Sprawdź czy ma prefix (TYPE:nazwa)
+        # Check if has prefix (TYPE:name)
         if ':' in name:
             prefix = name.split(':', 1)[0].upper()
             return self.PLACEHOLDER_TYPES.get(prefix, 'text')
         
-        # Domyślnie text
+        # Default text
         return 'text'
     
     def _parse_placeholder_metadata(self, name: str) -> Dict[str, Any]:
         """
-        Parsuje metadane z nazwy placeholdera.
-        
+
+        Parses metadata from placeholder name.
+
         Args:
-            name: Nazwa placeholdera
-            
+        name: Placeholder name
+
         Returns:
-            Słownik z metadanymi
+        Dictionary with metadata
+
         """
         metadata = {}
         
@@ -432,13 +452,15 @@ class PlaceholderEngine:
     
     def _get_placeholder_patterns(self, key: str) -> List[str]:
         """
-        Generuje możliwe wzorce dla klucza placeholdera.
-        
+
+        Generates possible patterns for placeholder key.
+
         Args:
-            key: Klucz (np. "TEXT:Nazwa" lub "Nazwa")
-            
+        key: Key (e.g. "TEXT:Name" or "Name")
+
         Returns:
-            Lista wzorców (np. ["{TEXT:Nazwa}", "{{TEXT:Nazwa}}", "{Nazwa}", "{{Nazwa}}"])
+        List of patterns (e.g. ["{TEXT:Name}", "{{TEXT:Name}}", "{Name}", "{{Name}}"])
+
         """
         patterns = []
         
@@ -446,7 +468,7 @@ class PlaceholderEngine:
         patterns.append(f"{{{key}}}")      # {TEXT:Nazwa}
         patterns.append(f"{{{{{key}}}}}")  # {{TEXT:Nazwa}}
         
-        # Jeśli klucz ma prefix, dodaj też bez prefixu
+        # If key has prefix, also add without prefix
         if ':' in key:
             _, base_name = key.split(':', 1)
             patterns.append(f"{{{base_name}}}")
@@ -456,15 +478,17 @@ class PlaceholderEngine:
     
     def _format_date(self, value: Any, ph_type: str, key: str) -> str:
         """
-        Formatuje datę według typu placeholdera.
-        
+
+        Formats date according to placeholder type.
+
         Args:
-            value: Wartość (string, datetime, lub dict z format)
-            ph_type: Typ ('date', 'time', 'datetime')
-            key: Klucz placeholdera
-            
+        value: Value (string, datetime, or dict with format)
+        ph_type: Type ('date', 'time', 'datetime')
+        key: Placeholder key
+
         Returns:
-            Sformatowana data jako string
+        Formatted date as string
+
         """
         # Parse value
         if isinstance(value, datetime):
@@ -477,7 +501,7 @@ class PlaceholderEngine:
                 # Not a datetime, return as-is
                 return str(value)
         elif isinstance(value, dict):
-            # Dict może mieć {"value": "...", "format": "%d.%m.%Y"}
+            # Dict can have {"value": "...", "format": "%d.%m.%Y"}
             dt_str = value.get('value', '')
             format_str = value.get('format')
             try:
@@ -499,15 +523,17 @@ class PlaceholderEngine:
     
     def _format_number(self, value: Any, ph_type: str, key: str) -> str:
         """
-        Formatuje liczbę według typu placeholdera.
-        
+
+        Formats number according to placeholder type.
+
         Args:
-            value: Wartość (int, float, lub string)
-            ph_type: Typ ('number', 'currency', 'percent')
-            key: Klucz placeholdera
-            
+        value: Value (int, float, or string)
+        ph_type: Type ('number', 'currency', 'percent')
+        key: Placeholder key
+
         Returns:
-            Sformatowana liczba jako string
+        Formatted number as string
+
         """
         # Parse value
         try:
@@ -562,7 +588,7 @@ class PlaceholderEngine:
             return str(value)
     
     def _format_boolean(self, value: Any) -> str:
-        """Formatuje wartość boolean (Tak/Nie)."""
+        """Formats boolean value (Yes/No)."""
         if isinstance(value, bool):
             return "Tak" if value else "Nie"
         elif isinstance(value, str):
@@ -587,21 +613,23 @@ class PlaceholderEngine:
         replacement: str
     ) -> bool:
         """
-        Bezpiecznie zastępuje placeholder w paragrafie zachowując formatowanie runów.
-        
+
+        Safely replaces placeholder in paragraph preserving run formatting.
+
         Args:
-            paragraph: Paragraf do przetworzenia
-            placeholder: Placeholder do zastąpienia (np. "{TEXT:Nazwa}")
-            replacement: Tekst zastępczy
-            
+        paragraph: Paragraph to process
+        placeholder: Placeholder to replace (e.g. "{TEXT:Name}")
+        replacement: Replacement text
+
         Returns:
-            True jeśli zastąpienie zostało wykonane
+        True if replacement was made
+
         """
         runs = self._get_runs(paragraph)
         if not runs:
             return False
         
-        # Zbierz tekst z wszystkich runów
+        # Collect text from all runs
         full_text = ""
         runs_data = []
         
@@ -615,14 +643,14 @@ class PlaceholderEngine:
             })
             full_text += run_text
         
-        # Znajdź placeholder w pełnym tekście
+        # Find placeholder in full text
         placeholder_pos = full_text.find(placeholder)
         if placeholder_pos == -1:
             return False
         
         placeholder_end = placeholder_pos + len(placeholder)
         
-        # Znajdź runy które zawierają placeholder
+        # Find runs that contain placeholder
         affected_runs = []
         for run_data in runs_data:
             if (run_data['start'] < placeholder_end and 
@@ -638,24 +666,24 @@ class PlaceholderEngine:
             run = run_data['run']
             run_text = run_data['text']
             
-            # Oblicz pozycję w runie
+            # Calculate position in run
             run_placeholder_start = placeholder_pos - run_data['start']
             run_placeholder_end = run_placeholder_start + len(placeholder)
             
-            # Zastąp w runie (zachowuje formatowanie!)
+            # Replace in run (preserves formatting!)
             new_text = (run_text[:run_placeholder_start] + 
                        replacement + 
                        run_text[run_placeholder_end:])
             self._set_run_text(run, new_text)
             return True
         
-        # Przypadek 2: Placeholder rozciąga się przez kilka runów
+        # Case 2: Placeholder spans multiple runs
         else:
-            # Znajdź pierwszy i ostatni run
+            # Find first and last run
             first_run_data = affected_runs[0]
             last_run_data = affected_runs[-1]
             
-            # Oblicz części
+            # Calculate parts
             first_run_part_end = placeholder_pos - first_run_data['start']
             last_run_part_start = placeholder_end - last_run_data['start']
             
@@ -667,7 +695,7 @@ class PlaceholderEngine:
                 last_run_data['text'][last_run_part_start:]
             )
             
-            # Usuń środkowe runy
+            # Remove middle runs
             for i in range(1, len(affected_runs)):
                 self._set_run_text(affected_runs[i]['run'], "")
             
@@ -675,14 +703,16 @@ class PlaceholderEngine:
     
     def _remove_section_between(self, start_marker: str, end_marker: str) -> bool:
         """
-        Usuwa sekcję dokumentu między dwoma markerami (włącznie z markerami).
-        
+
+        Removes document section between two markers (including markers).
+
         Args:
-            start_marker: Marker początkowy (np. "START_Rabat")
-            end_marker: Marker końcowy (np. "END_Rabat")
-            
+        start_marker: Start marker (e.g. "START_Discount")
+        end_marker: End marker (e.g. "END_Discount")
+
         Returns:
-            True jeśli usunięto sekcję
+        True if section was removed
+
         """
         start_patterns = self._get_placeholder_patterns(start_marker)
         end_patterns = self._get_placeholder_patterns(end_marker)
@@ -691,7 +721,7 @@ class PlaceholderEngine:
         if not body:
             return False
         
-        # Znajdź pozycje markerów w paragrafach
+        # Find marker positions in paragraphs
         paragraphs = self._get_paragraphs(body)
         start_idx = None
         end_idx = None
@@ -713,16 +743,16 @@ class PlaceholderEngine:
                         end_idx = idx
                         break
         
-        # Usuń sekcję jeśli znaleziono oba markery
+        # Remove section if both markers found
         if start_idx is not None and end_idx is not None and end_idx >= start_idx:
-            # Usuń paragrafy od start_idx do end_idx (włącznie)
-            # To wymaga dostępu do listy paragrafów w body
-            # Implementacja zależy od struktury body
+            # Remove paragraphs from start_idx to end_idx (inclusive)
+            # This requires access to paragraphs list in body
+            # Implementation depends on body structure
             return True
         
         return False
     
-    # Helper methods dla kompatybilności z różnymi strukturami dokumentów
+    # Helper methods for compatibility with different document structures
     def _get_body(self) -> Optional[Any]:
         """Pobiera body dokumentu."""
         if hasattr(self.document, 'body'):
@@ -769,7 +799,7 @@ class PlaceholderEngine:
             run.set_text(text)
     
     def _get_paragraph_text(self, paragraph: Paragraph) -> str:
-        """Pobiera pełny tekst paragrafu."""
+        """Gets full paragraph text."""
         runs = self._get_runs(paragraph)
         return ''.join(self._get_run_text(run) for run in runs)
     
@@ -794,7 +824,7 @@ class PlaceholderEngine:
         return []
     
     def _get_row_cells(self, row: Any) -> List[Any]:
-        """Pobiera komórki z wiersza."""
+        """Gets cells from row."""
         if hasattr(row, 'cells'):
             return list(row.cells or [])
         elif hasattr(row, 'get_cells'):
@@ -804,14 +834,16 @@ class PlaceholderEngine:
     # Custom blocks implementation
     def insert_qr_code(self, placeholder: str, data: Any) -> bool:
         """
-        Wstawia kod QR w miejsce placeholdera.
-        
+
+        Inserts QR code in place of placeholder.
+
         Args:
-            placeholder: Nazwa placeholdera (np. "QR:KodProduktu")
-            data: Dane QR - string lub dict {"text": "...", "size": 100}
-            
+        placeholder: Placeholder name (e.g. "QR:ProductCode")
+        data: QR data - string or dict {"text": "...", "size": 100}
+
         Returns:
-            True jeśli wstawiono
+        True if inserted
+
         """
         # Parse data
         if isinstance(data, str):
@@ -854,13 +886,13 @@ class PlaceholderEngine:
             img.save(img_bytes, format='PNG')
             img_data = img_bytes.getvalue()
             
-            # Znajdź placeholder i zamień na obraz
+            # Find placeholder and replace with image
             patterns = self._get_placeholder_patterns(placeholder)
             body = self._get_body()
             if not body:
                 return False
             
-            # Zastąp w paragrafach
+            # Replace in paragraphs
             paragraphs = self._get_paragraphs(body)
             for para_idx, para in enumerate(paragraphs):
                 runs = self._get_runs(para)
@@ -871,26 +903,26 @@ class PlaceholderEngine:
                     
                     for pattern in patterns:
                         if pattern in run_text:
-                            # Usuń text placeholdera
+                            # Remove placeholder text
                             self._set_run_text(run, run_text.replace(pattern, ""))
                             
-                            # Utwórz nowy run z obrazem
+                            # Create new run with image
                             img_run = Run()
                             img_run.text = ""  # Empty text
                             
-                            # Utwórz Image model
+                            # Create Image model
                             img_model = Image()
-                            # Note: Image model może wymagać dodatkowej konfiguracji
-                            # w zależności od implementacji
+                            # Note: Image model may require additional configuration
+                            # depending on implementation
                             img_run.image = img_model
                             
-                            # Wstaw run z obrazem po bieżącym runie
+                            # Insert run with image after current run
                             para.runs.insert(run_idx + 1, img_run)
                             
                             return True
             
         except ImportError:
-            # qrcode lub PIL nie są zainstalowane
+            # qrcode or PIL not installed
             return self.replace_placeholder(placeholder, f"[QR: {qr_text}]") > 0
         except Exception:
             return False
@@ -899,14 +931,16 @@ class PlaceholderEngine:
     
     def insert_table(self, placeholder: str, data: Any) -> bool:
         """
-        Wstawia tabelę w miejsce placeholdera.
-        
+
+        Inserts table in place of placeholder.
+
         Args:
-            placeholder: Nazwa placeholdera (np. "TABLE:Pozycje")
-            data: Dane tabeli - dict {"headers": [...], "rows": [[...]], "style": "..."}
-            
+        placeholder: Placeholder name (e.g. "TABLE:Items")
+        data: Table data - dict {"headers": [...], "rows": [[...]], "style": "..."}
+
         Returns:
-            True jeśli wstawiono
+        True if inserted
+
         """
         if not isinstance(data, dict):
             return False
@@ -923,18 +957,18 @@ class PlaceholderEngine:
         if not body:
             return False
         
-        # Znajdź placeholder w paragrafach
+        # Find placeholder in paragraphs
         paragraphs = self._get_paragraphs(body)
         for para_idx, para in enumerate(paragraphs):
             para_text = self._get_paragraph_text(para)
             
             for pattern in patterns:
                 if pattern in para_text:
-                    # Znaleziono placeholder - utwórz tabelę
+                    # Found placeholder - create table
                     table = Table()
                     table.properties = TableProperties(style=table_style)
                     
-                    # Dodaj wiersz nagłówków
+                    # Add header row
                     header_row = TableRow()
                     header_row.is_header_row = True
                     
@@ -942,7 +976,7 @@ class PlaceholderEngine:
                         cell = TableCell()
                         cell_para = Paragraph()
                         cell_run = Run(text=str(header_text))
-                        cell_run.bold = True  # Nagłówki pogrubione
+                        cell_run.bold = True  # Headers bold
                         cell_para.add_run(cell_run)
                         cell.add_paragraph(cell_para)
                         header_row.add_cell(cell)
@@ -963,38 +997,38 @@ class PlaceholderEngine:
                         
                         table.add_row(data_row)
                     
-                    # Usuń placeholder z paragrafu
+                    # Remove placeholder from paragraph
                     runs = self._get_runs(para)
                     for run in runs:
                         run_text = self._get_run_text(run)
                         if run_text and pattern in run_text:
                             self._set_run_text(run, run_text.replace(pattern, ""))
                     
-                    # Jeśli paragraf jest pusty, usuń go i wstaw tabelę w jego miejsce
-                    # W przeciwnym razie wstaw tabelę po paragrafie
+                    # If paragraph is empty, remove it and insert table in its place
+                    # Otherwise insert table after paragraph
                     para_text_after = self._get_paragraph_text(para)
                     if not para_text_after.strip():
-                        # Paragraf jest pusty - zamień go na tabelę
+                        # Paragraph is empty - replace it with table
                         if hasattr(body, 'children'):
-                            # Znajdź indeks paragrafu w body.children
+                            # Find paragraph index in body.children
                             try:
                                 para_index = body.children.index(para)
-                                # Usuń paragraf
+                                # Remove paragraph
                                 body.children.remove(para)
-                                # Wstaw tabelę w jego miejsce
+                                # Insert table in its place
                                 body.children.insert(para_index, table)
                                 body.add_child(table)
                             except (ValueError, AttributeError):
-                                # Fallback: dodaj tabelę na końcu
+                                # Fallback: add table at end
                                 body.add_table(table)
                         else:
-                            # Fallback: dodaj tabelę
+                            # Fallback: add table
                             if hasattr(body, 'add_table'):
                                 body.add_table(table)
                             elif hasattr(body, 'add_child'):
                                 body.add_child(table)
                     else:
-                        # Paragraf ma jeszcze tekst - wstaw tabelę po nim
+                        # Paragraph still has text - insert table after it
                         if hasattr(body, 'children'):
                             try:
                                 para_index = body.children.index(para)
@@ -1017,14 +1051,16 @@ class PlaceholderEngine:
     
     def insert_image(self, placeholder: str, data: Any) -> bool:
         """
-        Wstawia obraz w miejsce placeholdera.
-        
+
+        Inserts image in place of placeholder.
+
         Args:
-            placeholder: Nazwa placeholdera (np. "IMAGE:Logo")
-            data: Ścieżka do obrazu lub dict {"path": "...", "width": 200, "height": 100}
-            
+        placeholder: Placeholder name (e.g. "IMAGE:Logo")
+        data: Path to image or dict {"path": "...", "width": 200, "height": 100}
+
         Returns:
-            True jeśli wstawiono
+        True if inserted
+
         """
         # Parse data
         if isinstance(data, str):
@@ -1075,7 +1111,7 @@ class PlaceholderEngine:
             if not body:
                 return False
             
-            # Zastąp w paragrafach
+            # Replace in paragraphs
             paragraphs = self._get_paragraphs(body)
             for para in paragraphs:
                 runs = self._get_runs(para)
@@ -1086,10 +1122,10 @@ class PlaceholderEngine:
                     
                     for pattern in patterns:
                         if pattern in run_text:
-                            # Usuń placeholder text
+                            # Remove placeholder text
                             self._set_run_text(run, run_text.replace(pattern, ""))
                             
-                            # Utwórz nowy run z obrazem
+                            # Create new run with image
                             img_run = Run()
                             img_run.text = ""
                             
@@ -1097,17 +1133,17 @@ class PlaceholderEngine:
                             img_model.set_size(width, height)
                             
                             # Generuj unikalny rel_id dla obrazu
-                            # Użyj nazwy pliku jako podstawy dla rel_id
+                            # Use filename as base for rel_id
                             image_filename = f"image_{image_path.stem}_{hash(str(image_path)) % 10000}.{image_path.suffix[1:]}"
                             media_path = f"word/media/{image_filename}"
                             
-                            # Generuj rel_id (będzie użyty podczas eksportu)
-                            # Zapisujemy dane obrazu w modelu dla późniejszego użycia w DOCXExporter
+                            # Generate rel_id (will be used during export)
+                            # Save image data in model for later use in DOCXExporter
                             img_model.rel_id = f"rId{hash(media_path) % 10000}"  # Tymczasowy ID
-                            img_model.part_path = media_path  # Ścieżka w pakiecie DOCX
+                            img_model.part_path = media_path  # Path in DOCX package
                             
                             # Zapisujemy dane obrazu w modelu dokumentu dla DOCXExporter
-                            # DOCXExporter będzie mógł je pobrać podczas eksportu
+                            # DOCXExporter will be able to get them during export
                             if not hasattr(self.document, '_new_images'):
                                 self.document._new_images = []
                             
@@ -1133,14 +1169,16 @@ class PlaceholderEngine:
     
     def insert_list(self, placeholder: str, data: Any) -> bool:
         """
-        Wstawia listę w miejsce placeholdera.
-        
+
+        Inserts list in place of placeholder.
+
         Args:
-            placeholder: Nazwa placeholdera (np. "LIST:Punkty")
-            data: Lista itemów lub dict {"items": [...], "style": "bullet"|"decimal"}
-            
+        placeholder: Placeholder name (e.g. "LIST:Items")
+        data: List of items or dict {"items": [...], "style": "bullet"|"decimal"}
+
         Returns:
-            True jeśli wstawiono
+        True if inserted
+
         """
         # Parse data
         if isinstance(data, list):
@@ -1162,23 +1200,23 @@ class PlaceholderEngine:
         if not body:
             return False
         
-        # Znajdź placeholder w paragrafach
+        # Find placeholder in paragraphs
         paragraphs = self._get_paragraphs(body)
         for para_idx, para in enumerate(paragraphs):
             para_text = self._get_paragraph_text(para)
             
             for pattern in patterns:
                 if pattern in para_text:
-                    # Znaleziono placeholder - utwórz listę
-                    # Utwórz paragrafy dla każdego itemu listy
+                    # Found placeholder - create list
+                    # Create paragraphs for each list item
                     list_paragraphs = []
                     
-                    # Automatycznie utwórz numbering_id dla listy
+                    # Automatically create numbering_id for list
                     numbering_id = None
                     
-                    # Sprawdź czy dokument ma API do tworzenia numbering
+                    # Check if document has API for creating numbering
                     if hasattr(self.document, 'create_bullet_list') and hasattr(self.document, 'create_numbered_list'):
-                        # Użyj metod API do tworzenia numbering
+                        # Use API methods to create numbering
                         try:
                             if style == 'bullet':
                                 numbering_group = self.document.create_bullet_list()
@@ -1192,10 +1230,10 @@ class PlaceholderEngine:
                         except Exception as e:
                             logger.warning(f"Failed to create numbering via API: {e}")
                     
-                    # Jeśli nie udało się utworzyć przez API, użyj prostego mechanizmu
+                    # If couldn't create via API, use simple mechanism
                     if not numbering_id:
-                        # Utwórz unikalny numbering_id na podstawie stylu i placeholder
-                        # Zapisujemy informacje o numbering w dokumencie dla późniejszego użycia
+                        # Create unique numbering_id based on style and placeholder
+                        # Save numbering info in document for later use
                         if not hasattr(self.document, '_new_numbering_definitions'):
                             self.document._new_numbering_definitions = {}
                         
@@ -1203,12 +1241,12 @@ class PlaceholderEngine:
                         numbering_key = f"{style}_{level}_{hash(placeholder) % 10000}"
                         
                         if numbering_key not in self.document._new_numbering_definitions:
-                            # Utwórz nowy numbering_id
-                            # Użyj prostego licznika lub hash
+                            # Create new numbering_id
+                            # Use simple counter or hash
                             numbering_counter = len(self.document._new_numbering_definitions) + 1
                             numbering_id = str(numbering_counter)
                             
-                            # Zapisz definicję numbering dla późniejszego użycia w DOCXExporter
+                            # Save numbering definition for later use in DOCXExporter
                             self.document._new_numbering_definitions[numbering_key] = {
                                 'id': numbering_id,
                                 'style': style,
@@ -1225,7 +1263,7 @@ class PlaceholderEngine:
                                 }
                             }
                         else:
-                            # Użyj istniejącego numbering_id
+                            # Use existing numbering_id
                             numbering_id = self.document._new_numbering_definitions[numbering_key]['id']
                     
                     for item_text in items:
@@ -1233,12 +1271,12 @@ class PlaceholderEngine:
                         list_run = Run(text=str(item_text))
                         list_para.add_run(list_run)
                         
-                        # Ustaw numbering jeśli dostępne
+                        # Set numbering if available
                         if numbering_id:
                             try:
                                 list_para.set_list(level=level, numbering_id=numbering_id)
                             except Exception:
-                                # Jeśli set_list nie działa, użyj set_numbering
+                                # If set_list doesn't work, use set_numbering
                                 list_para.set_numbering({
                                     'id': numbering_id,
                                     'level': str(level)
@@ -1246,18 +1284,18 @@ class PlaceholderEngine:
                         
                         list_paragraphs.append(list_para)
                     
-                    # Usuń placeholder z paragrafu
+                    # Remove placeholder from paragraph
                     runs = self._get_runs(para)
                     for run in runs:
                         run_text = self._get_run_text(run)
                         if run_text and pattern in run_text:
                             self._set_run_text(run, run_text.replace(pattern, ""))
                     
-                    # Jeśli paragraf jest pusty, zamień go na paragrafy listy
+                    # If paragraph is empty, replace it with list paragraphs
                     # W przeciwnym razie wstaw paragrafy listy po paragrafie
                     para_text_after = self._get_paragraph_text(para)
                     if not para_text_after.strip():
-                        # Paragraf jest pusty - zamień go na paragrafy listy
+                        # Paragraph is empty - replace it with list paragraphs
                         if hasattr(body, 'children'):
                             try:
                                 para_index = body.children.index(para)
@@ -1267,7 +1305,7 @@ class PlaceholderEngine:
                                     body.children.insert(para_index + i, list_para)
                                     body.add_child(list_para)
                             except (ValueError, AttributeError):
-                                # Fallback: dodaj paragrafy na końcu
+                                # Fallback: add paragraphs at end
                                 for list_para in list_paragraphs:
                                     if hasattr(body, 'add_paragraph'):
                                         body.add_paragraph(list_para)
@@ -1307,14 +1345,16 @@ class PlaceholderEngine:
     
     def insert_watermark(self, placeholder: str, data: Any) -> bool:
         """
-        Wstawia watermark (znak wodny) do dokumentu.
-        
+
+        Inserts watermark into document.
+
         Args:
-            placeholder: Nazwa placeholdera (np. "WATERMARK:Status")
-            data: Tekst watermarku lub dict {"text": "...", "angle": 45, "opacity": 0.5}
-            
+        placeholder: Placeholder name (e.g. "WATERMARK:Status")
+        data: Watermark text or dict {"text": "...", "angle": 45, "opacity": 0.5}
+
         Returns:
-            True jeśli wstawiono
+        True if inserted
+
         """
         # Parse data
         if isinstance(data, str):
@@ -1341,25 +1381,27 @@ class PlaceholderEngine:
                     angle=angle,
                     opacity=opacity
                 )
-                # Usuń placeholder z tekstu (watermark jest renderowany osobno)
+                # Remove placeholder from text (watermark is rendered separately)
                 return self.replace_placeholder(placeholder, "") > 0
             except Exception as e:
                 logger.warning(f"Failed to add watermark via Document API: {e}")
         
-        # Fallback: zamień placeholder na tekst z formatowaniem
+        # Fallback: replace placeholder with formatted text
         formatted_text = f"[WATERMARK: {watermark_text}]"
         return self.replace_placeholder(placeholder, formatted_text) > 0
     
     def insert_footnote(self, placeholder: str, data: Any) -> bool:
         """
-        Wstawia przypis dolny w miejsce placeholdera.
-        
+
+        Inserts footnote in place of placeholder.
+
         Args:
-            placeholder: Nazwa placeholdera (np. "FOOTNOTE:Ref1")
-            data: Tekst przypisu lub dict {"text": "...", "marker": "1"}
-            
+        placeholder: Placeholder name (e.g. "FOOTNOTE:Ref1")
+        data: Footnote text or dict {"text": "...", "marker": "1"}
+
         Returns:
-            True jeśli wstawiono
+        True if inserted
+
         """
         # Parse data
         if isinstance(data, str):
@@ -1375,8 +1417,8 @@ class PlaceholderEngine:
         if not footnote_text:
             return False
         
-        # W DOCX przypisy są dodawane jako specjalne elementy
-        # Dla uproszczenia, zamień placeholder na tekst z markerem
+        # In DOCX footnotes are added as special elements
+        # For simplicity, replace placeholder with text with marker
         if marker:
             formatted_text = f"{marker}. {footnote_text}"
         else:
@@ -1386,14 +1428,16 @@ class PlaceholderEngine:
     
     def insert_endnote(self, placeholder: str, data: Any) -> bool:
         """
-        Wstawia przypis końcowy w miejsce placeholdera.
-        
+
+        Inserts endnote in place of placeholder.
+
         Args:
-            placeholder: Nazwa placeholdera (np. "ENDNOTE:Ref1")
-            data: Tekst przypisu lub dict {"text": "...", "marker": "i"}
-            
+        placeholder: Placeholder name (e.g. "ENDNOTE:Ref1")
+        data: Endnote text or dict {"text": "...", "marker": "i"}
+
         Returns:
-            True jeśli wstawiono
+        True if inserted
+
         """
         # Parse data
         if isinstance(data, str):
@@ -1409,8 +1453,8 @@ class PlaceholderEngine:
         if not endnote_text:
             return False
         
-        # W DOCX przypisy końcowe są podobne do przypisów dolnych
-        # Dla uproszczenia, zamień placeholder na tekst z markerem
+        # In DOCX endnotes are similar to footnotes
+        # For simplicity, replace placeholder with text with marker
         if marker:
             formatted_text = f"{marker}. {endnote_text}"
         else:
@@ -1420,14 +1464,16 @@ class PlaceholderEngine:
     
     def _format_crossref(self, value: Any, key: str) -> str:
         """
-        Formatuje odwołanie krzyżowe.
-        
+
+        Formats cross-reference.
+
         Args:
-            value: Wartość (może być dict z {"type": "heading", "number": 1})
-            key: Klucz placeholdera
-            
+        value: Value (can be dict with {"type": "heading", "number": 1})
+        key: Placeholder key
+
         Returns:
-            Sformatowane odwołanie
+        Formatted reference
+
         """
         if isinstance(value, dict):
             ref_type = value.get('type', 'item')
@@ -1449,14 +1495,16 @@ class PlaceholderEngine:
     
     def insert_formula(self, placeholder: str, data: Any) -> bool:
         """
-        Wstawia formułę matematyczną w miejsce placeholdera.
-        
+
+        Inserts mathematical formula in place of placeholder.
+
         Args:
-            placeholder: Nazwa placeholdera (np. "FORMULA:Sum")
-            data: Formuła jako string (LaTeX lub MathML) lub dict {"formula": "...", "format": "latex"}
-            
+        placeholder: Placeholder name (e.g. "FORMULA:Sum")
+        data: Formula as string (LaTeX or MathML) or dict {"formula": "...", "format": "latex"}
+
         Returns:
-            True jeśli wstawiono
+        True if inserted
+
         """
         # Parse data
         if isinstance(data, str):
@@ -1472,13 +1520,13 @@ class PlaceholderEngine:
         if not formula_text:
             return False
         
-        # W DOCX formuły są zapisywane jako MathML lub OMath
-        # Dla uproszczenia, zamień placeholder na tekst formuły
-        # W przyszłości można dodać pełną obsługę MathML
+        # In DOCX formulas are saved as MathML or OMath
+        # For simplicity, replace placeholder with formula text
+        # In future can add full MathML support
         
         if format_type == 'latex':
-            # Próbuj konwertować LaTeX do czytelnej formy
-            # Proste przykłady: \sum -> Σ, \int -> ∫, etc.
+            # Try to convert LaTeX to readable form
+            # Simple examples: \sum -> Σ, \int -> ∫, etc.
             formatted_text = formula_text.replace('\\sum', 'Σ').replace('\\int', '∫')
         else:
             formatted_text = formula_text

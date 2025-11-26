@@ -1,5 +1,7 @@
 """
-Unified layout model — końcowa reprezentacja dokumentu gotowa do renderowania.
+
+Unified layout model - final document representation ready for rendering.
+
 """
 
 from dataclasses import dataclass, field
@@ -9,7 +11,7 @@ from .geometry import Rect, Size, Margins
 
 @dataclass(slots=True)
 class LayoutBlock:
-    """Pojedynczy blok tekstu, obrazu, tabeli itp. w gotowym układzie."""
+    """Single block of text, image, table etc. in ready layout."""
     frame: Rect
     block_type: str
     content: Any
@@ -26,7 +28,7 @@ class LayoutPage:
     size: Size
     margins: Margins
     blocks: List[LayoutBlock] = field(default_factory=list)
-    skip_headers_footers: bool = False  # Flaga do pomijania nagłówków i stopek
+    skip_headers_footers: bool = False  # Flag to skip headers and footers
 
     def add_block(self, block: LayoutBlock) -> None:
         self.blocks.append(block)
@@ -34,7 +36,7 @@ class LayoutPage:
 
 @dataclass
 class UnifiedLayout:
-    """Zunifikowany układ całego dokumentu — pozycje, paginacja, style."""
+    """Unified layout of entire document - positions, pagination, styles."""
     pages: List[LayoutPage] = field(default_factory=list)
     current_page: int = 1
 

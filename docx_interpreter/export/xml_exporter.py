@@ -156,23 +156,23 @@ class XMLExporter:
         body = ET.SubElement(root, '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}body')
         
         # Export body children directly maintaining order
-        # Sprawdź zarówno _body (z parsera) jak i body (z importera JSON)
+        # Check both _body (from parser) and body (from JSON importer)
         body_obj = None
         if hasattr(document, '_body') and document._body:
             body_obj = document._body
         elif hasattr(document, 'body') and document.body:
             body_obj = document.body
         
-        # Sprawdź też elements (z DocumentAdapter)
+        # Also check elements (from DocumentAdapter)
         children = []
         if body_obj:
-            # Pobierz children - sprawdź różne możliwe atrybuty
+            # Get children - check various possible attributes
             if hasattr(body_obj, 'children') and body_obj.children:
                 children = body_obj.children if isinstance(body_obj.children, (list, tuple)) else list(body_obj.children)
             elif hasattr(body_obj, 'paragraphs') and body_obj.paragraphs:
                 children = body_obj.paragraphs if isinstance(body_obj.paragraphs, (list, tuple)) else list(body_obj.paragraphs)
         
-        # Jeśli nie znaleziono children w body_obj, sprawdź bezpośrednio w document
+        # If children not found in body_obj, check directly in document...
         if not children:
             if hasattr(document, 'elements') and document.elements:
                 children = document.elements if isinstance(document.elements, (list, tuple)) else list(document.elements)
@@ -568,14 +568,14 @@ class XMLExporter:
             images = getattr(paragraph, 'images', [])
         
         # Add paragraph properties if available
-        # Sprawdź numbering bezpośrednio z paragrafu (może nie być w style)
+        # Check numbering directly from paragraph (may not be in style)
         paragraph_numbering = None
         if isinstance(paragraph, dict):
             paragraph_numbering = paragraph.get('numbering')
         else:
             paragraph_numbering = getattr(paragraph, 'numbering', None)
         
-        # Jeśli numbering nie jest w style, dodaj go
+        # If numbering not in style, add it
         if paragraph_numbering and (not style or not isinstance(style, dict) or 'numbering' not in style):
             if not style:
                 style = {}
@@ -879,7 +879,7 @@ class XMLExporter:
                     cell_style = cell_data.get('style', {})
                     cell_text = cell_data.get('text', '')
                     cell_children = cell_data.get('children', [])
-                    # Sprawdź colspan/rowspan bezpośrednio w cell_data
+                    # Check colspan/rowspan directly in cell_data
                     if 'colspan' in cell_data:
                         if not isinstance(cell_style, dict):
                             cell_style = {}
@@ -896,7 +896,7 @@ class XMLExporter:
                     cell_style = getattr(cell_data, 'style', None)
                     cell_text = cell_data.get_text() if hasattr(cell_data, 'get_text') else ''
                     cell_children = cell_data.children if hasattr(cell_data, 'children') else []
-                    # Sprawdź colspan/rowspan w obiekcie
+                    # Check colspan/rowspan in object
                     if hasattr(cell_data, 'colspan') and cell_data.colspan:
                         if not isinstance(cell_style, dict):
                             cell_style = {}
@@ -1607,8 +1607,8 @@ class XMLExporter:
                         except:
                             pass
             elif isinstance(rowspan_value, (int, str)) and str(rowspan_value) != '1':
-                # Jeśli rowspan > 1, ustaw val="restart" dla pierwszej komórki
-                # i val="continue" dla kolejnych (to jest obsługiwane przez Word)
+                # If rowspan > 1, set val="restart" for first cell
+                # and val="continue" for subsequent (this is handled by Word)
                 vMerge.set(f'{self.namespace}:val', 'restart')
         
         # Shading

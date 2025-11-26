@@ -1,8 +1,10 @@
 """
-DOCX exporter - tworzy pliki DOCX z modeli dokumentów.
 
-Wykorzystuje XMLExporter do generowania WordML XML i pakuje wszystko
-do pakietu DOCX (ZIP) z relacjami i [Content_Types].xml.
+DOCX exporter - creates DOCX files from document models.
+
+Uses XMLExporter to generate WordML XML and packages everything
+into DOCX package (ZIP) with relationships and [Content_Types].xml.
+
 """
 
 from __future__ import annotations
@@ -28,15 +30,17 @@ REL_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 
 class DOCXExporter:
     """
-    Eksporter DOCX - tworzy pliki DOCX z modeli dokumentów.
-    
-    Wykorzystuje XMLExporter do generowania WordML XML i pakuje wszystko
-    do pakietu DOCX (ZIP) z relacjami i [Content_Types].xml.
-    
-    Używa pustego szablonu (new_doc.docx) jako podstawy i uzupełnia go zawartością.
+
+    DOCX Exporter - creates DOCX files from document models.
+
+    Uses XMLExporter to generate WordML XML and packages everything
+    into DOCX package (ZIP) with relationships and [Content_Types].xml.
+
+    Uses empty template (new_doc.docx) as base and fills it with content.
+
     """
     
-    # Ścieżka do szablonu pustego dokumentu
+    # Path to empty document template
     TEMPLATE_PATH = Path(__file__).parent / "new_doc.docx"
     
     def __init__(
@@ -47,33 +51,35 @@ class DOCXExporter:
         source_docx_path: Optional[Union[str, Path]] = None
     ):
         """
-        Inicjalizuje eksporter DOCX.
-        
+
+        Initializes DOCX exporter.
+
         Args:
-            document: Dokument do eksportu (z PackageReader lub model)
-            use_relationship_merger: Czy używać RelationshipMerger do zarządzania relacjami
-            template_path: Opcjonalna ścieżka do szablonu DOCX (nadpisuje source_docx_path)
-            source_docx_path: Opcjonalna ścieżka do źródłowego DOCX (używana jako szablon jeśli istnieje)
+        document: Document to export (from PackageReader or model)
+        use_relationship_merger: Whether to use RelationshipMerger for relationship management
+        template_path: Optional path to DOCX template (overrides source_docx_path)
+        source_docx_path: Optional path to source DOCX (used as template if exists)
+
         """
         self.document = document
         self.xml_exporter = XMLExporter(document)
         self.use_relationship_merger = use_relationship_merger
         
         # Priorytet wyboru szablonu:
-        # 1. template_path (jeśli podano - najwyższy priorytet)
-        # 2. source_docx_path (jeśli istnieje - używamy oryginalnego DOCX jako szablonu, kopiujemy WSZYSTKIE pliki)
-        # 3. TEMPLATE_PATH (domyślny new_doc.docx dla nowych dokumentów)
+        # 1. template_path (if provided - highest priority)
+        # 2. source_docx_path (if exists - use original DOCX as template, copy ALL files)
+        # 3. TEMPLATE_PATH (default new_doc.docx for new documents)
         if template_path:
             self.template_path = Path(template_path)
         elif source_docx_path and Path(source_docx_path).exists():
-            # Użyj oryginalnego DOCX jako szablonu (dla round-trip: JSON → DOCX)
-            # Kopiujemy WSZYSTKIE pliki z niego (oprócz document.xml, który generujemy)
+            # Use original DOCX as template (for round-trip: JSON → DOCX)
+            # Copy ALL files from it (except document.xml, which we generate)
             self.template_path = Path(source_docx_path)
         else:
-            # Użyj domyślnego szablonu (dla nowych dokumentów)
+            # Use default template (for new documents)
             self.template_path = self.TEMPLATE_PATH
         
-        # Części pakietu (part_name -> content)
+        # Package parts (part_name -> content)
         self._parts: Dict[str, bytes] = {}
         # Relacje (source -> [(rel_id, rel_type, target, target_mode)])
         self._relationships: Dict[str, List[tuple]] = {}
@@ -90,13 +96,13 @@ class DOCXExporter:
         # Mapowanie starych ID na nowe ID dla headers/footers (old_id -> new_id)
         self._header_footer_id_mapping: Dict[str, str] = {}
         
-        # RelationshipMerger dla zaawansowanego zarządzania relacjami
+        # RelationshipMerger for advanced relationship management
         self.relationship_merger = None
         if self.use_relationship_merger and hasattr(document, '_package_reader'):
             try:
                 from ..merger.relationship_merger import RelationshipMerger
-                # Utwórz mock target_reader (używamy tego samego dokumentu jako target)
-                # W rzeczywistości RelationshipMerger będzie zarządzał relacjami podczas eksportu
+                # Create mock target_reader (use same document as target)
+                # In reality RelationshipMerger will manage relationships during export
                 self.relationship_merger = RelationshipMerger(
                     target_package_reader=document._package_reader,
                     source_package_reader=document._package_reader
@@ -108,7 +114,7 @@ class DOCXExporter:
         logger.debug("DOCXExporter initialized")
     
     def _get_package_reader(self):
-        """Pobiera package_reader z różnych możliwych lokalizacji."""
+        """Gets package_reader from various possible locations."""
         if hasattr(self.document, '_package_reader') and self.document._package_reader:
             return self.document._package_reader
         elif hasattr(self.document, 'parser') and hasattr(self.document.parser, 'package_reader'):
@@ -117,24 +123,26 @@ class DOCXExporter:
     
     def export(self, output_path: Union[str, Path]) -> bool:
         """
-        Eksportuje dokument do pliku DOCX.
-        
-        Używa pustego szablonu (new_doc.docx) jako podstawy i uzupełnia go zawartością.
-        
+
+        Exports document to DOCX file.
+
+        Uses empty template (new_doc.docx) as base and fills it with content.
+
         Args:
-            output_path: Ścieżka do pliku wyjściowego DOCX
-            
+        output_path: Path to output DOCX file
+
         Returns:
-            True jeśli eksport się powiódł
+        True if export succeeded
+
         """
         try:
             output_path = Path(output_path)
             output_path.parent.mkdir(parents=True, exist_ok=True)
             
-            # 0. Załaduj szablon (jeśli istnieje)
+            # 0. Load template (if exists)
             self._load_template()
             
-            # 1. Przygotuj części pakietu (nadpisze document.xml, doda nowe pliki)
+            # 1. Prepare package parts (will override document.xml, add new files)
             self._prepare_parts()
             
             # 2. Przygotuj relacje (zachowa relacje z szablonu, doda nowe)
@@ -159,19 +167,19 @@ class DOCXExporter:
             return False
     
     def _load_template(self) -> None:
-        """Ładuje szablon DOCX jako podstawę dla eksportu."""
+        """Loads DOCX template as base for export."""
         if not self.template_path.exists():
             logger.warning(f"Template not found: {self.template_path}, creating DOCX from scratch")
             return
         
         try:
-            # Otwórz szablon jako ZIP
+            # Open template as ZIP
             with zipfile.ZipFile(self.template_path, 'r') as template_zip:
                 # Skopiuj wszystkie pliki z szablonu
-                # WAŻNE: Jeśli używamy oryginalnego DOCX jako szablonu, kopiuj WSZYSTKIE pliki
-                # (oprócz document.xml, który zostanie wygenerowany)
+                # IMPORTANT: If using original DOCX as template, copy ALL files
+                # (except document.xml, which will be generated)
                 for item in template_zip.namelist():
-                    # Pomiń document.xml - zostanie wygenerowany
+                    # Skip document.xml - will be generated
                     if item == 'word/document.xml':
                         continue
                     
@@ -180,7 +188,7 @@ class DOCXExporter:
                         content = template_zip.read(item)
                         self._parts[item] = content
                         
-                        # Określ content type na podstawie rozszerzenia
+                        # Determine content type based on extension
                         if item.endswith('.xml'):
                             if 'styles' in item:
                                 self._content_types[item] = (
@@ -206,8 +214,8 @@ class DOCXExporter:
                                 # Zostanie nadpisane przez _prepare_content_types
                                 pass
                             elif item.startswith('_rels/'):
-                                # Relacje - zachowaj z szablonu jako podstawę
-                                # _prepare_relationships doda nowe relacje, ale zachowa istniejące
+                                # Relationships - keep from template as base
+                                # _prepare_relationships will add new relationships but keep existing
                                 if item not in self._relationships:
                                     # Parsuj relacje z XML
                                     try:
@@ -225,7 +233,7 @@ class DOCXExporter:
                                     except Exception as e:
                                         logger.debug(f"Failed to parse relationships from {item}: {e}")
                         
-                        # Skopiuj też content types z [Content_Types].xml
+                        # Also copy content types from [Content_Types].xml
                         if item == '[Content_Types].xml':
                             try:
                                 ct_xml = ET.fromstring(content)
@@ -233,7 +241,7 @@ class DOCXExporter:
                                     part_name = override.get('PartName')
                                     content_type = override.get('ContentType')
                                     if part_name and content_type:
-                                        # Usuń leading slash jeśli jest
+                                        # Remove leading slash if present
                                         if part_name.startswith('/'):
                                             part_name = part_name[1:]
                                         self._content_types[part_name] = content_type
@@ -252,15 +260,15 @@ class DOCXExporter:
             logger.warning(f"Failed to load template {self.template_path}: {e}, creating DOCX from scratch")
     
     def _prepare_parts(self) -> None:
-        """Przygotowuje części pakietu (document.xml, styles.xml, etc.)."""
-        # 1. Generuj document.xml używając XMLExporter
+        """Prepares package parts (document.xml, styles.xml, etc.)."""
+        # 1. Generate document.xml using XMLExporter
         document_xml = self.xml_exporter.regenerate_wordml(self.document)
         self._parts['word/document.xml'] = document_xml.encode('utf-8')
         self._content_types['word/document.xml'] = (
             'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml'
         )
         
-        # 2. Generuj styles.xml z modeli (używa StyleNormalizer z normalize.py)
+        # 2. Generate styles.xml from models (uses StyleNormalizer from normalize.py)
         styles_xml = self._generate_styles_xml()
         if styles_xml:
             self._parts['word/styles.xml'] = styles_xml.encode('utf-8')
@@ -268,8 +276,8 @@ class DOCXExporter:
                 'application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml'
             )
         
-        # 3. Generuj numbering.xml z modeli (używa NumberingNormalizer z normalize.py)
-        # Tylko jeśli nie został już załadowany z szablonu
+        # 3. Generate numbering.xml from models (uses NumberingNormalizer from normalize.py)
+        # Only if not already loaded from template
         if 'word/numbering.xml' not in self._parts:
             numbering_xml = self._generate_numbering_xml()
             if numbering_xml:
@@ -278,7 +286,7 @@ class DOCXExporter:
                     'application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml'
                 )
         
-        # 4. Kopiuj settings.xml jeśli istnieje (tylko jeśli nie został już załadowany z szablonu)
+        # 4. Copy settings.xml if exists (only if not already loaded from template)
         if 'word/settings.xml' not in self._parts:
             if hasattr(self.document, '_package_reader'):
                 package_reader = self.document._package_reader
@@ -289,18 +297,18 @@ class DOCXExporter:
                         'application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml'
                     )
         
-        # 5. Kopiuj media (obrazy) jeśli istnieją i znajdź nowe obrazy w dokumentach
+        # 5. Copy media (images) if exist and find new images in documents
         self._prepare_media()
         
-        # 6. Użyj RelationshipMerger do zarządzania relacjami jeśli dostępny
+        # 6. Use RelationshipMerger for relationship management if available
         if self.relationship_merger:
             self._use_relationship_merger_for_parts()
         
-        # 7. Kopiuj headers i footers jeśli istnieją
-        # Najpierw z oryginalnego dokumentu (jeśli istnieje)
+        # 7. Copy headers and footers if exist
+        # First from original document (if exists)
         if hasattr(self.document, '_package_reader'):
             package_reader = self.document._package_reader
-            # Sprawdź relacje headers/footers w document.xml.rels
+            # Check headers/footers relationships in document.xml.rels
             if hasattr(package_reader, 'relationships'):
                 doc_rels = package_reader.relationships.get('document', [])
                 for rel in doc_rels:
@@ -308,7 +316,7 @@ class DOCXExporter:
                     target = rel.get('Target', '')
                     
                     if 'header' in rel_type.lower() or 'footer' in rel_type.lower():
-                        # Pobierz zawartość header/footer
+                        # Get header/footer content
                         try:
                             hf_xml = package_reader.get_xml_content(target)
                             if hf_xml:
@@ -324,23 +332,23 @@ class DOCXExporter:
                         except Exception as e:
                             logger.warning(f"Failed to copy header/footer {target}: {e}")
         
-        # Jeśli dokument nie ma _package_reader (np. utworzony z JSON), sprawdź headers/footers w modelu
+        # If document has no _package_reader (e.g. created from JSON), check headers/footers in model
         if not hasattr(self.document, '_package_reader') or not self.document._package_reader:
-            # Sprawdź czy dokument ma headers/footers w modelu
-            # Headers/footers mogą być w różnych miejscach w zależności od struktury modelu
+            # Check if document has headers/footers in model
+            # Headers/footers can be in different places depending on model structure
             headers_dict = {}
             footers_dict = {}
             
-            # Sprawdź różne możliwe lokalizacje headers/footers
-            # Najpierw sprawdź bezpośrednio w document (może być SimpleNamespace z to_document_model)
+            # Check various possible locations for headers/footers
+            # First check directly in document (may be SimpleNamespace from to_document_model)
             if hasattr(self.document, 'headers'):
                 headers_dict = self.document.headers if isinstance(self.document.headers, dict) else {}
             elif hasattr(self.document, '_headers'):
                 headers_dict = self.document._headers if isinstance(self.document._headers, dict) else {}
-            # Sprawdź w _model (jeśli document to Document API)
+            # Check in _model (if document is Document API)
             elif hasattr(self.document, '_model') and hasattr(self.document._model, 'headers'):
                 headers_dict = self.document._model.headers if isinstance(self.document._model.headers, dict) else {}
-            # Sprawdź bezpośrednio w document (jeśli document to model z to_document_model)
+            # Check directly in document (if document is model from to_document_model)
             elif hasattr(self.document, 'body') and hasattr(self.document, 'headers'):
                 headers_dict = self.document.headers if isinstance(self.document.headers, dict) else {}
             
@@ -357,7 +365,7 @@ class DOCXExporter:
             header_index = 1
             for header_key, header_list in headers_dict.items():
                 if header_list and isinstance(header_list, list):
-                    # Utwórz prosty model header z listą elementów
+                    # Create simple header model from list of elements
                     from types import SimpleNamespace
                     header_model = SimpleNamespace()
                     header_model.body = SimpleNamespace()
@@ -379,7 +387,7 @@ class DOCXExporter:
             footer_index = 1
             for footer_key, footer_list in footers_dict.items():
                 if footer_list and isinstance(footer_list, list):
-                    # Utwórz prosty model footer z listą elementów
+                    # Create simple footer model from list of elements
                     from types import SimpleNamespace
                     footer_model = SimpleNamespace()
                     footer_model.body = SimpleNamespace()
@@ -398,12 +406,12 @@ class DOCXExporter:
                         logger.warning(f"Failed to export footer {footer_key}: {e}")
     
     def _prepare_relationships(self) -> None:
-        """Przygotowuje relacje dla wszystkich części."""
-        # 1. Główne relacje (_rels/.rels) - zachowaj z szablonu jeśli istnieją
+        """Prepares relationships for all parts."""
+        # 1. Main relationships (_rels/.rels) - keep from template if exist
         if '_rels/.rels' not in self._relationships:
             self._relationships['_rels/.rels'] = []
         
-        # Dodaj relację do document.xml
+        # Add relationship to document.xml
         doc_rel_id = self._get_next_rel_id('_rels/.rels')
         self._relationships['_rels/.rels'].append((
             doc_rel_id,
@@ -415,70 +423,70 @@ class DOCXExporter:
         # 2. Relacje document.xml (word/_rels/document.xml.rels)
         self._relationships['word/_rels/document.xml.rels'] = []
         
-        # Zbiór targetów, które już mają relacje (aby uniknąć duplikatów)
+        # Set of targets that already have relationships (to avoid duplicates)
         existing_rel_targets = set()
         
-        # Najpierw skopiuj relacje z oryginalnego dokumentu jeśli istnieją
+        # First copy relationships from original document if exist
         package_reader = self._get_package_reader()
         if package_reader and hasattr(package_reader, 'relationships'):
                 doc_rels = package_reader.relationships.get('document', [])
-                # doc_rels może być listą lub słownikiem
+                # doc_rels can be list or dictionary
                 if isinstance(doc_rels, dict):
-                    # Jeśli to słownik, iteruj przez wartości (lub items, aby mieć dostęp do ID)
+                    # If dict, iterate through values (or items to access ID)
                     rels_iter = doc_rels.items()
                 else:
-                    # Jeśli to lista, iteruj bezpośrednio
+                    # If list, iterate directly
                     rels_iter = enumerate(doc_rels) if isinstance(doc_rels, list) else []
                 
                 for rel_key, rel in rels_iter:
-                    # Jeśli rel_key to ID (string), użyj go jako old_rel_id
+                    # If rel_key is ID (string), use it as old_rel_id
                     old_rel_id_from_key = rel_key if isinstance(rel_key, str) and rel_key.startswith('rId') else None
                     
-                    # Relacja może być słownikiem lub obiektem
+                    # Relationship can be dictionary or object
                     if isinstance(rel, dict):
                         rel_type = rel.get('Type', '') or rel.get('type', '')
                         target = rel.get('Target', '') or rel.get('target', '')
                         target_mode = rel.get('TargetMode', 'Internal') or rel.get('target_mode', 'Internal')
                         rel_id_from_rel = rel.get('Id', '') or rel.get('id', '')
                     else:
-                        # Jeśli relacja to obiekt, spróbuj pobrać atrybuty
+                        # If relationship is object, try to get attributes
                         rel_type = getattr(rel, 'Type', '') or getattr(rel, 'type', '')
                         target = getattr(rel, 'Target', '') or getattr(rel, 'target', '')
                         target_mode = getattr(rel, 'TargetMode', 'Internal') or getattr(rel, 'target_mode', 'Internal')
                         rel_id_from_rel = getattr(rel, 'Id', '') or getattr(rel, 'id', '')
                     
-                    # Użyj ID z klucza lub z relacji
+                    # Use ID from key or from relationship
                     old_rel_id = old_rel_id_from_key or rel_id_from_rel
                     
-                    # Normalizuj target (usuń leading slash jeśli jest)
+                    # Normalize target (remove leading slash if present)
                     if target.startswith('/'):
                         target = target[1:]
                     
-                    # Sprawdź czy część istnieje w naszym pakiecie
-                    # Target może być względny (media/image.png) lub pełny (word/media/image.png)
+                    # Check if part exists in our package
+                    # Target can be relative (media/image.png) or full (word/media/image.png)
                     target_exists = False
                     normalized_target = target
                     
-                    # Sprawdź bezpośrednio
+                    # Check directly
                     if target in self._parts or target in self._media:
                         target_exists = True
                         normalized_target = target
-                    # Sprawdź z prefiksem word/
+                    # Check with word/ prefix
                     elif not target.startswith('word/'):
                         full_target = f'word/{target}'
                         if full_target in self._parts or full_target in self._media:
                             target_exists = True
-                            normalized_target = target  # Zostaw oryginalny target (względny dla relacji)
-                    # Sprawdź bez prefiksu word/
+                            normalized_target = target  # Keep original target (relative for relationships)
+                    # Check without word/ prefix
                     elif target.startswith('word/'):
-                        short_target = target[5:]  # Usuń "word/"
+                        short_target = target[5:]  # Remove "word/"
                         if short_target in self._parts or short_target in self._media:
                             target_exists = True
-                            normalized_target = short_target  # Użyj krótszej wersji dla relacji
+                            normalized_target = short_target  # Use shorter version for relationships
                     
-                    # Dla headers/footers, sprawdź też czy istnieje w _parts z różnymi wariantami ścieżki
+                    # For headers/footers, also check if exists in _parts with different path variants
                     if not target_exists and ('header' in rel_type.lower() or 'footer' in rel_type.lower()):
-                        # Sprawdź wszystkie możliwe warianty dla headers/footers
+                        # Check all possible variants for headers/footers
                         variants = [
                             target,
                             f'word/{target}',
@@ -487,13 +495,13 @@ class DOCXExporter:
                         for variant in variants:
                             if variant in self._parts:
                                 target_exists = True
-                                # Dla relacji używamy nazwy pliku (bez ścieżki)
+                                # For relationships use filename (without path)
                                 normalized_target = Path(target).name
                                 break
                     
-                    # Dla mediów, sprawdź też czy istnieje w _media z różnymi wariantami ścieżki
+                    # For media, also check if exists in _media with different path variants
                     if not target_exists and ('media' in target or 'image' in rel_type.lower()):
-                        # Sprawdź wszystkie możliwe warianty
+                        # Check all possible variants
                         variants = [
                             target,
                             f'word/{target}',
@@ -504,23 +512,23 @@ class DOCXExporter:
                         for variant in variants:
                             if variant in self._media:
                                 target_exists = True
-                                # Dla relacji używamy oryginalnego target (względnego)
+                                # For relationships use original target (relative)
                                 # ale sprawdzamy czy media istnieje w _media
                                 normalized_target = target  # Zostaw oryginalny target dla relacji
                                 break
                         
-                        # Jeśli nadal nie znaleziono, sprawdź wszystkie klucze w _media
+                        # If still not found, check all keys in _media
                         if not target_exists:
                             for media_key in self._media.keys():
-                                # Sprawdź czy nazwa pliku się zgadza
+                                # Check if filename matches
                                 if Path(media_key).name == Path(target).name:
                                     target_exists = True
                                     normalized_target = target  # Zostaw oryginalny target dla relacji
                                     break
                     
                     if target_exists:
-                        # Sprawdź czy relacja już istnieje (używając normalized_target)
-                        # Dla headers/footers używamy nazwy pliku (bez ścieżki)
+                        # Check if relationship already exists (using normalized_target)
+                        # For headers/footers use filename (without path)
                         check_target = normalized_target
                         if 'header' in rel_type.lower() or 'footer' in rel_type.lower():
                             # Dla headers/footers sprawdzamy po nazwie pliku
@@ -529,7 +537,7 @@ class DOCXExporter:
                         if check_target not in existing_rel_targets:
                             rel_id = self._get_next_rel_id('word/_rels/document.xml.rels')
                             
-                            # Dla headers/footers używamy nazwy pliku w relacji
+                            # For headers/footers use filename in relationship
                             rel_target = normalized_target
                             if 'header' in rel_type.lower() or 'footer' in rel_type.lower():
                                 rel_target = Path(normalized_target).name
@@ -549,19 +557,19 @@ class DOCXExporter:
                         if 'header' in rel_type.lower() or 'footer' in rel_type.lower():
                             logger.debug(f"Target not found for {rel_type.split('/')[-1]}: {target} (normalized: {normalized_target})")
         
-        # Dodaj relacje dla części, które są w pakiecie, ale nie mają relacji
-        # (np. dla dokumentów utworzonych z JSON)
+        # Add relationships for parts that are in package but don't have relationships
+        # (e.g. for documents created from JSON)
         existing_targets = {rel[2] for rel in self._relationships['word/_rels/document.xml.rels']}
         
-        # Relacja do styles.xml (tylko jeśli nie ma już relacji)
-        # Sprawdź zarówno pełną ścieżkę jak i względną
+        # Relationship to styles.xml (only if no relationship exists)
+        # Check both full path and relative
         styles_targets = {'word/styles.xml', 'styles.xml'}
         if 'word/styles.xml' in self._parts and not any(t in existing_targets for t in styles_targets):
             rel_id = self._get_next_rel_id('word/_rels/document.xml.rels')
             self._relationships['word/_rels/document.xml.rels'].append((
                 rel_id,
                 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles',
-                'styles.xml',  # W relacjach document.xml używamy względnej ścieżki
+                'styles.xml',  # In document.xml relationships use relative path
                 'Internal'
             ))
             existing_targets.add('styles.xml')
@@ -572,11 +580,11 @@ class DOCXExporter:
             self._relationships['word/_rels/document.xml.rels'].append((
                 rel_id,
                 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering',
-                'numbering.xml',  # W relacjach document.xml używamy względnej ścieżki
+                'numbering.xml',  # In document.xml relationships use relative path
                 'Internal'
             ))
         
-        # Relacje do headers - znajdź stare ID z sekcji
+        # Relationships to headers - find old ID from section
         sections = None
         if hasattr(self.document, '_sections') and self.document._sections:
             sections = self.document._sections
@@ -591,13 +599,13 @@ class DOCXExporter:
             if 'headers' in section and isinstance(section['headers'], list):
                 for hdr in section['headers']:
                     if 'id' in hdr:
-                        # Znajdź nazwę pliku header na podstawie target w relacjach
+                        # Find header filename based on target in relationships
                         package_reader = self._get_package_reader()
                         if package_reader and hasattr(package_reader, 'relationships'):
                             doc_rels = package_reader.relationships.get('document', [])
-                            # doc_rels może być listą lub słownikiem
+                            # doc_rels can be list or dictionary
                             if isinstance(doc_rels, dict):
-                                # Jeśli to słownik, sprawdź bezpośrednio po kluczu (ID)
+                                # If dict, check directly by key (ID)
                                 if hdr['id'] in doc_rels:
                                     rel = doc_rels[hdr['id']]
                                     if isinstance(rel, dict):
@@ -607,7 +615,7 @@ class DOCXExporter:
                                     header_file_to_old_id[Path(target).name] = hdr['id']
                                     logger.debug(f"Found header mapping: {hdr['id']} -> {Path(target).name}")
                             else:
-                                # Jeśli to lista, iteruj przez elementy
+                                # If list, iterate through elements
                                 for rel in doc_rels:
                                     if isinstance(rel, dict):
                                         rel_id = rel.get('Id') or rel.get('id')
@@ -624,9 +632,9 @@ class DOCXExporter:
                         package_reader = self._get_package_reader()
                         if package_reader and hasattr(package_reader, 'relationships'):
                             doc_rels = package_reader.relationships.get('document', [])
-                            # doc_rels może być listą lub słownikiem
+                            # doc_rels can be list or dictionary
                             if isinstance(doc_rels, dict):
-                                # Jeśli to słownik, sprawdź bezpośrednio po kluczu (ID)
+                                # If dict, check directly by key (ID)
                                 if ftr['id'] in doc_rels:
                                     rel = doc_rels[ftr['id']]
                                     if isinstance(rel, dict):
@@ -636,7 +644,7 @@ class DOCXExporter:
                                     footer_file_to_old_id[Path(target).name] = ftr['id']
                                     logger.debug(f"Found footer mapping: {ftr['id']} -> {Path(target).name}")
                             else:
-                                # Jeśli to lista, iteruj przez elementy
+                                # If list, iterate through elements
                                 for rel in doc_rels:
                                     if isinstance(rel, dict):
                                         rel_id = rel.get('Id') or rel.get('id')
@@ -651,11 +659,11 @@ class DOCXExporter:
         logger.debug(f"header_file_to_old_id: {header_file_to_old_id}")
         logger.debug(f"footer_file_to_old_id: {footer_file_to_old_id}")
         
-        # Relacje do headers (pomiń pliki .rels)
+        # Relationships to headers (skip .rels files)
         for part_name in self._parts:
             if 'header' in part_name.lower() and part_name.endswith('.xml') and not part_name.endswith('.rels'):
                 header_name = Path(part_name).name
-                # Sprawdź czy relacja już istnieje (po nazwie pliku)
+                # Check if relationship already exists (by filename)
                 if header_name not in existing_targets:
                     rel_id = self._get_next_rel_id('word/_rels/document.xml.rels')
                     self._relationships['word/_rels/document.xml.rels'].append((
@@ -665,7 +673,7 @@ class DOCXExporter:
                         'Internal'
                     ))
                     existing_targets.add(header_name)
-                    # Zapisz mapowanie ID jeśli znaleźliśmy stare ID
+                    # Save ID mapping if we found old ID
                     if header_name in header_file_to_old_id:
                         old_id = header_file_to_old_id[header_name]
                         self._header_footer_id_mapping[old_id] = rel_id
@@ -675,11 +683,11 @@ class DOCXExporter:
                 else:
                     logger.debug(f"Header {header_name} already in existing_targets")
         
-        # Relacje do footers (pomiń pliki .rels)
+        # Relationships to footers (skip .rels files)
         for part_name in self._parts:
             if 'footer' in part_name.lower() and part_name.endswith('.xml') and not part_name.endswith('.rels'):
                 footer_name = Path(part_name).name
-                # Sprawdź czy relacja już istnieje (po nazwie pliku)
+                # Check if relationship already exists (by filename)
                 if footer_name not in existing_targets:
                     rel_id = self._get_next_rel_id('word/_rels/document.xml.rels')
                     self._relationships['word/_rels/document.xml.rels'].append((
@@ -689,7 +697,7 @@ class DOCXExporter:
                         'Internal'
                     ))
                     existing_targets.add(footer_name)
-                    # Zapisz mapowanie ID jeśli znaleźliśmy stare ID
+                    # Save ID mapping if we found old ID
                     if footer_name in footer_file_to_old_id:
                         old_id = footer_file_to_old_id[footer_name]
                         self._header_footer_id_mapping[old_id] = rel_id
@@ -705,10 +713,10 @@ class DOCXExporter:
         for media_name in self._media:
             if media_name not in existing_targets:
                 rel_id = self._get_next_rel_id('word/_rels/document.xml.rels')
-                # W relacjach document.xml używamy względnej ścieżki
-                # Jeśli media_name to "word/media/image.png", to target to "media/image.png"
+                # In document.xml relationships use relative path
+                # If media_name is "word/media/image.png", target is "media/image.png"
                 if media_name.startswith('word/'):
-                    media_target = media_name[5:]  # Usuń "word/"
+                    media_target = media_name[5:]  # Remove "word/"
                 else:
                     media_target = media_name
                 self._relationships['word/_rels/document.xml.rels'].append((
@@ -718,7 +726,7 @@ class DOCXExporter:
                     'Internal'
                 ))
         
-        # 3. Relacje dla headers/footers (jeśli istnieją)
+        # 3. Relationships for headers/footers (if exist)
         for part_name in self._parts:
             if 'header' in part_name.lower() or 'footer' in part_name.lower():
                 rels_path = self._get_relationship_path(part_name)
@@ -729,7 +737,7 @@ class DOCXExporter:
                     if hasattr(self.document, '_package_reader'):
                         package_reader = self.document._package_reader
                         if hasattr(package_reader, 'relationships'):
-                            # Określ source name dla header/footer
+                            # Determine source name for header/footer
                             source_name = Path(part_name).stem
                             hf_rels = package_reader.relationships.get(source_name, [])
                             for rel in hf_rels:
@@ -756,7 +764,7 @@ class DOCXExporter:
             document_xml = self._parts['word/document.xml'].decode('utf-8')
             root = ET.fromstring(document_xml)
             
-            # Znajdź wszystkie sectPr w dokumencie (mogą być w różnych miejscach)
+            # Find all sectPr in document (can be in different places)
             ns = {'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'}
             all_sect_prs = root.findall('.//w:sectPr', ns)
             
@@ -796,7 +804,7 @@ class DOCXExporter:
     
     def _prepare_content_types(self) -> None:
         """Przygotowuje [Content_Types].xml."""
-        # Domyślne typy zawartości (tylko jeśli nie zostały załadowane z szablonu)
+        # Default content types (only if not loaded from template)
         if not self._default_content_types:
             default_types = {
                 'rels': 'application/vnd.openxmlformats-package.relationships+xml',
@@ -808,29 +816,29 @@ class DOCXExporter:
                 'bmp': 'image/bmp',
             }
             
-            # Dodaj domyślne typy dla rozszerzeń
+            # Add default types for extensions
             for ext, content_type in default_types.items():
                 self._default_content_types[ext] = content_type
         
-        # Dodaj domyślne typy do _content_types z prefiksem *. dla _generate_content_types_xml
+        # Add default types to _content_types with *. prefix for _generate_content_types_xml
         for ext, content_type in self._default_content_types.items():
             self._content_types[f'*.{ext}'] = content_type
     
     def _write_package(self, output_path: Path) -> None:
         """Zapisuje pakiet DOCX do pliku ZIP."""
-        # Zbierz wszystkie pliki do zapisania (bez duplikatów)
+        # Collect all files to save (without duplicates)
         files_to_write = {}
         
         # 1. [Content_Types].xml (zawsze nadpisujemy)
         content_types_xml = self._generate_content_types_xml()
         files_to_write['[Content_Types].xml'] = content_types_xml
         
-        # 2. Główne relacje
+        # 2. Main relationships
         if '_rels/.rels' in self._relationships:
             rels_xml = self._generate_relationships_xml(self._relationships['_rels/.rels'])
             files_to_write['_rels/.rels'] = rels_xml
         
-        # 3. Części (parts) - nadpisują jeśli już istnieją
+        # 3. Parts - override if already exist
         for part_name, content in self._parts.items():
             files_to_write[part_name] = content
         
@@ -838,25 +846,25 @@ class DOCXExporter:
         for media_name, content in self._media.items():
             files_to_write[media_name] = content
         
-        # 5. Relacje dla części
+        # 5. Relationships for parts
         for rels_path, rels in self._relationships.items():
-            if rels_path != '_rels/.rels' and rels:  # Główne relacje już zapisane
+            if rels_path != '_rels/.rels' and rels:  # Main relationships already saved
                 rels_xml = self._generate_relationships_xml(rels)
                 files_to_write[rels_path] = rels_xml
         
-        # Zapisz wszystko do ZIP (bez duplikatów)
+        # Save everything to ZIP (without duplicates)
         with zipfile.ZipFile(output_path, 'w', zipfile.ZIP_DEFLATED) as zip_file:
             for file_name, content in files_to_write.items():
                 zip_file.writestr(file_name, content)
     
     def _generate_content_types_xml(self) -> bytes:
         """Generuje [Content_Types].xml."""
-        # Rejestruj namespace, aby uniknąć prefiksów ns0:
+        # Register namespace to avoid ns0: prefixes
         ET.register_namespace('', 'http://schemas.openxmlformats.org/package/2006/content-types')
         
         root = ET.Element('{http://schemas.openxmlformats.org/package/2006/content-types}Types')
         
-        # Dodaj domyślne typy
+        # Add default types
         default_extensions: Set[str] = set()
         for part_name, content_type in self._content_types.items():
             if part_name.startswith('*.'):
@@ -866,19 +874,19 @@ class DOCXExporter:
                 default_elem.set('Extension', ext)
                 default_elem.set('ContentType', content_type)
         
-        # Dodaj override dla części z self._content_types
+        # Add override for parts from self._content_types
         for part_name, content_type in self._content_types.items():
             if not part_name.startswith('*.'):
                 override_elem = ET.SubElement(root, '{http://schemas.openxmlformats.org/package/2006/content-types}Override')
                 override_elem.set('PartName', f'/{part_name}')
                 override_elem.set('ContentType', content_type)
         
-        # Dodaj override dla wszystkich plików w self._parts i self._media, które nie są jeszcze w self._content_types
-        # (zapewnia to, że wszystkie pliki, w tym docProps/, są w [Content_Types].xml)
+        # Add override for all files in self._parts and self._media that are not yet in self._content_types
+        # (ensures all files, including docProps/, are in [Content_Types].xml)
         all_parts = set(self._parts.keys()) | set(self._media.keys())
         known_content_types = {name for name in self._content_types.keys() if not name.startswith('*.')}
         
-        # Mapowanie rozszerzeń i ścieżek do content types
+        # Mapping of extensions and paths to content types
         content_type_map = {
             # docProps
             'docProps/app.xml': 'application/vnd.openxmlformats-officedocument.extended-properties+xml',
@@ -903,14 +911,14 @@ class DOCXExporter:
         
         for part_name in all_parts:
             if part_name in known_content_types:
-                continue  # Już dodany
+                continue  # Already added
             
-            # Sprawdź mapowanie ścieżki
+            # Check path mapping
             content_type = None
             if part_name in content_type_map:
                 content_type = content_type_map[part_name]
             else:
-                # Sprawdź rozszerzenie
+                # Check extension
                 ext = Path(part_name).suffix.lower()
                 if ext in content_type_map:
                     content_type = content_type_map[ext]
@@ -935,7 +943,7 @@ class DOCXExporter:
     
     def _generate_relationships_xml(self, relationships: List[tuple]) -> bytes:
         """Generuje XML relacji."""
-        # Rejestruj namespace, aby uniknąć prefiksów ns0:
+        # Register namespace to avoid ns0: prefixes
         ET.register_namespace('', 'http://schemas.openxmlformats.org/package/2006/relationships')
         
         root = ET.Element('{http://schemas.openxmlformats.org/package/2006/relationships}Relationships')
@@ -954,7 +962,7 @@ class DOCXExporter:
         return xml_str
     
     def _get_next_rel_id(self, source: str) -> str:
-        """Generuje następny ID relacji dla źródła."""
+        """Generates next relationship ID for source."""
         if source not in self._rel_id_counters:
             self._rel_id_counters[source] = 1
         else:
@@ -963,8 +971,8 @@ class DOCXExporter:
         return f"rId{self._rel_id_counters[source]}"
     
     def _get_relationship_path(self, part_name: str) -> str:
-        """Określa ścieżkę pliku relacji dla części."""
-        # Przykład: word/document.xml -> word/_rels/document.xml.rels
+        """Determines relationship file path for part."""
+        # Example: word/document.xml -> word/_rels/document.xml.rels
         if '/' in part_name:
             dir_part = '/'.join(part_name.split('/')[:-1])
             file_part = part_name.split('/')[-1]
@@ -974,26 +982,25 @@ class DOCXExporter:
     
     def _generate_styles_xml(self) -> Optional[str]:
         """
-        Generuje styles.xml z modeli dokumentu używając StyleNormalizer.
-        
-        Returns:
-            XML string lub None jeśli nie ma stylów do wygenerowania
+
+        Generates styles.xml from document models using StyleNormalizer.
+
         """
         try:
             from ..normalize import StyleNormalizer
             
-            # Pobierz oryginalny styles.xml jeśli istnieje
+            # Get original styles.xml if exists
             original_styles_xml = None
             if hasattr(self.document, '_package_reader'):
                 package_reader = self.document._package_reader
                 original_styles_xml = package_reader.get_xml_content('word/styles.xml')
             
-            # Dla dokumentów z JSON, spróbuj pobrać style z importera
+            # For documents from JSON, try to get styles from importer
             if not original_styles_xml and hasattr(self.document, '_importer'):
                 importer = self.document._importer
                 if hasattr(importer, 'styles_list') and importer.styles_list:
-                    # Style są w JSON - użyj ich do utworzenia podstawowego styles.xml
-                    # Albo użyj source_docx jeśli dostępny
+                    # Styles are in JSON - use them to create basic styles.xml
+                    # Or use source_docx if available
                     if hasattr(self.document, '_source_docx') and self.document._source_docx:
                         from ..parser.package_reader import PackageReader
                         try:
@@ -1002,7 +1009,7 @@ class DOCXExporter:
                         except Exception:
                             pass
             
-            # Utwórz StyleNormalizer
+            # Create StyleNormalizer
             style_normalizer = StyleNormalizer(original_styles_xml)
             
             # Zarejestruj wszystkie paragrafy i runy z dokumentu
@@ -1010,7 +1017,7 @@ class DOCXExporter:
             if body:
                 paragraphs = self._get_paragraphs(body)
                 
-                # Pobierz numbering parser jeśli dostępny
+                # Get numbering parser if available
                 numbering_parser = None
                 if hasattr(self.document, 'parser') and hasattr(self.document.parser, 'numbering_parser'):
                     numbering_parser = self.document.parser.numbering_parser
@@ -1023,14 +1030,14 @@ class DOCXExporter:
                     for run in runs:
                         style_normalizer.register_run(run)
             
-            # Dla dokumentów z JSON (source_docx), jeśli nie ma custom stylów, zwróć wszystkie style z oryginalnego
+            # For documents from JSON (source_docx), if no custom styles, return all...
             if not style_normalizer.has_custom_styles() and original_styles_xml:
-                # Zwróć wszystkie style z oryginalnego dokumentu
+                # Return all styles from original document
                 return original_styles_xml
             
-            # Generuj XML tylko jeśli są custom style
+            # Generate XML only if there are custom styles
             if style_normalizer.has_custom_styles():
-                # Zbierz używane style IDs i style names
+                # Collect used style IDs and style names
                 used_style_ids = set()
                 used_style_names = set()
                 
@@ -1048,21 +1055,21 @@ class DOCXExporter:
                                 if style_name:
                                     used_style_names.add(style_name)
                 
-                # Jeśli mamy source_docx, dodaj wszystkie style z oryginalnego dokumentu
-                # (nie tylko używane, bo mogą być potrzebne dla innych elementów)
+                # If we have source_docx, add all styles from original document
+                # (not only used, because may be needed for other elements)
                 if hasattr(self.document, '_source_docx') and self.document._source_docx and original_styles_xml:
-                    # Dla dokumentów z JSON, zwróć wszystkie style z oryginalnego + nowe custom style
-                    # Użyj None jako used_style_ids, aby skopiować wszystkie style
+                    # For documents from JSON, return all styles from original + new custom styles
+                    # Use None as used_style_ids to copy all styles
                     return style_normalizer.to_xml(None)
                 else:
                     return style_normalizer.to_xml(used_style_ids)
             else:
-                # Jeśli nie ma custom stylów i nie ma oryginalnego XML, zwróć None
+                # If no custom styles and no original XML, return None
                 return None
                 
         except Exception as e:
             logger.warning(f"Failed to generate styles.xml: {e}")
-            # Fallback: użyj oryginalnego styles.xml
+            # Fallback: use original styles.xml
             if hasattr(self.document, '_package_reader'):
                 package_reader = self.document._package_reader
                 return package_reader.get_xml_content('word/styles.xml')
@@ -1070,10 +1077,9 @@ class DOCXExporter:
     
     def _generate_numbering_xml(self) -> Optional[str]:
         """
-        Generuje numbering.xml z modeli dokumentu używając NumberingNormalizer.
-        
-        Returns:
-            XML string lub None jeśli nie ma numeracji do wygenerowania
+
+        Generates numbering.xml from document models using NumberingNormalizer.
+
         """
         try:
             from ..normalize import NumberingNormalizer
@@ -1084,7 +1090,7 @@ class DOCXExporter:
                 numbering_parser = self.document.parser.numbering_parser
             
             if not numbering_parser:
-                # Sprawdź czy dokument ma paragrafy z numbering (np. utworzony z JSON)
+                # Check if document has paragraphs with numbering (e.g. created from JSON)
                 body = self._get_body()
                 has_numbering = False
                 if body:
@@ -1098,38 +1104,38 @@ class DOCXExporter:
                     # Dokument ma numbering, ale nie ma parsera - wygeneruj podstawowy numbering.xml
                     return self._generate_basic_numbering_xml()
                 
-                # Fallback: użyj oryginalnego numbering.xml
+                # Fallback: use original numbering.xml
                 if hasattr(self.document, '_package_reader'):
                     package_reader = self.document._package_reader
                     return package_reader.get_xml_content('word/numbering.xml')
                 return None
             
-            # Pobierz oryginalny numbering.xml jeśli istnieje
+            # Get original numbering.xml if exists
             original_numbering_xml = None
             if hasattr(self.document, '_package_reader'):
                 package_reader = self.document._package_reader
                 original_numbering_xml = package_reader.get_xml_content('word/numbering.xml')
             
-            # Utwórz NumberingNormalizer
+            # Create NumberingNormalizer
             numbering_normalizer = NumberingNormalizer(numbering_parser, original_numbering_xml)
             
-            # Zarejestruj wszystkie paragrafy z numeracją
+            # Register all paragraphs with numbering
             body = self._get_body()
             if body:
                 paragraphs = self._get_paragraphs(body)
                 for para in paragraphs:
                     numbering_normalizer.register_paragraph(para)
             
-            # Generuj XML tylko jeśli jest custom numbering
+            # Generate XML only if there is custom numbering
             if numbering_normalizer.has_custom_numbering():
                 return numbering_normalizer.to_xml()
             else:
-                # Zwróć oryginalny XML jeśli nie ma custom numbering
+                # Return original XML if no custom numbering
                 return original_numbering_xml
                 
         except Exception as e:
             logger.warning(f"Failed to generate numbering.xml: {e}")
-            # Fallback: użyj oryginalnego numbering.xml
+            # Fallback: use original numbering.xml
             if hasattr(self.document, '_package_reader'):
                 package_reader = self.document._package_reader
                 return package_reader.get_xml_content('word/numbering.xml')
@@ -1137,15 +1143,14 @@ class DOCXExporter:
     
     def _generate_basic_numbering_xml(self) -> Optional[str]:
         """
-        Generuje podstawowy numbering.xml dla dokumentów utworzonych z JSON.
-        
-        Returns:
-            XML string z podstawową definicją numeracji
+
+        Generates basic numbering.xml for documents created from JSON.
+
         """
         try:
             import xml.etree.ElementTree as ET
             
-            # Zbierz wszystkie unikalne numbering IDs z paragrafów
+            # Collect all unique numbering IDs from paragraphs
             body = self._get_body()
             numbering_ids = {}
             if body:
@@ -1168,18 +1173,18 @@ class DOCXExporter:
             if not numbering_ids:
                 return None
             
-            # Utwórz podstawowy numbering.xml
+            # Create basic numbering.xml
             ns = {'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'}
             root = ET.Element('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}numbering')
             
-            # Dla każdego numbering ID, utwórz abstractNum i num
+            # For each numbering ID, create abstractNum and num
             abstract_num_id = 0
             for num_id, levels in numbering_ids.items():
                 # Abstract numbering
                 abstract_num = ET.SubElement(root, f'{{{ns["w"]}}}abstractNum')
                 abstract_num.set(f'{{{ns["w"]}}}abstractNumId', str(abstract_num_id))
                 
-                # Dla każdego poziomu, utwórz lvl
+                # For each level, create lvl
                 for level in sorted(levels, key=int):
                     lvl = ET.SubElement(abstract_num, f'{{{ns["w"]}}}lvl')
                     lvl.set(f'{{{ns["w"]}}}ilvl', str(level))
@@ -1249,14 +1254,14 @@ class DOCXExporter:
     
     def _prepare_media(self) -> None:
         """
-        Przygotowuje media (obrazy) - kopiuje istniejące i znajduje nowe.
-        
-        Automatycznie tworzy relacje dla nowych obrazów dodanych do dokumentu.
+
+        Prepares media (images) - copies existing and finds new.
+
         """
-        # 1. Kopiuj istniejące media z oryginalnego dokumentu
+        # 1. Copy existing media from original document
         if hasattr(self.document, '_package_reader'):
             package_reader = self.document._package_reader
-            # Pobierz wszystkie relacje obrazów
+            # Get all image relationships
             if hasattr(package_reader, 'relationships'):
                 for source, rels in package_reader.relationships.items():
                     # Handle different relationship formats
@@ -1276,14 +1281,14 @@ class DOCXExporter:
                         rel_type = rel.get('Type', '') or rel.get('type', '')
                         target = rel.get('Target', '') or rel.get('target', '')
                         
-                        # Sprawdź czy to relacja do obrazu
+                        # Check if this is relationship to image
                         if 'image' in rel_type.lower() or target.startswith('media/'):
-                            # Pobierz zawartość obrazu
+                            # Get image content
                             try:
                                 img_data = package_reader.get_binary_content(target)
                                 if img_data:
                                     self._media[target] = img_data
-                                    # Określ content type na podstawie rozszerzenia
+                                    # Determine content type based on extension
                                     ext = Path(target).suffix.lower()
                                     content_type_map = {
                                         '.png': 'image/png',
@@ -1296,14 +1301,14 @@ class DOCXExporter:
                             except Exception as e:
                                 logger.warning(f"Failed to copy media {target}: {e}")
         
-        # 1b. Jeśli dokument nie ma _package_reader (np. utworzony z JSON), sprawdź obrazy w modelu
-        # Najpierw spróbuj skopiować media z source_docx jeśli dostępne
-        # Również skopiuj media z template_path jeśli jest to oryginalny DOCX
+        # 1b. If document has no _package_reader (e.g. created from JSON), check images...
+        # First try to copy media from source_docx if available
+        # Also copy media from template_path if it's original DOCX
         source_docx_path = None
         if hasattr(self.document, '_source_docx') and self.document._source_docx:
             source_docx_path = self.document._source_docx
         elif self.template_path and self.template_path.exists() and self.template_path != self.TEMPLATE_PATH:
-            # Jeśli template_path to oryginalny DOCX (nie new_doc.docx), użyj go jako source
+            # If template_path is original DOCX (not new_doc.docx), use it as source
             source_docx_path = self.template_path
         
         if source_docx_path:
@@ -1315,9 +1320,9 @@ class DOCXExporter:
                         if 'word/media/' in file_name and not file_name.endswith('/'):
                             try:
                                 media_data = z.read(file_name)
-                                # Dodaj z pełną ścieżką (word/media/...)
+                                # Add with full path (word/media/...)
                                 self._media[file_name] = media_data
-                                # Określ content type
+                                # Determine content type
                                 ext = Path(file_name).suffix.lower()
                                 content_type_map = {
                                     '.png': 'image/png',
@@ -1336,19 +1341,19 @@ class DOCXExporter:
                 logger.warning(f"Failed to open source DOCX for media copying: {e}")
         
         if not hasattr(self.document, '_package_reader') or not self.document._package_reader:
-            # Sprawdź czy dokument ma body z obrazami
+            # Check if document has body with images
             body = self._get_body()
             if body:
                 images = self._get_images(body)
                 for image in images:
-                    # Sprawdź czy obraz ma path i dane
+                    # Check if image has path and data
                     img_path = None
                     img_data = None
                     rel_id = None
                     
                     if hasattr(image, 'path') and image.path:
                         img_path = image.path
-                        # Spróbuj odczytać plik jeśli path istnieje
+                        # Try to read file if path exists
                         try:
                             from pathlib import Path as PathLib
                             path_obj = PathLib(img_path)
@@ -1360,12 +1365,12 @@ class DOCXExporter:
                     if hasattr(image, 'rel_id') and image.rel_id:
                         rel_id = image.rel_id
                     
-                    # Jeśli mamy path i dane, dodaj do media
+                    # If we have path and data, add to media
                     if img_path and img_data:
-                        # Normalizuj path (musi być w formacie word/media/...)
+                        # Normalize path (must be in word/media/... format)
                         if not img_path.startswith('word/'):
                             if 'media' in img_path:
-                                # Wyciągnij tylko część z media
+                                # Extract only media part
                                 media_part = img_path.split('media/')[-1] if 'media/' in img_path else Path(img_path).name
                                 img_path = f'word/media/{media_part}'
                             else:
@@ -1373,7 +1378,7 @@ class DOCXExporter:
                         
                         self._media[img_path] = img_data
                         
-                        # Określ content type
+                        # Determine content type
                         ext = Path(img_path).suffix.lower()
                         content_type_map = {
                             '.png': 'image/png',
@@ -1386,7 +1391,7 @@ class DOCXExporter:
                         }
                         self._content_types[img_path] = content_type_map.get(ext, 'image/png')
                         
-                        # Dodaj relację
+                        # Add relationship
                         rels_path = 'word/_rels/document.xml.rels'
                         if rels_path not in self._relationships:
                             self._relationships[rels_path] = []
@@ -1399,21 +1404,21 @@ class DOCXExporter:
                             rel_id, rel_type, img_path, 'Internal'
                         ))
         
-        # 2. Znajdź nowe obrazy w dokumentach (dodane przez PlaceholderEngine lub API)
+        # 2. Find new images in documents (added by PlaceholderEngine or API)
         # Przeszukaj document.xml XML dla r:embed i r:link
         document_xml_str = self._parts.get('word/document.xml', b'').decode('utf-8', errors='ignore')
         if document_xml_str:
             import re
-            # Znajdź wszystkie r:embed i r:link w XML
+            # Find all r:embed and r:link in XML
             embed_pattern = r'r:embed="([^"]+)"'
             link_pattern = r'r:link="([^"]+)"'
             
-            # Sprawdź czy są relacje do obrazów które nie są jeszcze w media
+            # Check if there are relationships to images not yet in media
             # To wymaga parsowania document.xml i sprawdzenia relacji
-            # Na razie używamy prostszego podejścia - sprawdzamy czy są obrazy w modelach
+            # For now use simpler approach - check if there are images in models
         
-        # 3. Znajdź nowe obrazy dodane przez PlaceholderEngine lub API
-        # Sprawdź czy dokument ma listę nowych obrazów
+        # 3. Find new images added by PlaceholderEngine or API
+        # Check if document has list of new images
         if hasattr(self.document, '_new_images') and self.document._new_images:
             for img_info in self.document._new_images:
                 media_path = img_info.get('path', '')
@@ -1424,7 +1429,7 @@ class DOCXExporter:
                     # Dodaj obraz do media
                     self._media[media_path] = img_data
                     
-                    # Określ content type na podstawie rozszerzenia
+                    # Determine content type based on extension
                     ext = Path(media_path).suffix.lower()
                     content_type_map = {
                         '.png': 'image/png',
@@ -1436,12 +1441,12 @@ class DOCXExporter:
                     }
                     self._content_types[media_path] = content_type_map.get(ext, 'image/png')
                     
-                    # Dodaj relację do document.xml.rels
+                    # Add relationship to document.xml.rels
                     rels_path = 'word/_rels/document.xml.rels'
                     if rels_path not in self._relationships:
                         self._relationships[rels_path] = []
                     
-                    # Generuj nowy rel_id jeśli nie został podany
+                    # Generate new rel_id if not provided
                     if not rel_id:
                         rel_id = self._get_next_rel_id(rels_path)
                     
@@ -1451,7 +1456,7 @@ class DOCXExporter:
                     ))
                     
                     # Zaktualizuj rel_id w modelu obrazu
-                    # Przeszukaj wszystkie runs i zaktualizuj rel_id dla obrazów z tym samym part_path
+                    # Search all runs and update rel_id for images with same part_path
                     body = self._get_body()
                     if body:
                         paragraphs = self._get_paragraphs(body)
@@ -1467,24 +1472,23 @@ class DOCXExporter:
     
     def _use_relationship_merger_for_parts(self) -> None:
         """
-        Używa RelationshipMerger do zarządzania relacjami podczas eksportu.
-        
-        RelationshipMerger zapewnia lepsze zarządzanie relacjami OPC,
-        szczególnie dla złożonych dokumentów z wieloma częściami i zależnościami.
+
+        Uses RelationshipMerger for relationship management during export.
+
         """
         if not self.relationship_merger:
             return
         
         try:
-            # Aktualizuj relacje używając RelationshipMerger
-            # RelationshipMerger ma już skopiowane części i relacje w swoich strukturach wewnętrznych
+            # Update relationships using RelationshipMerger
+            # RelationshipMerger already has copied parts and relationships in its internal structures...
             
-            # 1. Zaktualizuj relacje dla części używając RelationshipMerger
+            # 1. Update relationships for parts using RelationshipMerger
             # RelationshipMerger przechowuje zaktualizowane relacje w _relationships_to_write
             if hasattr(self.relationship_merger, '_relationships_to_write'):
                 for rels_path, rels_list in self.relationship_merger._relationships_to_write.items():
                     # Konwertuj format RelationshipMerger do formatu DOCXExporter
-                    # RelationshipMerger używa Dict[str, str], DOCXExporter używa List[tuple]
+                    # RelationshipMerger uses Dict[str, str], DOCXExporter uses List[tuple]
                     converted_rels = []
                     for rel in rels_list:
                         rel_id = rel.get('Id', '')
@@ -1497,15 +1501,15 @@ class DOCXExporter:
                     if converted_rels:
                         self._relationships[rels_path] = converted_rels
             
-            # 2. Zaktualizuj content types używając RelationshipMerger
+            # 2. Update content types using RelationshipMerger
             if hasattr(self.relationship_merger, '_content_types_to_write'):
                 for part_name, content_type in self.relationship_merger._content_types_to_write.items():
                     self._content_types[part_name] = content_type
             
-            # 3. Zaktualizuj części używając RelationshipMerger
+            # 3. Update parts using RelationshipMerger
             if hasattr(self.relationship_merger, '_copied_parts_data'):
                 for part_name, content in self.relationship_merger._copied_parts_data.items():
-                    # Sprawdź czy część nie została już dodana przez _prepare_parts
+                    # Check if part wasn't already added by _prepare_parts
                     if part_name not in self._parts:
                         self._parts[part_name] = content
             

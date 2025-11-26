@@ -226,11 +226,11 @@ class ListTreeBuilder:
         ):
             resolved_indent, text_start, number_start, meta = self._handle_list_style(entry)
         else:
-            # Paragrafy bez numeracji: najpierw używamy stylu z list_tree (style_indent + paragraph_indent)
+            # Paragraphs without numbering: first we use style from list_tree (style_indent + paragraph_indent)
             resolved_indent = self._combine_indents(entry.style_indent, None, entry.paragraph_indent)
             resolved_indent.ensure_word_rules()
-            # Inline indenty nadpisują indenty ze stylów TYLKO jeśli są explicit (explicit_indent=True)
-            # W przeciwnym razie używamy indentów ze stylów (styl mają pierwszeństwo)
+            # Inline indents override style indents ONLY if explicit (explicit_indent=True)
+            # Otherwise we use style indents (style has priority)
             if entry.explicit_indent and entry.inline_indent is not None:
                 resolved_indent.left = entry.inline_indent.left
                 resolved_indent.right = entry.inline_indent.right
@@ -280,18 +280,18 @@ class ListTreeBuilder:
         stack.append(node)
         self.last_active_level = node
 
-        # Najpierw sprawdź marker_indent_registry dla unifikacji między różnymi num_id
+        # First check marker_indent_registry for unification between different num_id
         matched_previous_chain = False
         unified_base_indent: Optional[IndentSpec] = None
         if marker_key:
-            # Sprawdź najpierw dokładny marker_key (z scope_id)
+            # First check exact marker_key (with scope_id)
             baseline = self.marker_indent_registry.get(marker_key)
             if baseline is None:
-                # Jeśli nie ma dokładnego dopasowania, sprawdź marker z tym samym tokenem i poziomem,
-                # ale bez scope_id (dla unifikacji między różnymi num_id)
+                # If no exact match, check marker with same token and level,
+                # but without scope_id (for unification between different num_id)
                 marker_token, marker_level, _ = marker_key
                 alternative_key = None
-                # Sprawdź wszystkie wpisy z tym samym marker_token i level
+                # Check all entries with same marker_token and level
                 for key, indent_spec in self.marker_indent_registry.items():
                     key_token, key_level, _ = key
                     if key_token == marker_token and key_level == marker_level:
@@ -300,15 +300,15 @@ class ListTreeBuilder:
                         break
                 
                 if baseline is not None:
-                    # Użyj znalezionego baseline jako unified_base_indent
+                    # Use found baseline as unified_base_indent
                     unified_base_indent = baseline.copy()
                     matched_previous_chain = True
             else:
-                # Dokładne dopasowanie - użyj baseline
+                # Exact match - use baseline
                 unified_base_indent = baseline.copy()
                 matched_previous_chain = True
 
-        # Użyj unified_base_indent jeśli został znaleziony, w przeciwnym razie użyj base_indent z node
+        # Use unified_base_indent if found, otherwise use base_indent from node
         if unified_base_indent is not None:
             base_indent = unified_base_indent
         else:
@@ -321,16 +321,16 @@ class ListTreeBuilder:
             allow_paragraph_override=entry.explicit_indent,
         )
         resolved_indent.ensure_word_rules()
-        # Inline indenty nadpisują indenty z list_tree TYLKO jeśli są explicit (explicit_indent=True)
-        # W przeciwnym razie używamy indentów z list_tree (list_tree ma pierwszeństwo)
+        # Inline indents override list_tree indents ONLY if explicit (explicit_indent=True)
+        # Otherwise we use list_tree indents (list_tree has priority)
         if entry.explicit_indent and entry.inline_indent is not None:
             resolved_indent.left = entry.inline_indent.left
             resolved_indent.right = entry.inline_indent.right
             resolved_indent.first_line = entry.inline_indent.first_line
             resolved_indent.hanging = entry.inline_indent.hanging
             resolved_indent.ensure_word_rules()
-        # Jeśli mamy unifikowany indent z marker_indent_registry, nie modyfikuj go dalej
-        # (unifikacja ma pierwszeństwo przed parent_indent_for_alignment i reference_level)
+        # If we have unified indent from marker_indent_registry, don't modify it further
+        # (unification has priority over parent_indent_for_alignment and reference_level)
         if not matched_previous_chain:
             parent_indent_for_alignment: Optional[IndentSpec] = None
             if parent:
@@ -348,17 +348,17 @@ class ListTreeBuilder:
                     resolved_indent.left = max(parent_text_start, 0.0) + hanging
                     resolved_indent.ensure_word_rules()
             
-            # Zapisz resolved_indent do marker_indent_registry jeśli nie było dopasowania
+            # Save resolved_indent to marker_indent_registry if no match
             if marker_key:
-                # Sprawdź jeszcze raz, czy nie pojawiło się dopasowanie
+                # Check again if match appeared
                 existing = self.marker_indent_registry.get(marker_key)
                 if existing is None:
-                    # Sprawdź wszystkie wpisy z tym samym marker_token i level (ignorując num_id)
+                    # Check all entries with same marker_token and level (ignoring num_id)
                     marker_token, marker_level, _ = marker_key
                     for key, indent_spec in self.marker_indent_registry.items():
                         key_token, key_level, _ = key
                         if key_token == marker_token and key_level == marker_level:
-                            # Użyj istniejącego indent jako baseline
+                            # Use existing indent as baseline
                             if resolved_indent.left + 1e-3 >= indent_spec.left:
                                 resolved_indent = indent_spec.copy()
                                 resolved_indent.ensure_word_rules()
@@ -370,21 +370,21 @@ class ListTreeBuilder:
                     else:
                         self.marker_indent_registry[marker_key] = resolved_indent.copy()
                 else:
-                    # Użyj istniejącego baseline
+                    # Use existing baseline
                     if resolved_indent.left + 1e-3 >= existing.left:
                         resolved_indent = existing.copy()
                         resolved_indent.ensure_word_rules()
                         matched_previous_chain = True
                     else:
-                        # Aktualizuj baseline jeśli resolved_indent jest mniejszy
+                        # Update baseline if resolved_indent is smaller
                         self.marker_indent_registry[marker_key] = resolved_indent.copy()
 
         effective_auto = entry.auto_correction and not entry.number_override and not node.definition.overridden
 
-        # Unifikacja na podstawie reference_level - sprawdź marker i level, nie num_id
+        # Unification based on reference_level - check marker and level, not num_id
         reference_level: Optional[ListLevelNode] = None
         if previous_level and previous_level.level == level:
-            # Sprawdź czy marker pasuje (nie sprawdzaj num_id - unifikacja między różnymi num_id)
+            # Check if marker matches (don't check num_id - unification between different num_id)
             previous_marker_text = ""
             if previous_level.children:
                 previous_marker_text = previous_level.children[-1].marker_text or ""
@@ -408,7 +408,7 @@ class ListTreeBuilder:
         if reference_level and not matched_previous_chain:
             previous_indent = reference_level.last_resolved_indent or reference_level.resolved_indent()
             if previous_indent:
-                # Użyj previous_indent jako baseline dla unifikacji
+                # Use previous_indent as baseline for unification
                 resolved_indent = previous_indent.copy()
                 resolved_indent.ensure_word_rules()
                 matched_previous_chain = True
@@ -480,8 +480,8 @@ class ListTreeBuilder:
                 allow_paragraph_override=entry.explicit_indent,
             )
         resolved_indent.ensure_word_rules()
-        # Inline indenty nadpisują indenty z list_tree TYLKO jeśli są explicit (explicit_indent=True)
-        # W przeciwnym razie używamy indentów z list_tree (list_tree ma pierwszeństwo)
+        # Inline indents override list_tree indents ONLY if explicit (explicit_indent=True)
+        # Otherwise we use list_tree indents (list_tree has priority)
         if entry.explicit_indent and entry.inline_indent is not None:
             resolved_indent.left = entry.inline_indent.left
             resolved_indent.right = entry.inline_indent.right

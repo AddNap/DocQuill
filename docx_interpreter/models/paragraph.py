@@ -87,32 +87,25 @@ class Paragraph(Models):
     
     def set_list(self, level: int = 0, numbering_id: Optional[Union[str, int]] = None) -> None:
         """
-        Ustawia paragraf jako element listy.
-        
+
+        Sets paragraph as list element.
+
         Args:
-            level: Poziom listy (0 = pierwszy poziom, 1 = drugi poziom, etc.)
-            numbering_id: ID numeracji (może być string lub int, lub NumberingGroup)
-            
-        Examples:
-            >>> para = Paragraph()
-            >>> para.set_list(level=0, numbering_id="1")
-            >>> # Lub z NumberingGroup
-            >>> numbered_list = doc.create_numbered_list()
-            >>> para.set_list(level=0, numbering_id=numbered_list.group_id)
+        ...
         """
         if numbering_id is None:
-            # Jeśli nie podano numbering_id, użyj domyślnego
-            # W przyszłości można dodać domyślny numbering_id z dokumentu
+            # If numbering_id not provided, use default
+            # In future can add default numbering_id from document
             raise ValueError("numbering_id is required")
         
-        # Konwertuj numbering_id na string jeśli potrzeba
+        # Convert numbering_id to string if needed
         if isinstance(numbering_id, int):
             numbering_id = str(numbering_id)
         elif hasattr(numbering_id, 'group_id'):
-            # Jeśli to NumberingGroup, użyj jego group_id
+            # If this is NumberingGroup, use its group_id
             numbering_id = str(numbering_id.group_id)
         elif hasattr(numbering_id, 'num_id'):
-            # Jeśli to ma num_id (instancja numeracji)
+            # If this has num_id (numbering instance)
             numbering_id = str(numbering_id.num_id)
         
         # Ustaw numbering jako dict zgodny z formatem DOCX
@@ -121,7 +114,7 @@ class Paragraph(Models):
             'level': str(level)
         }
         
-        # Ustaw również w style jeśli istnieje
+        # Also set in style if exists
         if self.style is None:
             self.style = {}
         

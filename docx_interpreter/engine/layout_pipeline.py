@@ -1,25 +1,27 @@
 """
-Layout Pipeline - główny punkt wejścia dla całego procesu layoutowania.
 
-Przykład użycia:
-    from docx_interpreter.engine.layout_pipeline import LayoutPipeline
-    from docx_interpreter.engine.geometry import Size, Margins
-    from docx_interpreter.engine.page_engine import PageConfig
-    
-    # Konfiguracja strony
-    page_config = PageConfig(
-        page_size=Size(595, 842),  # A4 w punktach
-        base_margins=Margins(top=72, bottom=72, left=72, right=72)
-    )
-    
-    # Utwórz pipeline
-    pipeline = LayoutPipeline(page_config)
-    
-    # Przetwórz model dokumentu
-    unified_layout = pipeline.process(document_model)
-    
-    # Użyj UnifiedLayout do renderowania
-    compiler.compile(unified_layout)
+Layout Pipeline - main entry point for the entire layout process.
+
+Usage example:
+from docx_interpreter.engine.layout_pipeline import LayoutPipeline
+from docx_interpreter.engine.geometry import Size, Margins
+from docx_interpreter.engine.page_engine import PageConfig
+
+# Page configuration
+page_config = PageConfig(
+page_size=Size(595, 842),  # A4 in points
+base_margins=Margins(top=72, bottom=72, left=72, right=72)
+)
+
+# Create pipeline
+pipeline = LayoutPipeline(page_config)
+
+# Process document model
+unified_layout = pipeline.process(document_model)
+
+# Use UnifiedLayout for rendering
+compiler.compile(unified_layout)
+
 """
 
 from typing import Any, Optional, Tuple, List
@@ -36,33 +38,37 @@ from ..media.image_cache import ImageConversionCache
 
 class LayoutPipeline:
     """
-    Główny pipeline layoutowania dokumentu.
-    
-    Przepływ:
+
+    Main document layout pipeline.
+
+    Flow:
     1. DocumentModel → LayoutEngine → LayoutStructure
     2. LayoutStructure → LayoutAssembler → UnifiedLayout
-    3. UnifiedLayout → PaginationManager (stosuje nagłówki/stopki)
-    4. UnifiedLayout → LayoutValidator (walidacja)
+    3. UnifiedLayout → PaginationManager (applies headers/footers)
+    4. UnifiedLayout → LayoutValidator (validation)
     5. UnifiedLayout → PDFCompiler/DOCXExporter/HTMLRenderer
+
     """
     
     def __init__(self, page_config: PageConfig, *, target: str = "pdf", resolve_placeholders: Optional[bool] = None):
         """
+
         Args:
-            page_config: Konfiguracja strony (rozmiar, marginesy)
-            target: Cel renderowania ("pdf", "html", "docx")
-            resolve_placeholders: Czy podstawiać placeholdery (None = automatycznie na podstawie target: False dla "docx", True dla innych)
+        page_config: Page configuration (size, margins)
+        target: Rendering target ("pdf", "html", "docx")
+        resolve_placeholders: Whether to substitute placeholders (None = automatically based on target: False for "docx", True for others)
+
         """
         self.page_config = page_config
         self.target = str(target or "pdf").lower()
         
-        # Automatycznie wyłącz podstawianie placeholderów dla eksportu DOCX
+        # Automatically disable placeholder substitution for DOCX export
         if resolve_placeholders is None:
             resolve_placeholders = self.target != "docx"
         
         self.layout_engine = LayoutEngine(resolve_placeholders=resolve_placeholders)
         self.layout_assembler = LayoutAssembler(page_config, target=self.target)
-        self.layout_structure: Optional[LayoutStructure] = None  # Zapisz ostatnią strukturę
+        self.layout_structure: Optional[LayoutStructure] = None  # Save last structure
         
         # Image conversion cache for async WMF/EMF conversion during parsing
         self.image_cache = ImageConversionCache(max_workers=4)
@@ -75,15 +81,17 @@ class LayoutPipeline:
         validate: bool = False
     ) -> UnifiedLayout:
         """
-        Przetwarza model dokumentu i zwraca UnifiedLayout.
-        
+
+        Processes document model and returns UnifiedLayout.
+
         Args:
-            document_model: Model dokumentu (z parsera DOCX)
-            apply_headers_footers: Czy stosować nagłówki i stopki
-            validate: Czy wykonać walidację (jeśli True, rzuca wyjątki przy błędach)
-            
+        document_model: Document model (from DOCX parser)
+        apply_headers_footers: Whether to apply headers and footers
+        validate: Whether to perform validation (if True, raises exceptions on errors)
+
         Returns:
-            UnifiedLayout gotowy do renderowania
+        UnifiedLayout ready for rendering
+
         """
         # Krok 1: Interpretacja modelu (bez geometrii)
         layout_structure: LayoutStructure = self.layout_engine.build(document_model)
@@ -110,7 +118,7 @@ class LayoutPipeline:
         # Krok 2: Obliczanie geometrii i pozycjonowanie
         unified_layout: UnifiedLayout = self.layout_assembler.assemble(layout_structure)
         
-        # Krok 3: Stosowanie nagłówków i stopek
+        # Step 3: Applying headers and footers
         if apply_headers_footers:
             pagination_manager = PaginationManager(
                 unified_layout,
@@ -136,14 +144,16 @@ class LayoutPipeline:
         apply_headers_footers: bool = True
     ) -> Tuple[UnifiedLayout, bool, List[str], List[str]]:
         """
-        Przetwarza model dokumentu z walidacją.
-        
+
+        Processes document model with validation.
+
         Args:
-            document_model: Model dokumentu (z parsera DOCX)
-            apply_headers_footers: Czy stosować nagłówki i stopki
-            
+        document_model: Document model (from DOCX parser)
+        apply_headers_footers: Whether to apply headers and footers
+
         Returns:
-            Tuple (UnifiedLayout, is_valid, errors, warnings)
+        Tuple (UnifiedLayout, is_valid, errors, warnings)
+
         """
         unified_layout = self.process(document_model, apply_headers_footers, validate=False)
         
@@ -159,14 +169,16 @@ class LayoutPipeline:
         apply_headers_footers: bool = True
     ) -> Tuple[UnifiedLayout, dict]:
         """
-        Przetwarza model dokumentu i zwraca UnifiedLayout z podsumowaniem walidacji.
-        
+
+        Processes document model and returns UnifiedLayout with validation summary.
+
         Args:
-            document_model: Model dokumentu (z parsera DOCX)
-            apply_headers_footers: Czy stosować nagłówki i stopki
-            
+        document_model: Document model (from DOCX parser)
+        apply_headers_footers: Whether to apply headers and footers
+
         Returns:
-            Tuple (UnifiedLayout, summary_dict)
+        Tuple (UnifiedLayout, summary_dict)
+
         """
         unified_layout = self.process(document_model, apply_headers_footers, validate=False)
         

@@ -1,6 +1,8 @@
 """
-Debugowy PDF Compiler — wizualizacja układu stron i bloków (ramki, typy).
-Renderuje obrazy, tekst, nagłówki, stopki, textboxy itp. z informacjami debugowymi.
+
+Debug PDF Compiler - page and block layout visualization (frames, types).
+Renders images, text, headers, footers, textboxes etc. with debug information.
+
 """
 
 from pathlib import Path
@@ -21,18 +23,22 @@ logger = logging.getLogger(__name__)
 class DebugPDFCompiler:
     def __init__(self, output_path: str = "layout_debug.pdf", package_reader: Optional[Any] = None):
         """
-        Inicjalizacja DebugPDFCompiler.
-        
+
+        DebugPDFCompiler initialization.
+
         Args:
-            output_path: Ścieżka do pliku wyjściowego PDF
-            package_reader: PackageReader do rozwiązywania ścieżek obrazów (opcjonalne)
+        output_path: Path to output PDF file
+        package_reader: PackageReader for resolving image paths (optional)
+
         """
         self.output_path = output_path
         self.package_reader = package_reader
 
     def compile(self, unified_layout):
         """
-        Tworzy PDF pokazujący układ bloków i stron z UnifiedLayout.
+
+        Creates PDF showing block and page layout from UnifiedLayout.
+
         """
         c = canvas.Canvas(self.output_path, pagesize=A4)
 
@@ -45,11 +51,11 @@ class DebugPDFCompiler:
 
     # ------------------------------------------------------------------
     def _render_page(self, c, page):
-        """Rysuje pojedynczą stronę z blokami."""
+        """Draws single page with blocks."""
         width = page.size.width
         height = page.size.height
 
-        # Ramka strony (zewnętrzna)
+        # Page frame (outer)
         c.setStrokeColor(black)
         c.setLineWidth(1)
         c.rect(0, 0, width, height)
@@ -62,12 +68,12 @@ class DebugPDFCompiler:
         c.rect(m.left, m.bottom, width - m.left - m.right, height - m.top - m.bottom)
         c.setDash()
 
-        # Nagłówek strony
+        # Page header
         c.setFont("Helvetica-Bold", 9)
         c.setFillColor(black)
         c.drawString(40, height - 20, f"Page {page.number}")
 
-        # Sortuj bloki: najpierw nagłówki, potem body, potem stopki
+        # Sort blocks: headers first, then body, then footers
         header_blocks = []
         footer_blocks = []
         body_blocks = []
@@ -75,7 +81,7 @@ class DebugPDFCompiler:
         logger.info(f"Page {page.number}: Total blocks: {len(page.blocks)}")
         
         for i, block in enumerate(page.blocks):
-            # Sprawdź czy blok należy do nagłówka/stopki na podstawie block_type lub header_footer_context
+            # Check if block belongs to header/footer based on block_type or header_footer_context
             content_obj = block.content
             if isinstance(content_obj, BlockContent):
                 content = content_obj.raw or {}
@@ -83,7 +89,7 @@ class DebugPDFCompiler:
                 content = content_obj or {}
             header_footer_context = content.get("header_footer_context", "")
             
-            # Loguj wszystkie bloki z nagłówkami/stopkami
+            # Log all blocks with headers/footers
             if header_footer_context or block.block_type in ("header", "footer"):
                 logger.info(f"  Block {i}: type={block.block_type}, header_footer_context={header_footer_context}, "
                            f"x={block.frame.x:.2f}, y={block.frame.y:.2f}, w={block.frame.width:.2f}, h={block.frame.height:.2f}")
@@ -106,7 +112,7 @@ class DebugPDFCompiler:
         
         logger.info(f"  Sorted: {len(header_blocks)} header blocks, {len(body_blocks)} body blocks, {len(footer_blocks)} footer blocks")
         
-        # Renderuj w kolejności: headers, body, footers
+        # Render in order: headers, body, footers
         for block in header_blocks:
             self._draw_block(c, block)
         for block in body_blocks:
@@ -117,7 +123,7 @@ class DebugPDFCompiler:
     # ------------------------------------------------------------------
     @staticmethod
     def _paragraph_layout_height(payload: Optional[ParagraphLayout]) -> float:
-        """Zwraca wysokość paragrafu bazując na ParagraphLayout."""
+        """Returns paragraph height based on ParagraphLayout."""
         if not isinstance(payload, ParagraphLayout):
             return 0.0
         padding_top = padding_bottom = 0.0
@@ -131,7 +137,7 @@ class DebugPDFCompiler:
 
     @staticmethod
     def _extract_paragraph_payload(content_item: Any) -> Optional[ParagraphLayout]:
-        """Pobiera ParagraphLayout z elementu zawartości, jeśli istnieje."""
+        """Gets ParagraphLayout from content element, if exists."""
         payload = None
         if isinstance(content_item, dict):
             payload = content_item.get("layout_payload") or content_item.get("_layout_payload")
@@ -157,11 +163,11 @@ class DebugPDFCompiler:
 
     # ------------------------------------------------------------------
     def _draw_block(self, c, block):
-        """Rysuje ramkę, etykietę i zawartość dla bloku."""
+        """Draws frame, label and content for block."""
         rect = block.frame
         x, y, w, h = rect.x, rect.y, rect.width, rect.height
 
-        # Logowanie dla każdego bloku
+        # Logging for each block
         content_obj = block.content
         if isinstance(content_obj, BlockContent):
             payload = content_obj.payload
@@ -174,18 +180,18 @@ class DebugPDFCompiler:
                    f"x={x:.2f}, y={y:.2f}, w={w:.2f}, h={h:.2f}, "
                    f"header_footer_context={header_footer_context}")
 
-        # Kolor w zależności od typu
+        # Color depending on type
         color_map = {
             "paragraph": blue,
             "image": green,
             "table": red,
-            "textbox": Color(0.8, 0.5, 0.0),  # Pomarańczowy
+            "textbox": Color(0.8, 0.5, 0.0),  # Orange
             "header": magenta,
             "footer": cyan,
         }
         color = color_map.get(block.block_type, black)
 
-        # Renderuj zawartość w zależności od typu
+        # Render content depending on type
         if block.block_type == "image":
             self._draw_image_block(c, block, color)
         elif block.block_type == "paragraph":
@@ -197,7 +203,7 @@ class DebugPDFCompiler:
         elif block.block_type in ("header", "footer"):
             self._draw_header_footer_block(c, block, color)
         else:
-            # Domyślny renderer dla nieznanych typów
+            # Default renderer for unknown types
             self._draw_generic_block(c, block, color)
 
     def _draw_image_block(self, c, block, color):
@@ -215,10 +221,10 @@ class DebugPDFCompiler:
         logger.info(f"  Drawing IMAGE block: x={x:.2f}, y={y:.2f}, w={w:.2f}, h={h:.2f}, header_footer_context={header_footer_context}")
         
         
-        # Spróbuj pobrać ścieżkę obrazu (tylko do sprawdzenia czy istnieje)
+        # Try to get image path (only to check if exists)
         path = content.get("path") or content.get("src") or content.get("image_path")
         
-        # Jeśli nie ma ścieżki, spróbuj pobrać z relationship_id
+        # If no path, try to get from relationship_id
         if not path and self.package_reader:
             rel_id = content.get("relationship_id") or content.get("rel_id")
             relationship_source = content.get("relationship_source") or content.get("part_path")
@@ -381,7 +387,7 @@ class DebugPDFCompiler:
             overlay_textboxes = [ov.payload for ov in payload.overlays if ov.kind == "textbox"]
             images.extend(overlay_images)
 
-            # Anchored textboxes są już renderowane jako overlay, usuń je z listy tekstboxów
+            # Anchored textboxes are already rendered as overlay, remove from textbox list
             def _is_anchored(tb: Any) -> bool:
                 if isinstance(tb, dict):
                     anchor_type = str(tb.get("anchor_type") or "").lower()
@@ -600,8 +606,8 @@ class DebugPDFCompiler:
                     textbox_color = Color(0.8, 0.5, 0.0)
                     self._draw_textbox_block(c, overlay_block, textbox_color)
 
-        # Sprawdź czy paragraf ma textboxy z pozycjonowaniem absolutnym
-        # Jeśli tak, renderuj je jako osobne bloki textboxów
+        # Check if paragraph has textboxes with absolute positioning
+        # If so, render them as separate textbox blocks
         for i, textbox in enumerate(textboxes):
             logger.info(f"    Textbox {i+1} in paragraph: {type(textbox).__name__}")
             if isinstance(textbox, dict):
@@ -616,7 +622,7 @@ class DebugPDFCompiler:
                         # To jest textbox z pozycjonowaniem absolutnym - renderuj jako osobny blok textboxu
                         logger.info(f"      Imports successful")
                         
-                        # Oblicz współrzędne textboxu
+                        # Calculate textbox coordinates
                         x_offset_emu = position.get("x", 0)
                         y_offset_emu = position.get("y", 0)
                         x_rel = position.get("x_rel", "")
@@ -627,11 +633,11 @@ class DebugPDFCompiler:
                         x_offset_pt = emu_to_points(x_offset_emu)
                         y_offset_pt = emu_to_points(y_offset_emu)
                         
-                        # Oblicz współrzędne w zależności od relativeFrom
-                        # Użyj współrzędnych z bloku paragrafu, które już są obliczone
-                        # w _create_footer_blocks dla textboxów z pozycjonowaniem absolutnym
-                        textbox_x = x  # Użyj x z bloku paragrafu (już obliczone dla textboxu z pozycjonowaniem absolutnym)
-                        textbox_y = y  # Użyj y z bloku paragrafu (już obliczone dla textboxu z pozycjonowaniem absolutnym)
+                        # Calculate coordinates depending on relativeFrom
+                        # Use coordinates from paragraph block, which are already calculated
+                        # in _create_footer_blocks for textboxes with absolute positioning
+                        textbox_x = x  # Use x from paragraph block (already calculated for textbox with absolute positioning)
+                        textbox_y = y  # Use y from paragraph block (already calculated for textbox with absolute positioning)
                         
                         width_emu = textbox.get("width", 0)
                         height_emu = textbox.get("height", 0)
@@ -640,11 +646,11 @@ class DebugPDFCompiler:
                         
                         logger.info(f"      Textbox dimensions: width_emu={width_emu}, height_emu={height_emu}, textbox_w={textbox_w:.2f}, textbox_h={textbox_h:.2f}")
                         
-                        # Utwórz tymczasowy blok textboxu do renderowania
+                        # Create temporary textbox block for rendering
                         textbox_rect = Rect(x=textbox_x, y=textbox_y, width=textbox_w, height=textbox_h)
                         logger.info(f"      Creating textbox block from paragraph textbox: "
                                    f"x={textbox_x:.2f}, y={textbox_y:.2f}, w={textbox_w:.2f}, h={textbox_h:.2f}")
-                        # Dodaj header_footer_context do textboxu, jeśli paragraf ma ten kontekst
+                        # Add header_footer_context to textbox if paragraph has this context
                         textbox_content = textbox.copy() if isinstance(textbox, dict) else textbox
                         if isinstance(textbox_content, dict):
                             textbox_content["header_footer_context"] = header_footer_context
@@ -658,7 +664,7 @@ class DebugPDFCompiler:
                         )
                         # Renderuj jako blok textboxu
                         logger.info(f"      Calling _draw_textbox_block for textbox block")
-                        textbox_color = Color(0.8, 0.5, 0.0)  # Pomarańczowy
+                        textbox_color = Color(0.8, 0.5, 0.0)  # Orange
                         self._draw_textbox_block(c, textbox_block, textbox_color)
                         logger.info(f"      Textbox block rendered successfully")
                     except Exception as e:
@@ -666,7 +672,7 @@ class DebugPDFCompiler:
                 else:
                     logger.info(f"      Skipping textbox: anchor_type={anchor_type}, position={position}, condition={anchor_type == 'anchor' and bool(position)}")
             else:
-                # Textbox może być obiektem Run z textbox_anchor_info
+                # Textbox can be Run object with textbox_anchor_info
                 if hasattr(textbox, 'textbox_anchor_info') and textbox.textbox_anchor_info:
                     logger.info(f"      Textbox is Run object with textbox_anchor_info, converting to dict")
                     anchor_info = textbox.textbox_anchor_info
@@ -678,7 +684,7 @@ class DebugPDFCompiler:
                         "height": anchor_info.get('height', 0),
                         "content": textbox
                     }
-                    # Przetwórz jako dict
+                    # Process as dict
                     anchor_type = textbox_dict.get("anchor_type", "")
                     position = textbox_dict.get("position", {})
                     if anchor_type == "anchor" and position:
@@ -752,7 +758,7 @@ class DebugPDFCompiler:
                 field_instr = field.get("instr", "")
                 logger.info(f"      Field {i+1}: type={field_type}, instr={field_instr}")
                 # Renderuj pole jako tekst w paragrafie
-                # Dla PAGE/NUMPAGES wyświetl placeholder
+                # For PAGE/NUMPAGES show placeholder
                 if field_type == "PAGE":
                     field_text = f"[PAGE]"
                 elif field_type == "NUMPAGES":
@@ -792,7 +798,7 @@ class DebugPDFCompiler:
         c.drawString(x + 3, y + h - 12, label)
 
     def _draw_table_block(self, c, block, color):
-        """Renderuje blok tabeli - ramka, etykieta i układ (wiersze/kolumny)."""
+        """Renders table block - frame, label and layout (rows/columns)."""
         rect = block.frame
         x, y, w, h = rect.x, rect.y, rect.width, rect.height
         
@@ -814,12 +820,12 @@ class DebugPDFCompiler:
         c.setLineWidth(1.0)
         c.rect(x, y, w, h)
         
-        # Oblicz liczbę kolumn i przygotuj informacje o grid
+        # Calculate number of columns and prepare grid info
         num_cols = 0
         grid_info = ""
         if rows:
             num_rows = len(rows)
-            # Oblicz liczbę kolumn
+            # Calculate number of columns
             for row in rows:
                 if isinstance(row, (list, tuple)):
                     num_cols = max(num_cols, len(row))
@@ -832,12 +838,12 @@ class DebugPDFCompiler:
             if grid and len(grid) > 0:
                 grid_info = f" grid:{len(grid)}"
             
-            # Rysuj układ tabeli (wiersze i kolumny)
+            # Draw table layout (rows and columns)
             if num_cols > 0 and num_rows > 0:
-                # Oblicz szerokości kolumn
+                # Calculate column widths
                 col_widths = []
                 if grid and len(grid) > 0:
-                    # Użyj grid jeśli jest dostępny
+                    # Use grid if available
                     from ...engine.geometry import twips_to_points
                     for col in grid:
                         if isinstance(col, dict):
@@ -846,12 +852,12 @@ class DebugPDFCompiler:
                                 col_widths.append(twips_to_points(width_twips))
                         elif isinstance(col, (int, float)):
                             col_widths.append(twips_to_points(col))
-                    # Jeśli grid nie ma wszystkich kolumn, uzupełnij równomiernie
+                    # If grid doesn't have all columns, fill evenly
                     while len(col_widths) < num_cols:
                         remaining_width = w - sum(col_widths) if col_widths else w
                         col_widths.append(remaining_width / (num_cols - len(col_widths)))
                 else:
-                    # Równomierny podział
+                    # Even distribution
                     col_widths = [w / num_cols] * num_cols
                 
                 # Rysuj linie pionowe (kolumny)
@@ -861,39 +867,39 @@ class DebugPDFCompiler:
                 current_x = x
                 for i, col_w in enumerate(col_widths):
                     current_x += col_w
-                    if i < len(col_widths) - 1:  # Nie rysuj ostatniej linii (to jest prawa krawędź)
+                    if i < len(col_widths) - 1:  # Don't draw last line (this is right edge)
                         c.line(current_x, y, current_x, y + h)
                 
-                # Pobierz rzeczywiste wysokości wierszy z layout_info (jeśli są dostępne)
+                # Get actual row heights from layout_info (if available)
                 layout_info = content.get("layout_info", {})
                 row_heights_actual = layout_info.get("row_heights", [])
                 
-                # Oblicz wysokości wierszy
+                # Calculate row heights
                 if row_heights_actual and len(row_heights_actual) == num_rows:
-                    # Użyj rzeczywistych wysokości wierszy
+                    # Use actual row heights
                     row_heights = row_heights_actual
                     total_height = sum(row_heights)
-                    # Skaluj jeśli wysokość tabeli się różni
+                    # Scale if table height differs
                     if total_height > 0 and abs(total_height - h) > 0.1:
                         scale_factor = h / total_height
                         row_heights = [rh * scale_factor for rh in row_heights]
                 else:
-                    # Równomierny podział
+                    # Even distribution
                     row_height = h / num_rows if num_rows > 0 else h
                     row_heights = [row_height] * num_rows
                 
-                # Rysuj linie poziome (wiersze) używając rzeczywistych wysokości
-                c.setDash([1, 1])  # Krótsze kreski dla wierszy
-                current_y = y + h  # Zaczynamy od góry tabeli (y + h to góra w ReportLab)
+                # Draw horizontal lines (rows) using actual heights
+                c.setDash([1, 1])  # Shorter dashes for rows
+                current_y = y + h  # Start from top of table (y + h is top in ReportLab)
                 for i in range(num_rows):
                     if i < len(row_heights):
                         current_y -= row_heights[i]
-                        if i < num_rows - 1:  # Nie rysuj ostatniej linii (to jest dolna krawędź)
+                        if i < num_rows - 1:  # Don't draw last line (this is bottom edge)
                             c.line(x, current_y, x + w, current_y)
                 
                 c.setDash()  # Reset dash
                 
-                # Rysuj bloki zawartości w komórkach
+                # Draw content blocks in cells
                 self._draw_table_cell_content(c, rows, x, y, w, h, col_widths, row_heights, color)
         
         # Etykieta
@@ -911,20 +917,20 @@ class DebugPDFCompiler:
         c.drawString(x + 3, y + h - 12, label)
     
     def _draw_table_cell_content(self, c, rows, table_x, table_y, table_w, table_h, col_widths, row_heights, table_color):
-        """Rysuje bloki zawartości w komórkach tabeli."""
+        """Draws content blocks in table cells."""
         logger.info(f"  _draw_table_cell_content: rows={len(rows) if rows else 0}, col_widths={len(col_widths) if col_widths else 0}, row_heights={len(row_heights) if row_heights else 0}")
         if not rows or not col_widths or not row_heights:
             logger.info(f"  Skipping _draw_table_cell_content: rows={bool(rows)}, col_widths={bool(col_widths)}, row_heights={bool(row_heights)}")
             return
         
-        # Kolor dla bloków zawartości w komórkach (jaśniejszy od koloru tabeli)
+        # Color for content blocks in cells (lighter than table color)
         content_color = Color(
             min(1.0, table_color.red * 0.7),
             min(1.0, table_color.green * 0.7),
             min(1.0, table_color.blue * 0.7)
         )
         
-        current_y = table_y + table_h  # Zaczynamy od góry tabeli (y + h to góra w ReportLab)
+        current_y = table_y + table_h  # Start from top of table (y + h is top in ReportLab)
         
         for row_idx, row in enumerate(rows):
             if row_idx >= len(row_heights):
@@ -933,7 +939,7 @@ class DebugPDFCompiler:
             row_height = row_heights[row_idx]
             current_x = table_x
             
-            # Pobierz komórki z wiersza
+            # Get cells from row
             cells = []
             if isinstance(row, list):
                 cells = row
@@ -949,7 +955,7 @@ class DebugPDFCompiler:
                 if col_idx >= len(col_widths):
                     break
                 
-                # Pobierz szerokość komórki (uwzględnij grid_span)
+                # Get cell width (account for grid_span)
                 grid_span = 1
                 if hasattr(cell, 'grid_span'):
                     grid_span = cell.grid_span or 1
@@ -961,13 +967,13 @@ class DebugPDFCompiler:
                         except (ValueError, TypeError):
                             grid_span = 1
                 
-                # Oblicz szerokość komórki
+                # Calculate cell width
                 if col_idx + grid_span <= len(col_widths):
                     cell_width = sum(col_widths[col_idx:col_idx + grid_span])
                 else:
                     cell_width = col_widths[col_idx] if col_idx < len(col_widths) else col_widths[0] if col_widths else 100.0
                 
-                # Pobierz zawartość komórki
+                # Get cell content
                 cell_content = []
                 if isinstance(cell, dict):
                     cell_content = cell.get("content", []) or cell.get("children", [])
@@ -978,7 +984,7 @@ class DebugPDFCompiler:
                 
                 logger.info(f"      Cell [{row_idx},{col_idx}]: {len(cell_content)} content items, cell type={type(cell).__name__}")
                 
-                # Sprawdź czy komórka ma bezpośrednio obrazy
+                # Check if cell has images directly
                 if hasattr(cell, "images"):
                     cell_images = cell.images if isinstance(cell.images, list) else [cell.images] if cell.images else []
                     if cell_images:
@@ -988,12 +994,12 @@ class DebugPDFCompiler:
                     if cell_images:
                         logger.info(f"        Cell dict has {len(cell_images)} direct images")
                 
-                # Rysuj bloki zawartości w komórce
+                # Draw content blocks in cell
                 cell_y = current_y - row_height
                 for content_idx, content_item in enumerate(cell_content):
                     logger.info(f"        Content item {content_idx+1}: {type(content_item).__name__}")
                     if content_item:
-                        # Określ typ zawartości
+                        # Determine content type
                         content_type = None
                         if isinstance(content_item, dict):
                             content_type = content_item.get("type", "")
@@ -1010,7 +1016,7 @@ class DebugPDFCompiler:
                             elif "textbox" in class_name:
                                 content_type = "textbox"
                         
-                        # Rysuj blok zawartości w komórce
+                        # Draw content block in cell
                         if content_type == "paragraph":
                             # Pobierz tekst paragrafu
                             text = ""
@@ -1046,13 +1052,13 @@ class DebugPDFCompiler:
                                     for img in images_list:
                                         _add_para_image(img)
                             
-                            # Sprawdź też obrazy w runach paragrafu
+                            # Also check images in paragraph runs
                             if hasattr(content_item, "children") or hasattr(content_item, "runs"):
                                 runs = getattr(content_item, "children", []) or getattr(content_item, "runs", [])
                                 logger.info(f"          Paragraph has {len(runs)} runs")
                                 for run_idx, run in enumerate(runs):
                                     logger.info(f"            Run {run_idx+1}: type={type(run).__name__}, hasattr(images)={hasattr(run, 'images')}, hasattr(image)={hasattr(run, 'image')}, has_drawing={getattr(run, 'has_drawing', False)}")
-                                    # Sprawdź obrazy w runie (może być jako lista images lub pojedynczy image)
+                                    # Check images in run (may be as list images or single image)
                                     # UWAGA: xml_parser dodaje obrazy do run.images (lista), nie run.image (pojedynczy)
                                     run_images = []
                                     if hasattr(run, "images"):
@@ -1076,7 +1082,7 @@ class DebugPDFCompiler:
                                     
                                     if run_images:
                                         logger.info(f"              Run {run_idx+1} image types: {[type(img).__name__ for img in run_images]}")
-                                        # Sprawdź czy obrazy są dict czy obiekty
+                                        # Check if images are dict or objects
                                         for img_idx, img in enumerate(run_images):
                                             if isinstance(img, dict):
                                                 logger.info(f"                Image {img_idx+1}: dict with keys={list(img.keys())}")
@@ -1113,7 +1119,7 @@ class DebugPDFCompiler:
 
                             if text or images_in_para:
                                 if para_width > 0.0 and para_height > 0.0:
-                                    # Rysuj ramkę paragrafu z rzeczywistymi wymiarami
+                                    # Draw paragraph frame with actual dimensions
                                     c.setStrokeColor(content_color)
                                     c.setLineWidth(0.3)
                                     c.setDash([1, 1])
@@ -1145,7 +1151,7 @@ class DebugPDFCompiler:
                                     if not (para_width > 0.0 and (para_height > 0.0 or available_height > 0.0)):
                                         continue
                                     if isinstance(img, dict):
-                                        # Rysuj blok obrazu w komórce używając oryginalnych wymiarów obrazu
+                                        # Draw image block in cell using original image dimensions
                                         c.setStrokeColor(green)
                                         c.setLineWidth(0.3)
                                         img_margin = 2
@@ -1162,8 +1168,8 @@ class DebugPDFCompiler:
                                             img_w_original = emu_to_points(width_emu)
                                             img_h_original = emu_to_points(height_emu)
 
-                                            # Sprawdź czy obraz mieści się w komórce
-                                            # Pobierz marginesy komórki (domyślnie 0)
+                                            # Check if image fits in cell
+                                            # Get cell margins (default 0)
                                             cell_margin_left = 0
                                             cell_margin_right = 0
                                             if isinstance(cell, dict) and "style" in cell:
@@ -1181,16 +1187,16 @@ class DebugPDFCompiler:
 
                                             available_cell_width = cell_width - cell_margin_left - cell_margin_right - 2 * img_margin
                                             if img_w_original > available_cell_width and available_cell_width > 0:
-                                                # Jeśli obraz jest szerszy, przeskaluj go do szerokości komórki, zachowując proporcje
+                                                # If image is wider, scale it to cell width preserving aspect ratio
                                                 scale = available_cell_width / img_w_original
                                                 img_w = available_cell_width
                                                 img_h = img_h_original * scale
                                             else:
-                                                # Jeśli obraz mieści się w komórce, użyj jego oryginalnych wymiarów
+                                                # If image fits in cell, use its original dimensions
                                                 img_w = img_w_original if img_w_original is not None else 0.0
                                                 img_h = img_h_original if img_h_original is not None else 0.0
                                         else:
-                                            # Fallback: użyj wymiarów wynikających z dostępnej powierzchni
+                                            # Fallback: use dimensions from available area
                                             content_height = para_height if para_height > 0.0 else available_height
                                             content_height = max(content_height - img_margin * 2, 10.0)
                                             available_width = max(para_width - img_margin * 2, 10.0)
@@ -1200,7 +1206,7 @@ class DebugPDFCompiler:
                                         if img_w <= 0.0 or img_h <= 0.0:
                                             continue
 
-                                        # Pozycjonuj obraz w komórce (z lewej strony, z małym marginesem)
+                                        # Position image in cell (left aligned, with small margin)
                                         img_x = para_x + img_margin
                                         img_y = para_y + img_margin
 
@@ -1220,7 +1226,7 @@ class DebugPDFCompiler:
                                         c.drawString(img_x + 1, img_y + img_h - 5, "IMG")
                         
                         elif content_type == "table":
-                            # Zagnieżdżona tabela - rysuj mniejszy blok
+                            # Nested table - draw smaller block
                             c.setStrokeColor(content_color)
                             c.setLineWidth(0.3)
                             c.setDash([1, 1])
@@ -1237,7 +1243,7 @@ class DebugPDFCompiler:
                             c.drawString(nested_x + 1, nested_y + nested_h - 6, "TBL")
                         
                         elif content_type == "image":
-                            # Obraz w komórce (bezpośrednio w komórce, nie w paragrafie)
+                            # Image in cell (directly in cell, not in paragraph)
                             logger.info(f"          Drawing direct image in cell: {type(content_item).__name__}")
                             c.setStrokeColor(green)
                             c.setLineWidth(0.3)
@@ -1286,7 +1292,7 @@ class DebugPDFCompiler:
         c.drawString(x + 3, y + h - 12, label)
 
     def _draw_header_footer_block(self, c, block, color):
-        """Renderuje blok nagłówka/stopki - tylko linia przerywana do oznaczenia obszaru."""
+        """Renders header/footer block - only dashed line to mark area."""
         rect = block.frame
         x, y, w, h = rect.x, rect.y, rect.width, rect.height
         
@@ -1298,27 +1304,27 @@ class DebugPDFCompiler:
             content = content_obj or {}
             payload = None
  
-        # Sprawdź czy to marker (tylko linia przerywana) czy element zawartości
+        # Check if this is marker (only dashed line) or content element
         is_marker = content.get("type") in ["header_marker", "footer_marker"]
  
         logger.info(f"  Drawing HEADER/FOOTER block: type={block.block_type}, "
                    f"x={x:.2f}, y={y:.2f}, w={w:.2f}, h={h:.2f}, is_marker={is_marker}")
         
         if is_marker:
-            # Tylko linia przerywana do oznaczenia obszaru nagłówka/stopki
-            # Użyj ciemniejszego koloru, żeby linia była lepiej widoczna
+            # Only dashed line to mark header/footer area
+            # Use darker color so line is more visible
             c.setStrokeColor(color)
-            c.setLineWidth(2.5)  # Grubsza linia, żeby była lepiej widoczna
-            c.setDash([8, 4])  # Linia przerywana - dłuższe kreski
+            c.setLineWidth(2.5)  # Thicker line so it's more visible
+            c.setDash([8, 4])  # Dashed line - longer dashes
             
-            # Rysuj linię na granicy obszaru nagłówka/stopki
+            # Draw line at header/footer area boundary
             if block.block_type == "header":
-                # Linia na dole obszaru nagłówka (od dołu strony)
-                # y to dolna krawędź obszaru nagłówka
+                # Line at bottom of header area (from page bottom)
+                # y is bottom edge of header area
                 c.line(x, y, x + w, y)
             else:  # footer
-                # Linia na górze obszaru stopki (od dołu strony)
-                # y + h to górna krawędź obszaru stopki
+                # Line at top of footer area (from page bottom)
+                # y + h is top edge of footer area
                 c.line(x, y + h, x + w, y + h)
             
             c.setDash()  # Reset dash

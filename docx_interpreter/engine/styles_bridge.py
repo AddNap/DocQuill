@@ -113,30 +113,34 @@ class StyleBridge:
 
 class InlineStyleApplier:
     """
-    Klasa do łączenia stylów inline z globalnymi stylami.
-    
-    Umożliwia mieszanie stylów inline (<b>, <i>, w:rPr) z globalnymi stylami paragrafów.
+
+    Class for merging inline styles with global styles.
+
+    Enables mixing inline styles (<b>, <i>, w:rPr) with global paragraph styles.
+
     """
     
     @staticmethod
     def merge_inline_styles(base_style: Dict[str, Any], inline_style: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Łączy style inline z bazowym stylem.
-        
+
+        Merges inline styles with base style.
+
         Args:
-            base_style: Bazowy styl (np. z paragrafu)
-            inline_style: Style inline (np. z run, w:rPr)
-            
+        base_style: Base style (e.g. from paragraph)
+        inline_style: Inline styles (e.g. from run, w:rPr)
+
         Returns:
-            Połączony styl z nadpisanymi właściwościami inline
+        Merged style with overridden inline properties
+
         """
-        # Twórz kopię bazowego stylu
+        # Create copy of base style
         merged = dict(base_style)
         
-        # Nadpisz właściwości inline
+        # Override inline properties
         merged.update(inline_style)
         
-        # Obsługa specjalnych przypadków - łączenie boolean
+        # Handle special cases - boolean merging
         if "bold" in inline_style:
             merged["bold"] = inline_style["bold"]
         if "italic" in inline_style:
@@ -144,13 +148,13 @@ class InlineStyleApplier:
         if "underline" in inline_style:
             merged["underline"] = inline_style["underline"]
         
-        # Obsługa kolorów
+        # Handle colors
         if "color" in inline_style:
             merged["color"] = inline_style["color"]
         if "font_color" in inline_style:
             merged["font_color"] = inline_style["font_color"]
         
-        # Obsługa fontów
+        # Handle fonts
         if "font_name" in inline_style:
             merged["font_name"] = inline_style["font_name"]
         if "font_family" in inline_style:
@@ -174,13 +178,13 @@ class InlineStyleApplier:
         style = {}
         
         if isinstance(run, dict):
-            # Jeśli run jest dict, wyciągnij style bezpośrednio
+            # If run is dict, extract styles directly
             style = run.get("style", {})
             if isinstance(style, dict):
                 return dict(style)
             return {}
         
-        # Jeśli run jest obiektem, wyciągnij właściwości
+        # If run is object, extract properties
         if hasattr(run, "bold"):
             style["bold"] = bool(run.bold)
         if hasattr(run, "italic"):
@@ -194,7 +198,7 @@ class InlineStyleApplier:
         if hasattr(run, "color") or hasattr(run, "font_color"):
             style["color"] = getattr(run, "color", None) or getattr(run, "font_color", None)
         
-        # Jeśli run ma styl jako dict
+        # If run has style as dict
         if hasattr(run, "style") and isinstance(run.style, dict):
             style.update(run.style)
         
@@ -203,14 +207,16 @@ class InlineStyleApplier:
     @staticmethod
     def apply_to_runs(paragraph_style: Dict[str, Any], runs: list) -> List[Dict[str, Any]]:
         """
-        Stosuje style inline do listy runs.
-        
+
+        Applies inline styles to list of runs.
+
         Args:
-            paragraph_style: Bazowy styl paragrafu
-            runs: Lista runs (obiektów lub dictów)
-            
+        paragraph_style: Base paragraph style
+        runs: List of runs (objects or dicts)
+
         Returns:
-            Lista stylów dla każdego run
+        List of styles for each run
+
         """
         result = []
         

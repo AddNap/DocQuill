@@ -366,7 +366,9 @@ def parse_cell_spacing(cell: Any) -> Tuple[float, float]:
 
 def normalize_font_size(value: Any) -> Optional[float]:
     """
-    Konwertuje wartości rozmiaru czcionki (w tym zapisane w półpunktach) na punkty.
+
+    Converts font size values (including those stored in half-points) to points.
+
     """
     if value is None or value == "":
         return None

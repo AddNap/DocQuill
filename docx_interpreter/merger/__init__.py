@@ -1,14 +1,15 @@
 """
-Document Merger module - zaawansowane scalanie dokumentów DOCX z obsługą relacji OPC.
+
+Document Merger module - advanced merging of DOCX documents with support...
 """
 
-# DocumentMerger i MergeOptions są w pliku docx_interpreter/merger.py
-# Importujemy je bezpośrednio z pliku, omijając konflikt z katalogiem
+# DocumentMerger and MergeOptions are in file docx_interpreter/merger.py
+# We import them directly from file, bypassing conflict with directory
 import sys
 import importlib.util
 from pathlib import Path
 
-# Znajdź plik merger.py w parent directory
+# Find merger.py file in parent directory
 merger_file = Path(__file__).parent.parent / 'merger.py'
 if merger_file.exists():
     spec = importlib.util.spec_from_file_location("docx_interpreter.merger_module", merger_file)

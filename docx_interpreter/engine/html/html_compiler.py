@@ -1,18 +1,20 @@
 """
-HTMLCompiler — prototypowy renderer layoutu do HTML
+
+HTMLCompiler - prototype layout renderer to HTML
 ---------------------------------------------------
 
-Celowo lekka implementacja, która skupia się na:
-- zachowaniu proporcji oryginalnej strony (punktów) względem viewportu
-- dostarczeniu prostych haków na renderowanie poszczególnych bloków
+Deliberately lightweight implementation that focuses on:
+- preserving original page proportions (points) relative to viewport
+- providing simple hooks for rendering individual blocks
 
-Docelowo moduł ma zastąpić/uzupełnić PDFCompiler, dlatego API jest zbliżone:
-- wywołanie: ``HTMLCompiler(config).compile(unified_layout)``
-- wejście: ``UnifiedLayout`` z ``LayoutPage`` i ``LayoutBlock``
-- wyjście: plik HTML z inline'owym layoutem oraz wstępnym CSS
+Eventually this module should replace/complement PDFCompiler, so API is similar:
+- call: ``HTMLCompiler(config).compile(unified_layout)``
+- input: ``UnifiedLayout`` with ``LayoutPage`` and ``LayoutBlock``
+- output: HTML file with inline layout and preliminary CSS
 
-Na razie generuje strukturalny szkielet; szczegóły renderowania bloków
-powinny zostać rozbudowane podczas właściwej implementacji.
+For now generates structural skeleton; block rendering details
+should be expanded during proper implementation.
+
 """
 
 from __future__ import annotations
@@ -49,14 +51,16 @@ from ...media import MediaConverter
 @dataclass(frozen=True)
 class HTMLCompilerConfig:
     """
-    Konfiguracja domyślnego kompilatora HTML.
+
+    Default HTML compiler configuration.
 
     Attributes:
-        output_path: Domyślna ścieżka pliku wynikowego.
-        title: Tytuł dokumentu osadzony w ``<head>``.
-        embed_default_styles: Czy generować minimalny boilerplate CSS.
-        scaling_mode: Strategia skalowania strony (na razie tylko ``"relative"``).
-        html_lang: Wartość atrybutu ``lang`` w tagu ``<html>``.
+    output_path: Default output file path.
+    title: Document title embedded in ``<head>``.
+    embed_default_styles: Whether to generate minimal boilerplate CSS.
+    scaling_mode: Page scaling strategy (currently only ``"relative"``).
+    html_lang: Value of ``lang`` attribute in ``<html>`` tag.
+
     """
 
     output_path: Path = Path("output.html")
@@ -73,7 +77,9 @@ class HTMLCompilerConfig:
 @dataclass
 class _FlowCursor:
     """
-    Śledzi bieżący punkt odniesienia (w punktach PDF) podczas renderowania liniowego.
+
+    Tracks current reference point (in PDF points) during linear rendering.
+
     """
 
     current_bottom: float = 0.0
@@ -101,11 +107,13 @@ class _BlockRenderContext:
 
 class HTMLCompiler:
     """
-    Minimalna implementacja kompilatora HTML.
 
-    Zakłada jeden główny kontener ``<div class="page">`` na każdą stronę layoutu
-    oraz absolutnie pozycjonowane bloki wewnątrz. Treść bloków jest na razie
-    reprezentowana tekstowo, co ułatwia dalszą rozbudowę.
+    Minimal HTML compiler implementation.
+
+    Assumes one main container ``<div class="page">`` per layout page
+    and absolutely positioned blocks inside. Block content is currently
+    represented textually, facilitating further expansion.
+
     """
 
     def __init__(
@@ -1846,7 +1854,9 @@ class HTMLCompiler:
 
     def _render_block_content(self, block: LayoutBlock) -> str:
         """
-        Renderuje treść bloku zależnie od typu payloadu.
+
+        Renders block content depending on payload type.
+
         """
         raw: Optional[Dict[str, object]] = None
         if isinstance(block.content, BlockContent):
@@ -1864,7 +1874,7 @@ class HTMLCompiler:
             raw = block.content  # pragma: no cover - legacy fallback
 
         if block.block_type == "decorator":
-            # Dekoratory używają stylów (background/border), więc nie wymagają treści
+            # Decorators use styles (background/border), so they don't require content
             return ""
 
         label = self._extract_label(raw, block.block_type)

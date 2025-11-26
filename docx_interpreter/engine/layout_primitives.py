@@ -1,9 +1,11 @@
 """
-Ustandaryzowane struktury danych opisujące wynik działania LayoutAssemblera.
 
-Docelowo wszystkie bloki w UnifiedLayout powinny posiadać `payload`/`content`
-odwołujący się do jednego z poniższych typów, tak aby renderer (PDF/HTML/debug)
-nie musiał wykonywać dodatkowych heurystyk ani interpretacji modelu źródłowego.
+Standardized data structures describing LayoutAssembler output.
+
+Eventually all blocks in UnifiedLayout should have `payload`/`content`
+referring to one of the following types, so that renderer (PDF/HTML/debug)
+doesn't need to perform additional heuristics or source model interpretation.
+
 """
 
 from __future__ import annotations
@@ -14,7 +16,7 @@ from typing import List, Tuple, Optional, Union, Literal, Dict, Any
 from .geometry import Rect
 
 ###############################################################################
-# Wspólne abstrakcje
+# Common abstractions
 ###############################################################################
 
 
@@ -40,7 +42,7 @@ class BorderSpec:
 
 @dataclass(slots=True)
 class BoxStyle:
-    """Style wspólne dla bloków (tło, ramki, padding)."""
+    """Styles common to blocks (background, borders, padding)."""
 
     background: Optional[ColorSpec] = None
     borders: List[BorderSpec] = field(default_factory=list)
@@ -58,10 +60,12 @@ InlineKind = Literal["text_run", "field", "inline_image", "inline_textbox"]
 @dataclass(slots=True)
 class InlineBox:
     """
-    Bazowa reprezentacja inline elementu w ramach linii paragrafu.
 
-    Wszystkie pola pozycyjne są względne względem początku linii (x = 0 na lewym
-    krańcu obszaru tekstu, y = 0 na bazowej linii tekstu).
+    Base representation of inline element within paragraph line.
+
+    All positional fields are relative to line start (x = 0 at left
+    edge of text area, y = 0 at text baseline).
+
     """
 
     kind: InlineKind
@@ -83,9 +87,11 @@ OverlayKind = Literal["image", "textbox", "shape"]
 @dataclass(slots=True)
 class OverlayBox:
     """
-    Element renderowany absolutnie względem strony / marginesu / kolumny.
 
-    LayoutAssembler jest odpowiedzialny za dostarczenie już przeliczonej ramki.
+    Element rendered absolutely relative to page / margin / column.
+
+    LayoutAssembler is responsible for providing already calculated frame.
+
     """
 
     kind: OverlayKind
@@ -100,7 +106,7 @@ class OverlayBox:
 
 @dataclass(slots=True)
 class ParagraphLine:
-    """Pojedyncza linia tekstu z listą elementów inline."""
+    """Single text line with list of inline elements."""
 
     baseline_y: float
     height: float
@@ -113,9 +119,11 @@ class ParagraphLine:
 @dataclass(slots=True)
 class ParagraphLayout:
     """
-    Zmaterializowany paragraf – wynik działania line breaker + dekoracje.
 
-    Wysokość paragrafu to `lines[-1].baseline_y + lines[-1].height` plus padding.
+    Materialized paragraph - result of line breaker + decorations.
+
+    Paragraph height is `lines[-1].baseline_y + lines[-1].height` plus padding.
+
     """
 
     lines: List[ParagraphLine] = field(default_factory=list)
@@ -132,10 +140,12 @@ class ParagraphLayout:
 @dataclass(slots=True)
 class TextboxLayout:
     """
-    Textbox może być inline lub absolutnie pozycjonowany. Jeżeli jest inline,
-    LayoutAssembler powinien potraktować go jak osobny ParagraphLayout i
-    spłaszczyć do InlineBox (typ `inline_textbox`). Dla wariantu anchor,
-    TextboxLayout trafia do OverlayBox.
+
+    Textbox can be inline or absolutely positioned. If inline,
+    LayoutAssembler should treat it as separate ParagraphLayout and
+    flatten to InlineBox (type `inline_textbox`). For anchor variant,
+    TextboxLayout goes to OverlayBox.
+
     """
 
     rect: Rect
@@ -152,7 +162,7 @@ class TextboxLayout:
 
 @dataclass(slots=True)
 class TableCellLayout:
-    """Opis gotowej komórki – posiada własny ParagraphLayout / listę bloków."""
+    """Description of ready cell - has its own ParagraphLayout / list of blocks."""
 
     frame: Rect
     blocks: List["BlockPayload"] = field(default_factory=list)
@@ -161,7 +171,7 @@ class TableCellLayout:
 
 @dataclass(slots=True)
 class TableLayout:
-    """Złożona tabela z już policzonymi wymiarami komórek."""
+    """Complex table with already calculated cell dimensions."""
 
     frame: Rect
     rows: List[List[TableCellLayout]] = field(default_factory=list)
@@ -182,7 +192,7 @@ class ImageLayout:
 
 @dataclass(slots=True)
 class GenericLayout:
-    """Fallback dla elementów, które nie mają jeszcze własnego modelu."""
+    """Fallback for elements that don't have their own model yet."""
 
     frame: Rect
     data: Dict[str, Any] = field(default_factory=dict)
@@ -200,7 +210,7 @@ BlockPayload = Union[
 
 @dataclass(slots=True)
 class BlockContent:
-    """Opakowanie na payload bloków wraz z oryginalnym słownikiem źródłowym."""
+    """Wrapper for block payloads along with original source dictionary."""
 
     payload: BlockPayload
     raw: Dict[str, Any] = field(default_factory=dict)

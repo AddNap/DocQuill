@@ -1,8 +1,8 @@
 """
-Zoptymalizowany eksporter JSON dla pipeline (UnifiedLayout).
 
-Generuje kompaktowy JSON z deduplikacją stylów i uproszczoną strukturą content.
-Zaprojektowany specjalnie dla analizy przez AI.
+Optimized JSON exporter for pipeline (UnifiedLayout).
+
+Generates compact...
 """
 
 import json
@@ -22,10 +22,9 @@ logger = logging.getLogger(__name__)
 
 class OptimizedPipelineJSONExporter:
     """
-    Eksporter JSON z optymalizacjami:
-    - Deduplikacja stylów (osobna lista, referencje przez ID)
-    - Uproszczony content (tylko tekst i struktura)
-    - Kompaktowa struktura
+
+    JSON Exporter with optimizations:
+    - Style deduplication (separate list, ...
     """
     
     HEADING_STYLE_RE = re.compile(r"(?:^|[\s_\-])heading\s*([0-9]+)", re.IGNORECASE)
@@ -33,12 +32,9 @@ class OptimizedPipelineJSONExporter:
     def __init__(self, include_raw_content: bool = False, max_content_depth: int = 3, package_reader: Any = None, 
                  xml_parser: Any = None, document: Any = None):
         """
+
         Args:
-            include_raw_content: Czy dołączyć surowe dane content (zwiększa rozmiar)
-            max_content_depth: Maksymalna głębokość zagnieżdżenia w content
-            package_reader: PackageReader do rozwiązywania rel_id do ścieżek (opcjonalne)
-            xml_parser: XMLParser do wyciągania sekcji i footnotes (opcjonalne)
-            document: Document obiekt do wyciągania dodatkowych informacji (opcjonalne)
+        include_raw_content: Whether to include raw content data...
         """
         self.include_raw_content = include_raw_content
         self.max_content_depth = max_content_depth
@@ -57,17 +53,9 @@ class OptimizedPipelineJSONExporter:
     
     def export_from_layout_structure(self, layout_structure, unified_layout: UnifiedLayout, output_path: Optional[Path] = None) -> Dict[str, Any]:
         """
-        Eksportuje LayoutStructure do zoptymalizowanego JSON.
-        Używa LayoutStructure do zachowania rozdzielenia body/headers/footers,
-        a UnifiedLayout tylko dla geometrii stron.
-        
-        Args:
-            layout_structure: LayoutStructure z LayoutEngine (przed apply_headers_footers)
-            unified_layout: UnifiedLayout z LayoutAssembler (dla geometrii stron)
-            output_path: Opcjonalna ścieżka do pliku wyjściowego
-            
-        Returns:
-            Słownik z danymi JSON
+
+        Exports LayoutStructure to optimized JSON.
+        Uses Layout...
         """
         # Reset cache
         self._style_cache.clear()
@@ -77,7 +65,7 @@ class OptimizedPipelineJSONExporter:
         self._media_list.clear()
         self._media_counter = 0
         
-        # Zbuduj strukturę
+        # Build structure
         result = {
             "version": "2.0",
             "format": "optimized_pipeline",
@@ -91,7 +79,7 @@ class OptimizedPipelineJSONExporter:
             "body": [],  # Body elementy (paragrafy, tabele, obrazy)
             "headers": {},  # Headers per typ (default, first, odd, even)
             "footers": {},  # Footers per typ (default, first, odd, even)
-            "pages": [],  # Strony z geometrią (bez headers/footers)
+            "pages": [],  # Pages with geometry (without headers/footers)
             "sections": [],
             "footnotes": {},
             "endnotes": {}
@@ -104,9 +92,9 @@ class OptimizedPipelineJSONExporter:
                 result["body"].append(element_data)
         
         # Eksportuj headers z LayoutStructure
-        # ALTERNATYWNIE: Jeśli dokument ma _json_headers (z round-trip), użyj ich
+        # ALTERNATIVELY: If document has _json_headers (from round-trip), use them
         if self.document and hasattr(self.document, '_json_headers') and self.document._json_headers:
-            # Użyj headers z JSON (dla dokumentów z round-trip)
+            # Use headers from JSON (for documents from round-trip)
             result["headers"] = self.document._json_headers
         else:
             # Eksportuj z LayoutStructure
@@ -118,9 +106,9 @@ class OptimizedPipelineJSONExporter:
                     ]
         
         # Eksportuj footers z LayoutStructure
-        # ALTERNATYWNIE: Jeśli dokument ma _json_footers (z round-trip), użyj ich
+        # ALTERNATIVELY: If document has _json_footers (from round-trip), use them
         if self.document and hasattr(self.document, '_json_footers') and self.document._json_footers:
-            # Użyj footers z JSON (dla dokumentów z round-trip)
+            # Use footers from JSON (for documents from round-trip)
             result["footers"] = self.document._json_footers
         else:
             # Eksportuj z LayoutStructure
@@ -131,14 +119,14 @@ class OptimizedPipelineJSONExporter:
                         if self._serialize_layout_element(elem) is not None
                     ]
         
-        # Wyciągnij sekcje jeśli parser jest dostępny
-        # WAŻNE: Uzupełnij sekcje pełnymi informacjami o headers/footers z LayoutStructure
-        # ALTERNATYWNIE: Jeśli dokument ma _json_sections (z round-trip), użyj ich
+        # Extract sections if parser is available
+        # IMPORTANT: Fill sections with full headers/footers info from LayoutStructure
+        # ALTERNATIVELY: If document has _json_sections (from round-trip), use them
         sections = None
         if self.document and hasattr(self.document, '_json_sections') and self.document._json_sections:
-            # Użyj sekcji z JSON (dla dokumentów z round-trip)
+            # Use sections from JSON (for documents from round-trip)
             sections = self.document._json_sections
-            # Uzupełnij headers/footers z LayoutStructure jeśli dostępne
+            # Fill headers/footers from LayoutStructure if available
             if layout_structure:
                 for section in sections:
                     section_headers_refs = section.get("headers", {})
@@ -202,24 +190,24 @@ class OptimizedPipelineJSONExporter:
         if not sections and self.xml_parser:
             sections = self._extract_sections()
             if sections:
-                # Uzupełnij sekcje pełnymi informacjami o headers/footers z LayoutStructure
+                # Fill sections with full headers/footers info from LayoutStructure
                 for section in sections:
                     # Mapuj headers/footers z LayoutStructure do sekcji
                     section_headers_refs = section.get("headers", {})
                     section_footers_refs = section.get("footers", {})
                     
-                    # Jeśli sekcja ma referencje (rId), znajdź odpowiadające elementy z LayoutStructure
-                    # i dodaj pełne informacje
+                    # If section has references (rId), find corresponding elements from LayoutStructure...
+                    # and add full information
                     if section_headers_refs:
                         if isinstance(section_headers_refs, list):
                             # section_headers_refs to lista referencji {type, id}
-                            # Mapuj na pełne elementy z layout_structure.headers
-                            # WAŻNE: Jeśli sekcja ma referencję do typu, którego nie ma w layout_structure,
-                            # użyj fallback na 'default'
+                            # Map to full elements from layout_structure.headers
+                            # IMPORTANT: If section has reference to type not in layout_structure,
+                            # use fallback to 'default'
                             mapped_headers = {}
                             for hdr_ref in section_headers_refs:
                                 hdr_type = hdr_ref.get("type", "default")
-                                # Sprawdź czy typ istnieje w layout_structure, jeśli nie użyj 'default'
+                                # Check if type exists in layout_structure, if not use 'default'
                                 source_type = hdr_type if hdr_type in layout_structure.headers else "default"
                                 if source_type in layout_structure.headers:
                                     if hdr_type not in mapped_headers:
@@ -244,12 +232,12 @@ class OptimizedPipelineJSONExporter:
                     if section_footers_refs:
                         if isinstance(section_footers_refs, list):
                             # section_footers_refs to lista referencji
-                            # WAŻNE: Jeśli sekcja ma referencję do typu, którego nie ma w layout_structure,
-                            # użyj fallback na 'default'
+                            # IMPORTANT: If section has reference to type not in layout_structure,
+                            # use fallback to 'default'
                             mapped_footers = {}
                             for ftr_ref in section_footers_refs:
                                 ftr_type = ftr_ref.get("type", "default")
-                                # Sprawdź czy typ istnieje w layout_structure, jeśli nie użyj 'default'
+                                # Check if type exists in layout_structure, if not use 'default'
                                 source_type = ftr_type if ftr_type in layout_structure.footers else "default"
                                 if source_type in layout_structure.footers:
                                     if ftr_type not in mapped_footers:
@@ -273,10 +261,10 @@ class OptimizedPipelineJSONExporter:
                 
                 result["sections"] = sections
         elif sections:
-            # Sekcje z JSON (bez uzupełniania z LayoutStructure)
+            # Sections from JSON (without filling from LayoutStructure)
             result["sections"] = sections
         
-        # Wyciągnij footnotes i endnotes jeśli parser jest dostępny
+        # Extract footnotes and endnotes if parser is available
         if self.xml_parser or self.package_reader:
             footnotes, endnotes = self._extract_notes()
             if footnotes:
@@ -286,7 +274,7 @@ class OptimizedPipelineJSONExporter:
         
         # Eksportuj strony z UnifiedLayout (tylko geometria, bez headers/footers)
         for page in unified_layout.pages:
-            # Filtruj bloki - pomiń header i footer bloki
+            # Filter blocks - skip header and footer blocks
             body_blocks = [
                 block for block in page.blocks
                 if block.block_type not in ("header", "footer", "decorator")
@@ -300,14 +288,14 @@ class OptimizedPipelineJSONExporter:
                 }
                 result["pages"].append(page_data)
         
-        # Dodaj style i media na końcu
+        # Add styles and media at the end
         result["styles"] = self._styles_list
         
         # Zbierz wszystkie obrazy z PackageReader
         if self.package_reader:
             self._collect_all_images_from_package()
         
-        # Rozwiąż rel_id do ścieżek
+        # Resolve rel_id to paths
         if self.package_reader:
             self._resolve_media_paths()
         
@@ -341,22 +329,22 @@ class OptimizedPipelineJSONExporter:
         if not element_type:
             return None
         
-        # Serializuj w zależności od typu
+        # Serialize depending on type
         if element_type == "paragraph":
-            # Element z LayoutStructure ma layout_payload (ParagraphLayout) lub bezpośrednio dane
+            # Element from LayoutStructure has layout_payload (ParagraphLayout) or direct...
             layout_payload = element.get("layout_payload")
             if layout_payload:
                 paragraph_data = self._serialize_paragraph_layout(layout_payload, depth=0)
                 return self._merge_paragraph_metadata(paragraph_data, element)
             else:
-                # Fallback - użyj danych bezpośrednio z elementu
+                # Fallback - use data directly from element
                 return self._serialize_paragraph_from_dict(element)
         elif element_type == "table":
             return self._serialize_table_layout_from_structure(element)
         elif element_type == "image":
             return self._serialize_image_info(element)
         else:
-            # Domyślnie serializuj jako generic
+            # Default serialize as generic
             return {
                 "type": element_type,
                 "style": self._get_style_id(element.get("style", {})),
@@ -381,7 +369,7 @@ class OptimizedPipelineJSONExporter:
         return self._merge_paragraph_metadata(result, element)
 
     def _merge_paragraph_metadata(self, result: Dict[str, Any], element: Dict[str, Any]) -> Dict[str, Any]:
-        """Łączy metadane paragrafu z LayoutStructure z bazową strukturą."""
+        """Merges paragraph metadata from LayoutStructure with base structure."""
         if not isinstance(element, dict):
             return result
         
@@ -489,7 +477,7 @@ class OptimizedPipelineJSONExporter:
         return result
 
     def _serialize_section_break(self, section_props: Dict[str, Any]) -> Dict[str, Any]:
-        """Uproszczona struktura opisująca sekcję przypisaną do paragrafu."""
+        """Simplified structure describing section assigned to paragraph."""
         if not isinstance(section_props, dict):
             return {}
         
@@ -830,19 +818,19 @@ class OptimizedPipelineJSONExporter:
         return f"{link_id}::{anchor}::{target}::{target_mode}"
     
     def _serialize_table_layout_from_structure(self, element: Dict[str, Any]) -> Dict[str, Any]:
-        """Serializuje tabelę z LayoutStructure."""
-        # Element z LayoutStructure może mieć:
-        # 1. layout_payload (TableLayout) - użyj _serialize_table_layout
-        # 2. rows bezpośrednio w dict - serializuj z dict
-        # 3. raw Table model - użyj _serialize_table_from_raw
+        """Serializes table from LayoutStructure."""
+        # Element from LayoutStructure may have:
+        # 1. layout_payload (TableLayout) - use _serialize_table_layout
+        # 2. rows directly in dict - serialize from dict
+        # 3. raw Table model - use _serialize_table_from_raw
         
         layout_payload = element.get("layout_payload")
         if layout_payload and hasattr(layout_payload, "rows"):
             return self._serialize_table_layout(layout_payload, depth=0)
         
-        # Sprawdź czy element ma rows bezpośrednio (z LayoutStructure)
+        # Check if element has rows directly (from LayoutStructure)
         if "rows" in element:
-            # Serializuj z dict - użyj _serialize_table_from_raw z dict
+            # Serialize from dict - use _serialize_table_from_raw with dict
             return self._serialize_table_from_dict(element)
         
         # W przeciwnym razie serializuj z raw Table model
@@ -850,7 +838,7 @@ class OptimizedPipelineJSONExporter:
         if raw_table:
             return self._serialize_table_from_raw(raw_table)
         
-        # Fallback - zwróć podstawową strukturę
+        # Fallback - return basic structure
         return {
             "type": "table",
             "style": self._get_style_id(element.get("style", {})),
@@ -858,7 +846,7 @@ class OptimizedPipelineJSONExporter:
         }
     
     def _serialize_table_from_dict(self, element: Dict[str, Any]) -> Dict[str, Any]:
-        """Serializuje tabelę z dict (gdy rows są bezpośrednio w dict)."""
+        """Serializes table from dict (when rows are directly in dict)."""
         result = {
             "type": "table",
             "style": self._get_style_id(element.get("style", {})),
@@ -894,16 +882,16 @@ class OptimizedPipelineJSONExporter:
                 result["rows"].append(row_data)
                 row_props.append(props or {})
         
-        # Dodaj grid jeśli jest dostępne
+        # Add grid if available
         if "grid" in element:
             result["grid"] = element.get("grid")
             result["columns"] = self._serialize_table_grid(element.get("grid"))
         
-        # Dodaj borders jeśli są dostępne
+        # Add borders if available
         if "borders" in element:
             result["borders"] = element.get("borders")
         
-        # Dodaj cell_margins jeśli są dostępne
+        # Add cell_margins if available
         if "cell_margins" in element:
             result["cell_margins"] = element.get("cell_margins")
         
@@ -918,12 +906,12 @@ class OptimizedPipelineJSONExporter:
         return result
     
     def _serialize_cell_from_dict(self, cell: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """Serializuje komórkę z dict."""
+        """Serializes cell from dict."""
         result = {
             "blocks": []
         }
         
-        # Serializuj bloki w komórce
+        # Serialize blocks in cell
         blocks = cell.get("blocks", [])
         for block in blocks:
             if isinstance(block, dict):
@@ -936,17 +924,17 @@ class OptimizedPipelineJSONExporter:
                     block_data = block
                 result["blocks"].append(block_data)
         
-        # Dodaj colspan/rowspan jeśli są dostępne
+        # Add colspan/rowspan if available
         if "colspan" in cell:
             result["colspan"] = cell.get("colspan")
         if "rowspan" in cell:
             result["rowspan"] = cell.get("rowspan")
         
-        # Dodaj borders jeśli są dostępne
+        # Add borders if available
         if "borders" in cell:
             result["borders"] = cell.get("borders")
         
-        # Dodaj margins jeśli są dostępne
+        # Add margins if available
         if "margins" in cell:
             result["margins"] = cell.get("margins")
         
@@ -954,10 +942,9 @@ class OptimizedPipelineJSONExporter:
     
     def export(self, unified_layout: UnifiedLayout, output_path: Optional[Path] = None) -> Dict[str, Any]:
         """
-        Eksportuje UnifiedLayout do zoptymalizowanego JSON.
-        
-        Returns:
-            Słownik z danymi JSON
+
+        Exports UnifiedLayout to optimized JSON.
+
         """
         # Reset cache
         self._style_cache.clear()
@@ -967,7 +954,7 @@ class OptimizedPipelineJSONExporter:
         self._media_list.clear()
         self._media_counter = 0
         
-        # Zbuduj strukturę
+        # Build structure
         result = {
             "version": "2.0",
             "format": "optimized_pipeline",
@@ -976,21 +963,21 @@ class OptimizedPipelineJSONExporter:
                 "current_page": unified_layout.current_page,
                 "source": "DocQuill LayoutPipeline"
             },
-            "styles": [],  # Będzie wypełnione na końcu
-            "media": [],  # Będzie wypełnione na końcu
+            "styles": [],  # Will be filled at the end
+            "media": [],  # Will be filled at the end
             "pages": [],
             "sections": [],  # Sekcje dokumentu
             "footnotes": {},  # Footnotes
             "endnotes": {}  # Endnotes
         }
         
-        # Wyciągnij sekcje jeśli parser jest dostępny
+        # Extract sections if parser is available
         if self.xml_parser:
             sections = self._extract_sections()
             if sections:
                 result["sections"] = sections
         
-        # Wyciągnij footnotes i endnotes jeśli parser jest dostępny
+        # Extract footnotes and endnotes if parser is available
         if self.xml_parser or self.package_reader:
             footnotes, endnotes = self._extract_notes()
             if footnotes:
@@ -998,24 +985,24 @@ class OptimizedPipelineJSONExporter:
             if endnotes:
                 result["endnotes"] = endnotes
         
-        # Przetwórz strony
+        # Process pages
         for page in unified_layout.pages:
             page_data = self._serialize_page(page)
             result["pages"].append(page_data)
         
-        # Dodaj style i media na końcu
+        # Add styles and media at the end
         result["styles"] = self._styles_list
         
-        # WAŻNE: Przed rozwiązaniem path, zbierz wszystkie obrazy z PackageReader
-        # (aby upewnić się, że mamy wszystkie obrazy, nawet te które nie są w pipeline)
+        # IMPORTANT: Before resolving path, collect all images from PackageReader...
+        # (to ensure we have all images, even those not in pipeline...)
         if self.package_reader:
             self._collect_all_images_from_package()
         
-        # Rozwiąż rel_id do ścieżek jeśli PackageReader jest dostępny
+        # Resolve rel_id to paths if PackageReader is available
         if self.package_reader:
             self._resolve_media_paths()
         
-        # Po rozwiązaniu path, zdeduplikuj ponownie (może być duplikaty z różnymi rel_id ale tym samym path)
+        # After resolving path, deduplicate again (may be duplicates with different...
         self._deduplicate_media_by_path()
         
         result["media"] = self._media_list
@@ -1029,7 +1016,7 @@ class OptimizedPipelineJSONExporter:
         return result
     
     def _serialize_page(self, page: LayoutPage) -> Dict[str, Any]:
-        """Serializuje stronę."""
+        """Serializes page."""
         # Serializuj wszystkie bloki
         blocks = [self._serialize_block(block) for block in page.blocks]
         
@@ -1044,22 +1031,22 @@ class OptimizedPipelineJSONExporter:
                 footer_indices.append(i)
         
         result = {
-            "n": page.number,  # Skrót: number
+            "n": page.number,  # Shortcut: number
             "size": [page.size.width, page.size.height],  # [width, height]
             "margins": [page.margins.top, page.margins.right, page.margins.bottom, page.margins.left],  # [top, right, bottom, left]
             "blocks": blocks
         }
         
-        # Dodaj mapowanie header i footer tylko jeśli są
+        # Add header and footer mapping only if present
         if header_indices:
-            result["h"] = header_indices  # Skrót: headers (indeksy bloków)
+            result["h"] = header_indices  # Shortcut: headers (block indices)
         if footer_indices:
-            result["f"] = footer_indices  # Skrót: footers (indeksy bloków)
+            result["f"] = footer_indices  # Shortcut: footers (block indices)
         
         return result
     
     def _serialize_block(self, block: LayoutBlock) -> Dict[str, Any]:
-        """Serializuje blok z deduplikacją stylów i pełnymi informacjami."""
+        """Serializes block with style deduplication and full information."""
         # Frame jako [x, y, width, height]
         frame = [block.frame.x, block.frame.y, block.frame.width, block.frame.height]
         
@@ -1070,37 +1057,37 @@ class OptimizedPipelineJSONExporter:
         content = self._serialize_content(block.content, depth=0, block_type=block.block_type)
         
         result = {
-            "t": block.block_type,  # Skrót: type
-            "f": frame,  # Skrót: frame
-            "s": style_id,  # Skrót: style_id
+            "t": block.block_type,  # Shortcut: type
+            "f": frame,  # Shortcut: frame
+            "s": style_id,  # Shortcut: style_id
         }
         
-        # Opcjonalne pola tylko jeśli są ustawione
+        # Optional fields only if set
         if block.page_number is not None:
-            result["p"] = block.page_number  # Skrót: page
+            result["p"] = block.page_number  # Shortcut: page
         if block.source_uid:
             result["uid"] = block.source_uid
         if block.sequence is not None:
-            result["seq"] = block.sequence  # Skrót: sequence
+            result["seq"] = block.sequence  # Shortcut: sequence
         
-        # Dla obrazów - dodaj referencję do media (sprawdź wszystkie bloki, nie tylko typu "image")
-        # Obrazy mogą być w różnych miejscach: jako "image", "drawing", w paragrafach, tabelach, itp.
-        # Przekaż kontekst (block_type) dla lepszej deduplikacji
+        # For images - add media reference (check all blocks, not...
+        # Images can be in different places: as "image", "drawing", in paragraph...
+        # Pass context (block_type) for better deduplication
         media_id = self._find_and_register_media(block.content, block.block_type, context=block.block_type)
         if media_id is not None:
-            result["m"] = media_id  # Skrót: media_id
+            result["m"] = media_id  # Shortcut: media_id
         
         # Content
         if content:
-            result["c"] = content  # Skrót: content
+            result["c"] = content  # Shortcut: content
         
-        # WAŻNE: Dla obrazów - upewnij się, że są eksportowane jako bloki z pełnymi informacjami
+        # IMPORTANT: For images - ensure they are exported as blocks with full...
         if block.block_type == 'image' and isinstance(result.get("c"), dict):
-            # Jeśli content nie ma type="image", dodaj go
+            # If content doesn't have type="image", add it
             if result["c"].get("type") != "image":
                 result["c"]["type"] = "image"
             
-            # Jeśli mamy media_id, upewnij się, że rel_id, width, height są w content
+            # If we have media_id, ensure rel_id, width, height are in content...
             if result.get("m") is not None:
                 media_id = result["m"]
                 if media_id < len(self._media_list):
@@ -1116,20 +1103,20 @@ class OptimizedPipelineJSONExporter:
                     if "path" in media_info and "path" not in result["c"]:
                         result["c"]["path"] = media_info["path"]
         
-        # WAŻNE: Dla paragrafów - upewnij się, że runs są bezpośrednio w content, nie w payload
+        # IMPORTANT: For paragraphs - ensure runs are directly in content...
         if block.block_type == 'paragraph' and isinstance(result.get("c"), dict):
-            # Jeśli runs są w payload, przenieś je do głównego content
+            # If runs are in payload, move them to main content
             if 'payload' in result["c"] and isinstance(result["c"]["payload"], dict):
                 payload = result["c"]["payload"]
                 if 'runs' in payload and 'runs' not in result["c"]:
                     result["c"]["runs"] = payload["runs"]
-                # Przenieś też list i paragraph_properties
+                # Also move list and paragraph_properties
                 if 'list' in payload and 'list' not in result["c"]:
                     result["c"]["list"] = payload["list"]
                 if 'paragraph_properties' in payload and 'paragraph_properties' not in result["c"]:
                     result["c"]["paragraph_properties"] = payload["paragraph_properties"]
             
-            # Sprawdź też raw z runs_payload
+            # Also check raw with runs_payload
             if hasattr(block.content, 'raw'):
                 raw = block.content.raw
                 if isinstance(raw, dict) and 'runs_payload' in raw:
@@ -1138,7 +1125,7 @@ class OptimizedPipelineJSONExporter:
                         if "runs" not in result["c"]:
                             result["c"]["runs"] = runs
             
-            # Sprawdź numbering (lista) - najpierw w raw, potem w payload, potem w modelu
+            # Check numbering (list) - first in raw, then in payload, then in model...
             numbering = None
             raw_obj = None
             if hasattr(block.content, 'raw'):
@@ -1150,7 +1137,7 @@ class OptimizedPipelineJSONExporter:
                 elif hasattr(raw_obj, 'numbering') and raw_obj.numbering:
                     numbering = raw_obj.numbering
                     if not isinstance(numbering, dict):
-                        # Konwertuj na dict jeśli potrzeba
+                        # Convert to dict if needed
                         numbering = {
                             'id': getattr(numbering, 'id', None),
                             'level': getattr(numbering, 'level', None)
@@ -1163,7 +1150,7 @@ class OptimizedPipelineJSONExporter:
                 elif hasattr(raw_obj, 'numbering') and raw_obj.numbering:
                     numbering = raw_obj.numbering
                     if not isinstance(numbering, dict):
-                        # Konwertuj na dict jeśli potrzeba
+                        # Convert to dict if needed
                         numbering = {
                             'id': getattr(numbering, 'id', None),
                             'level': getattr(numbering, 'level', None)
@@ -1181,7 +1168,7 @@ class OptimizedPipelineJSONExporter:
         return result
     
     def _get_style_id(self, style: Dict[str, Any]) -> int:
-        """Zwraca ID stylu (z deduplikacją)."""
+        """Returns style ID (with deduplication)."""
         if not style:
             return 0
         
@@ -1196,7 +1183,7 @@ class OptimizedPipelineJSONExporter:
         self._style_counter += 1
         self._style_cache[style_hash] = style_id
         
-        # Normalizuj styl (usuń None, uprość)
+        # Normalize style (remove None, simplify)
         normalized_style = self._normalize_style(style)
         self._styles_list.append(normalized_style)
         
@@ -1210,14 +1197,14 @@ class OptimizedPipelineJSONExporter:
         return hashlib.md5(style_str.encode()).hexdigest()
     
     def _normalize_style(self, style: Dict[str, Any]) -> Dict[str, Any]:
-        """Normalizuje styl (usuń None, uprość wartości)."""
+        """Normalizes style (remove None, simplify values)."""
         result = {}
         
         for key, value in style.items():
             if value is None:
                 continue
             
-            # Uprość wartości
+            # Simplify values
             if isinstance(value, dict):
                 simplified = self._simplify_value(value)
                 if simplified:
@@ -1233,16 +1220,16 @@ class OptimizedPipelineJSONExporter:
         return result
     
     def _simplify_value(self, value: Any) -> Any:
-        """Upraszcza wartość (usuń zbędne zagnieżdżenia)."""
+        """Simplifies value (remove unnecessary nesting)."""
         if value is None:
             return None
         if isinstance(value, (str, int, float, bool)):
             return value
         if isinstance(value, dict):
-            # Jeśli dict ma tylko jedną wartość, uprość
+            # If dict has only one value, simplify
             if len(value) == 1:
                 return list(value.values())[0]
-            # Uprość zagnieżdżone dict
+            # Simplify nested dict
             return {k: self._simplify_value(v) for k, v in value.items() if v is not None}
         if isinstance(value, (list, tuple)):
             return [self._simplify_value(v) for v in value if v is not None]
@@ -1253,18 +1240,13 @@ class OptimizedPipelineJSONExporter:
     
     def _find_and_register_media(self, content: Any, block_type: str, context: str = "") -> Optional[int]:
         """
-        Przeszukuje content w poszukiwaniu obrazów i rejestruje je w media.
-        Zwraca media_id jeśli znaleziono obraz.
-        
-        Args:
-            content: Content do przeszukania
-            block_type: Typ bloku (dla kontekstu)
-            context: Dodatkowy kontekst (np. "footer", "header", "table_cell")
+
+        Searches content for images and registers them in...
         """
         if content is None:
             return None
         
-        # Sprawdź bezpośrednio w content
+        # Check directly in content
         image_info = self._extract_image_info(content)
         if image_info:
             # Dodaj kontekst do image_info dla lepszej deduplikacji
@@ -1276,14 +1258,14 @@ class OptimizedPipelineJSONExporter:
         return self._search_media_recursive(content, depth=0, max_depth=5, context=context)
     
     def _search_media_recursive(self, obj: Any, depth: int, max_depth: int, context: str = "") -> Optional[int]:
-        """Rekurencyjnie przeszukuje obiekt w poszukiwaniu obrazów."""
+        """Recursively searches object for images."""
         if depth >= max_depth:
             return None
         
         if obj is None:
             return None
         
-        # Sprawdź czy to obraz
+        # Check if this is image
         image_info = self._extract_image_info(obj)
         if image_info:
             if context:
@@ -1293,7 +1275,7 @@ class OptimizedPipelineJSONExporter:
         # Przeszukaj dict
         if isinstance(obj, dict):
             for key, value in obj.items():
-                # Sprawdź również klucze - mogą zawierać informacje o obrazach
+                # Also check keys - may contain image information
                 if isinstance(key, str) and ('image' in key.lower() or 'drawing' in key.lower() or 'media' in key.lower()):
                     media_id = self._search_media_recursive(value, depth + 1, max_depth, context)
                     if media_id is not None:
@@ -1313,18 +1295,18 @@ class OptimizedPipelineJSONExporter:
         # Przeszukaj obiekt z atrybutami
         elif hasattr(obj, '__dict__'):
             for key, value in obj.__dict__.items():
-                # Sprawdź również nazwy atrybutów
+                # Also check attribute names
                 if isinstance(key, str) and ('image' in key.lower() or 'drawing' in key.lower() or 'media' in key.lower()):
                     media_id = self._search_media_recursive(value, depth + 1, max_depth, context)
                     if media_id is not None:
                         return media_id
                 
-                if not str(value).startswith('_') and not key.startswith('_'):  # Pomiń prywatne atrybuty
+                if not str(value).startswith('_') and not key.startswith('_'):  # Skip private attributes
                     media_id = self._search_media_recursive(value, depth + 1, max_depth, context)
                     if media_id is not None:
                         return media_id
         
-        # Sprawdź specjalne atrybuty
+        # Check special attributes
         if hasattr(obj, 'payload'):
             media_id = self._search_media_recursive(obj.payload, depth + 1, max_depth, context)
             if media_id is not None:
@@ -1335,7 +1317,7 @@ class OptimizedPipelineJSONExporter:
             if media_id is not None:
                 return media_id
         
-        # Sprawdź inne możliwe atrybuty
+        # Check other possible attributes
         for attr_name in ['image', 'drawing', 'media', 'picture', 'graphic']:
             if hasattr(obj, attr_name):
                 attr_value = getattr(obj, attr_name)
@@ -1346,14 +1328,14 @@ class OptimizedPipelineJSONExporter:
         return None
     
     def _register_media(self, image_info: Dict[str, Any], context: str = "") -> int:
-        """Rejestruje obraz w media (z deduplikacją)."""
-        # Usuń kontekst z image_info przed zapisaniem (używamy go tylko do deduplikacji)
+        """Registers image in media (with deduplication)."""
+        # Remove context from image_info before saving (we use it only for dedup...
         context_value = image_info.pop('_context', context)
         
         path = image_info.get('path')
         rel_id = image_info.get('rel_id')
         
-        # Jeśli mamy path, użyj go jako klucza (najlepsza deduplikacja)
+        # If we have path, use it as key (best deduplication)
         if path and path != 'N/A':
             # Normalizuj path dla deduplikacji
             normalized_path = path
@@ -1363,14 +1345,14 @@ class OptimizedPipelineJSONExporter:
                     normalized_path = path[word_idx:]
             media_key = f"path::{normalized_path}"
         elif rel_id:
-            # Jeśli nie ma path, użyj rel_id + kontekst (aby rozróżnić rId1 w headerze od rId1 w footerze)
-            # To pozwoli na rejestrację różnych obrazów z tym samym rel_id w różnych kontekstach
+            # If no path, use rel_id + context (to distinguish rId1 in header...
+            # This will allow registering different images with same rel_id in different...
             if context_value:
                 media_key = f"rel::{rel_id}::{context_value}"
             else:
                 media_key = f"rel::{rel_id}"
         else:
-            # Brak path i rel_id - użyj hash całego obiektu
+            # No path and rel_id - use hash of entire object
             media_key = self._hash_media(image_info)
         
         if media_key in self._media_cache:
@@ -1387,18 +1369,18 @@ class OptimizedPipelineJSONExporter:
         return media_id
     
     def _extract_image_info(self, content: Any) -> Optional[Dict[str, Any]]:
-        """Wyciąga informacje o obrazie z content."""
+        """Extracts image information from content."""
         if content is None:
             return None
         
         image_info = {}
         
-        # Sprawdź typ obiektu
+        # Check object type
         content_type = type(content).__name__.lower()
         is_image_type = ('image' in content_type or 'drawing' in content_type or 
                         'layout' in content_type and hasattr(content, 'path'))
         
-        # Wyciągnij ścieżkę/rel_id z różnych możliwych lokalizacji
+        # Extract path/rel_id from various possible locations
         path = None
         rel_id = None
         width = None
@@ -1413,9 +1395,9 @@ class OptimizedPipelineJSONExporter:
             width = content.get("width")
             height = content.get("height")
             
-            # Sprawdź czy to drawing/image w dict
+            # Check if this is drawing/image in dict
             if not path and not rel_id:
-                # Może być zagnieżdżone
+                # May be nested
                 if "image" in content:
                     return self._extract_image_info(content["image"])
                 if "drawing" in content:
@@ -1423,7 +1405,7 @@ class OptimizedPipelineJSONExporter:
         
         # Obiekt
         else:
-            # Sprawdź różne możliwe atrybuty
+            # Check various possible attributes
             path = (getattr(content, "path", None) or 
                    getattr(content, "image_path", None) or
                    getattr(content, "src", None) or
@@ -1436,38 +1418,38 @@ class OptimizedPipelineJSONExporter:
             width = getattr(content, "width", None)
             height = getattr(content, "height", None)
             
-            # Jeśli nie ma bezpośrednio, sprawdź czy to ImageLayout lub podobny
+            # If not directly, check if this is ImageLayout or similar
             if not path and not rel_id and is_image_type:
-                # Spróbuj wyciągnąć z innych atrybutów
+                # Try to extract from other attributes
                 if hasattr(content, 'get_src'):
                     path = content.get_src()
                 if hasattr(content, 'get_rel_id'):
                     rel_id = content.get_rel_id()
         
-        # Jeśli nie znaleziono, ale to wygląda na obraz (ma width/height), spróbuj dalej
+        # If not found, but looks like image (has width/height), try...
         if not path and not rel_id:
-            # Sprawdź czy w payload jest obraz
+            # Check if payload has image
             if hasattr(content, 'payload'):
                 nested_info = self._extract_image_info(content.payload)
                 if nested_info:
                     return nested_info
             
-            # Jeśli nie ma path/rel_id, ale ma wymiary, może być to obraz bez ścieżki
-            # (np. placeholder) - pomiń
+            # If no path/rel_id but has dimensions, may be image without path...
+            # (e.g. placeholder) - skip
             return None
         
-        # WAŻNE: Jeśli mamy tylko rel_id bez path, ale rel_id jest ważny, 
-        # zarejestruj go jako media (path może być rozwiązany później przez PackageReader)
-        # Ale tylko jeśli rel_id wygląda na prawidłowy (np. rId1, rId2, etc.)
+        # IMPORTANT: If we have only rel_id without path, but rel_id is valid,
+        # register it as media (path can be resolved later by PackageReader...)
+        # But only if rel_id looks valid (e.g. rId1, rId2, etc.)
         if not path and rel_id and rel_id.startswith('rId'):
-            # Zarejestruj tylko rel_id - path może być rozwiązany później
+            # Register only rel_id - path can be resolved later
             image_info["rel_id"] = rel_id
             if width is not None:
                 image_info["width"] = width
             if height is not None:
                 image_info["height"] = height
             
-            # Wyciągnij informacje o anchorze i skalowaniu
+            # Extract anchor and scaling information
             anchor_info = self._extract_image_anchor_info(content)
             if anchor_info:
                 image_info.update(anchor_info)
@@ -1477,7 +1459,7 @@ class OptimizedPipelineJSONExporter:
             
             return image_info if image_info else None
         
-        # Utwórz image_info
+        # Create image_info
         if path:
             image_info["path"] = path
         if rel_id:
@@ -1487,7 +1469,7 @@ class OptimizedPipelineJSONExporter:
         if height is not None:
             image_info["height"] = height
         
-        # Wyciągnij informacje o anchorze i skalowaniu
+        # Extract anchor and scaling information
         anchor_info = self._extract_image_anchor_info(content)
         if anchor_info:
             image_info.update(anchor_info)
@@ -1498,27 +1480,27 @@ class OptimizedPipelineJSONExporter:
         return image_info if image_info else None
     
     def _extract_image_anchor_info(self, content: Any) -> Dict[str, Any]:
-        """Wyciąga informacje o anchorze obrazu (floating, inline, etc.)."""
+        """Extracts image anchor information (floating, inline, etc.)."""
         anchor_info = {}
         
-        # Sprawdź czy obraz jest floating/anchored
+        # Check if image is floating/anchored
         if isinstance(content, dict):
             anchor = content.get("anchor") or content.get("anchor_type") or content.get("positioning")
             if anchor:
                 anchor_info["anchor"] = anchor
             
-            # Sprawdź pozycję (dla floating images)
+            # Check position (for floating images)
             if "x" in content and "y" in content:
                 anchor_info["position"] = {
                     "x": content.get("x"),
                     "y": content.get("y")
                 }
             
-            # Sprawdź relację do paragrafu/tabeli
+            # Check relation to paragraph/table
             if "anchor_to" in content:
                 anchor_info["anchor_to"] = content.get("anchor_to")
             
-            # Sprawdź anchor_info jeśli jest dostępne
+            # Check anchor_info if available
             if "anchor_info" in content:
                 anchor_data = content.get("anchor_info")
                 if isinstance(anchor_data, dict):
@@ -1531,14 +1513,14 @@ class OptimizedPipelineJSONExporter:
             if anchor:
                 anchor_info["anchor"] = anchor
             
-            # Sprawdź pozycję
+            # Check position
             if hasattr(content, 'x') and hasattr(content, 'y'):
                 anchor_info["position"] = {
                     "x": getattr(content, 'x'),
                     "y": getattr(content, 'y')
                 }
             
-            # Sprawdź anchor_info
+            # Check anchor_info
             if hasattr(content, 'anchor_info'):
                 anchor_data = getattr(content, 'anchor_info')
                 if isinstance(anchor_data, dict):
@@ -1550,17 +1532,17 @@ class OptimizedPipelineJSONExporter:
         return anchor_info
     
     def _extract_image_scale_info(self, content: Any) -> Dict[str, Any]:
-        """Wyciąga informacje o skalowaniu obrazu."""
+        """Extracts image scaling information."""
         scale_info = {}
         
         if isinstance(content, dict):
-            # Sprawdź scale/zoom
+            # Check scale/zoom
             if "scale" in content:
                 scale_info["scale"] = content.get("scale")
             if "zoom" in content:
                 scale_info["zoom"] = content.get("zoom")
             
-            # Sprawdź crop
+            # Check crop
             if "crop" in content:
                 crop = content.get("crop")
                 if isinstance(crop, dict):
@@ -1573,11 +1555,11 @@ class OptimizedPipelineJSONExporter:
         return scale_info
     
     def _collect_all_images_from_package(self):
-        """Zbiera wszystkie obrazy z PackageReader (nawet te które nie są w pipeline)."""
+        """Collects all images from PackageReader (even those not in pipeline..."""
         if not self.package_reader:
             return
         
-        # Sprawdź wszystkie pliki relacji
+        # Check all relationship files
         sources = ['word/_rels/document.xml.rels', 'document']
         for i in range(1, 10):
             sources.extend([
@@ -1599,7 +1581,7 @@ class OptimizedPipelineJSONExporter:
                             if not target.startswith('word/'):
                                 target = f'word/{target}'
                             
-                            # Sprawdź czy plik istnieje
+                            # Check if file exists
                             try:
                                 if hasattr(self.package_reader, 'extract_to'):
                                     extract_to = self.package_reader.extract_to
@@ -1619,7 +1601,7 @@ class OptimizedPipelineJSONExporter:
             except Exception:
                 continue
         
-        # Sprawdź również bezpośrednio w _relationships
+        # Also check directly in _relationships
         if hasattr(self.package_reader, '_relationships'):
             for rels_key, rels_dict in self.package_reader._relationships.items():
                 if isinstance(rels_dict, dict):
@@ -1645,9 +1627,9 @@ class OptimizedPipelineJSONExporter:
                             except Exception:
                                 pass
         
-        # Dodaj wszystkie znalezione obrazy do media_list (jeśli jeszcze nie są)
+        # Add all found images to media_list (if not already there)
         for full_path_str, image_data in all_images.items():
-            # Sprawdź czy już istnieje media z tym path
+            # Check if media with this path already exists
             exists = False
             for existing_media in self._media_list:
                 if existing_media.get('path') == full_path_str:
@@ -1660,7 +1642,7 @@ class OptimizedPipelineJSONExporter:
                     'path': full_path_str,
                     'rel_id': image_data['rel_id']
                 }
-                # Użyj unikalnego kontekstu dla każdego źródła
+                # Use unique context for each source
                 context = f"package_{len(image_data['sources'])}"
                 self._register_media(new_media, context=context)
     
@@ -1671,26 +1653,26 @@ class OptimizedPipelineJSONExporter:
         return hashlib.md5(media_str.encode()).hexdigest()
     
     def _resolve_media_paths(self):
-        """Rozwiązuje rel_id do ścieżek używając PackageReader."""
+        """Resolves rel_id to paths using PackageReader."""
         if not self.package_reader:
             return
         
-        # Sprawdź wszystkie możliwe źródła relacji
-        # PackageReader przechowuje relacje pod kluczami będącymi ścieżkami do plików .rels
+        # Check all possible relationship sources
+        # PackageReader stores relationships under keys being paths to parts...
         sources = ['word/_rels/document.xml.rels', 'document']
         
-        # Dodaj headerów i footerów
-        for i in range(1, 10):  # Sprawdź do 10 headerów/footerów
+        # Add headers and footers
+        for i in range(1, 10):  # Check up to 10 headers/footers
             sources.extend([
                 f'word/_rels/header{i}.xml.rels',
                 f'word/_rels/footer{i}.xml.rels'
             ])
         
-        # WAŻNE: Przeszukaj wszystkie relacje i utwórz media dla wszystkich obrazów
-        # (nie tylko dla tych które już są w _media_list)
+        # IMPORTANT: Search all relationships and create media for all images...
+        # (not only for those already in _media_list)
         all_image_paths = {}  # rel_id -> {source -> target}
         
-        # Zbierz wszystkie relacje obrazów ze wszystkich źródeł
+        # Collect all image relationships from all sources
         for source in sources:
             try:
                 rels = self.package_reader.get_relationships(source)
@@ -1704,7 +1686,7 @@ class OptimizedPipelineJSONExporter:
             except Exception:
                 continue
         
-        # Sprawdź również bezpośrednio w _relationships
+        # Also check directly in _relationships
         if hasattr(self.package_reader, '_relationships'):
             for rels_key, rels_dict in self.package_reader._relationships.items():
                 if isinstance(rels_dict, dict):
@@ -1715,10 +1697,10 @@ class OptimizedPipelineJSONExporter:
                                 all_image_paths[rel_id] = {}
                             all_image_paths[rel_id][rels_key] = target
         
-        # Dla każdego znalezionego obrazu, sprawdź czy jest już w media_list
-        # Jeśli nie, dodaj go. Jeśli jest, ale ma inny path, dodaj jako nowy wpis
+        # For each found image, check if already in media_list
+        # If not, add it. If yes but has different path, add as new entry...
         for rel_id, sources_dict in all_image_paths.items():
-            # Weź pierwszy target (lub sprawdź czy wszystkie są takie same)
+            # Take first target (or check if all are the same)
             targets = list(sources_dict.values())
             if targets:
                 target = targets[0]
@@ -1726,7 +1708,7 @@ class OptimizedPipelineJSONExporter:
                 if not target.startswith('word/'):
                     target = f'word/{target}'
                 
-                # Sprawdź czy plik istnieje
+                # Check if file exists
                 try:
                     if hasattr(self.package_reader, 'extract_to'):
                         extract_to = self.package_reader.extract_to
@@ -1735,7 +1717,7 @@ class OptimizedPipelineJSONExporter:
                         if full_path.exists():
                             full_path_str = str(full_path)
                             
-                            # Sprawdź czy już istnieje media z tym path
+                            # Check if media with this path already exists
                             exists_with_path = False
                             for existing_media in self._media_list:
                                 existing_path = existing_media.get('path', '')
@@ -1743,15 +1725,15 @@ class OptimizedPipelineJSONExporter:
                                     exists_with_path = True
                                     break
                             
-                            # Jeśli nie istnieje, dodaj nowy wpis
+                            # If doesn't exist, add new entry
                             if not exists_with_path:
-                                # Sprawdź czy istnieje media z tym rel_id ale innym path
+                                # Check if media with this rel_id but different path exists
                                 exists_with_same_rel_id = False
                                 for existing_media in self._media_list:
                                     if existing_media.get('rel_id') == rel_id:
                                         existing_path = existing_media.get('path', '')
                                         if existing_path and existing_path != full_path_str:
-                                            # To inny obraz z tym samym rel_id (różny kontekst)
+                                            # This is different image with same rel_id (different context)
                                             # Dodaj jako nowy wpis
                                             new_media = {
                                                 'rel_id': rel_id,
@@ -1764,7 +1746,7 @@ class OptimizedPipelineJSONExporter:
                                             exists_with_same_rel_id = True
                                             break
                                 
-                                # Jeśli nie istnieje z tym rel_id, dodaj nowy
+                                # If doesn't exist with this rel_id, add new
                                 if not exists_with_same_rel_id:
                                     new_media = {
                                         'rel_id': rel_id,
@@ -1774,7 +1756,7 @@ class OptimizedPipelineJSONExporter:
                 except Exception:
                     pass
         
-        # Teraz zaktualizuj istniejące media bez path
+        # Now update existing media without path
         for media in self._media_list:
             if 'path' not in media or not media.get('path') or media.get('path') == 'N/A':
                 rel_id = media.get('rel_id')
@@ -1790,7 +1772,7 @@ class OptimizedPipelineJSONExporter:
                                 from pathlib import Path
                                 full_path = Path(extract_to) / target
                                 if full_path.exists():
-                                    # Sprawdź czy ten path nie jest już używany przez inny media
+                                    # Check if this path is not already used by other media
                                     path_exists = False
                                     for other_media in self._media_list:
                                         if other_media.get('path') == str(full_path):
@@ -1802,8 +1784,8 @@ class OptimizedPipelineJSONExporter:
                         except Exception:
                             pass
         
-        # Po rozwiązaniu path, zaktualizuj cache dla media z path
-        # (ponieważ teraz mamy path, możemy użyć go jako klucza)
+        # After resolving path, update cache for media with path
+        # (because now we have path, we can use it as key)
         for i, media in enumerate(self._media_list):
             path = media.get('path')
             if path and path != 'N/A':
@@ -1814,18 +1796,18 @@ class OptimizedPipelineJSONExporter:
                     if word_idx >= 0:
                         normalized_path = path[word_idx:]
                 media_key = f"path::{normalized_path}"
-                # Zaktualizuj cache jeśli jeszcze nie ma
+                # Update cache if not already there
                 if media_key not in self._media_cache:
                     self._media_cache[media_key] = i
     
     def _deduplicate_media_by_path(self):
-        """Deduplikuje media po path (po rozwiązaniu rel_id)."""
+        """Deduplicates media by path (after resolving rel_id)."""
         # Grupuj media po path
         media_by_path = {}
         for i, media in enumerate(self._media_list):
             path = media.get('path')
             if path and path != 'N/A':
-                # Normalizuj path (usuń /tmp/... jeśli jest)
+                # Normalize path (remove /tmp/... if present)
                 normalized_path = path
                 if '/tmp/' in path and 'word/' in path:
                     word_idx = path.find('word/')
@@ -1838,12 +1820,12 @@ class OptimizedPipelineJSONExporter:
                     media_by_path[normalized_path] = []
                 media_by_path[normalized_path].append((i, media))
         
-        # Jeśli są duplikaty (ten sam path, różne rel_id), zostaw tylko jeden
+        # If there are duplicates (same path, different rel_id), keep only one
         # i zaktualizuj cache
         duplicates_to_remove = []
         for normalized_path, entries in media_by_path.items():
             if len(entries) > 1:
-                # Zostaw pierwszy, usuń resztę
+                # Keep first, remove rest
                 first_idx, first_media = entries[0]
                 for other_idx, other_media in entries[1:]:
                     duplicates_to_remove.append(other_idx)
@@ -1856,10 +1838,10 @@ class OptimizedPipelineJSONExporter:
                             self._media_cache[key] = first_idx
                             break
         
-        # Usuń duplikaty (w odwrotnej kolejności, aby nie zmieniać indeksów)
+        # Remove duplicates (in reverse order to not change indices)
         for idx in sorted(duplicates_to_remove, reverse=True):
             self._media_list.pop(idx)
-            # Zaktualizuj cache - zmniejsz ID dla wszystkich po usuniętym
+            # Update cache - decrease ID for all after removed
             for key in list(self._media_cache.keys()):
                 if self._media_cache[key] > idx:
                     self._media_cache[key] -= 1
@@ -1869,15 +1851,10 @@ class OptimizedPipelineJSONExporter:
     
     def _serialize_content(self, content: Any, depth: int = 0, block_type: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """
-        Serializuje content z uproszczeniem.
-        
-        Priorytety:
-        1. Tekst (dla paragraph)
-        2. Struktura tabeli (dla table)
-        3. Informacje o obrazie (dla image)
-        4. Minimalne metadane
-        
-        UWAGA: Podczas serializacji content również szukamy obrazów i rejestrujemy je w media.
+
+        Serializes content with simplification.
+
+        Priority...
         """
         if content is None:
             return None
@@ -1885,29 +1862,29 @@ class OptimizedPipelineJSONExporter:
         if depth >= self.max_content_depth:
             return {"type": "truncated", "depth": depth}
         
-        # PRZED serializacją - sprawdź czy w content są obrazy i zarejestruj je
-        # (to ważne, bo obrazy mogą być w zagnieżdżonych strukturach)
+        # BEFORE serialization - check if content has images and register them
+        # (this is important because images can be in nested structures)
         self._find_and_register_media(content, block_type or "", context=block_type or "")
         
         # BlockContent wrapper
         if hasattr(content, 'payload') and hasattr(content, 'raw'):
             return self._serialize_block_content(content, depth)
         
-        # ParagraphLayout - wyciągnij tekst
+        # ParagraphLayout - extract text
         if hasattr(content, 'lines'):
             return self._serialize_paragraph_layout(content, depth)
         
-        # TableLayout - wyciągnij strukturę tabeli
+        # TableLayout - extract table structure
         if hasattr(content, 'rows'):
             return self._serialize_table_layout(content, depth)
         
-        # Sprawdź czy w payload jest TableLayout
+        # Check if payload is TableLayout
         if hasattr(content, 'payload') and hasattr(content.payload, 'rows'):
             return self._serialize_table_layout(content.payload, depth)
         
-        # ImageLayout - wyciągnij informacje o obrazie
+        # ImageLayout - extract image information
         if hasattr(content, 'path') or hasattr(content, 'image_path') or hasattr(content, 'rel_id'):
-            # To może być ImageLayout - wyciągnij informacje o obrazie
+            # This may be ImageLayout - extract image information
             image_info = self._extract_image_info(content)
             if image_info:
                 # Zarejestruj obraz w media_list
@@ -1923,7 +1900,7 @@ class OptimizedPipelineJSONExporter:
                 }
                 return result
         
-        # GenericLayout - wyciągnij dane
+        # GenericLayout - extract data
         if hasattr(content, 'data'):
             return self._serialize_generic_layout(content, depth)
         
@@ -1935,10 +1912,10 @@ class OptimizedPipelineJSONExporter:
         if isinstance(content, (str, int, float, bool)):
             return {"value": content}
         
-        # Ostatnia deska ratunku - ale NIE używaj str() dla złożonych obiektów
-        # Zamiast tego spróbuj wyciągnąć ważne pola
+        # Last resort - but DON'T use str() for complex objects
+        # Instead try to extract important fields
         if hasattr(content, '__dict__'):
-            # Spróbuj wyciągnąć ważne pola z __dict__
+            # Try to extract important fields from __dict__
             obj_dict = content.__dict__
             result = {"type": type(content).__name__}
             for key in ['text', 'data', 'content', 'style', 'blocks', 'payload', 'raw']:
@@ -1948,36 +1925,36 @@ class OptimizedPipelineJSONExporter:
                         serialized = self._serialize_content(value, depth + 1)
                         if serialized:
                             result[key] = serialized
-            if len(result) > 1:  # Ma więcej niż tylko 'type'
+            if len(result) > 1:  # Has more than just 'type'
                 return result
         
-        # Jeśli wszystko inne zawiodło, zwróć minimalny obiekt
+        # If everything else failed, return minimal object
         return {"type": type(content).__name__}
     
     def _serialize_block_content(self, block_content: Any, depth: int) -> Dict[str, Any]:
-        """Serializuje BlockContent z pełnymi informacjami o runs, listach, etc."""
+        """Serializes BlockContent with full information about runs, lists, etc."""
         payload = block_content.payload
         raw = block_content.raw
         
-        # WAŻNE: Przeszukaj raw w poszukiwaniu obrazów (może być w footerach, headerach, itp.)
+        # IMPORTANT: Search raw for images (may be in footers, headers...)
         if raw:
             self._find_and_register_media(raw, "block_content_raw", context="raw")
         
-        # WAŻNE: Dla tabel - ZAWSZE sprawdź raw PRZED payload
-        # raw zawiera Table model z rows, payload może być TableLayout z pustymi rows
-        # Table dziedziczy z Body, więc ma children (TableRow), które mają cells (TableCell)
+        # IMPORTANT: For tables - ALWAYS check raw BEFORE payload
+        # raw contains Table model with rows, payload may be TableLayout with empty...
+        # Table inherits from Body, so has children (TableRow), which have cells...
         
-        # WAŻNE: Dla tabel - ZAWSZE sprawdź raw PRZED payload
-        # raw zawiera Table model z rows, payload może być TableLayout z pustymi rows
-        # Table dziedziczy z Body, więc ma children (TableRow), które mają cells (TableCell)
-        # UWAGA: raw może być dict (zserializowany) z obiektami TableRow w rows
+        # IMPORTANT: For tables - ALWAYS check raw BEFORE payload
+        # raw contains Table model with rows, payload may be TableLayout with empty...
+        # Table inherits from Body, so has children (TableRow), which have cells...
+        # NOTE: raw may be dict (serialized) with TableRow objects in rows
         if raw:
-            # Sprawdź czy raw to dict (może być już zserializowany)
+            # Check if raw is dict (may already be serialized)
             if isinstance(raw, dict):
-                # Sprawdź czy dict ma informacje o tabeli
+                # Check if dict has table information
                 if 'type' in raw and raw.get('type') == 'table':
                     rows = raw.get('rows', [])
-                    # Sprawdź czy rows to obiekty TableRow (nie dict)
+                    # Check if rows are TableRow objects (not dict)
                     if rows and not isinstance(rows[0], dict):
                         # rows to obiekty TableRow - zserializuj je
                         table_data = self._serialize_table_from_raw(raw, depth)
@@ -1986,12 +1963,12 @@ class OptimizedPipelineJSONExporter:
                         if table_data.get("rows"):
                             return table_data
                     elif rows:
-                        # rows są już dict - użyj bezpośrednio
+                        # rows are already dict - use directly
                         return raw
                 elif 'rows' in raw:
                     rows = raw.get('rows', [])
                     if rows:
-                        # Sprawdź czy rows to obiekty TableRow (nie dict)
+                        # Check if rows are TableRow objects (not dict)
                         if not isinstance(rows[0], dict):
                             # rows to obiekty TableRow - zserializuj je
                             table_data = self._serialize_table_from_raw(raw, depth)
@@ -2000,14 +1977,14 @@ class OptimizedPipelineJSONExporter:
                             if table_data.get("rows"):
                                 return table_data
                         else:
-                            # rows są już dict - użyj bezpośrednio
+                            # rows are already dict - use directly
                             return raw
             
-            # Sprawdź czy raw to Table model (ma rows LUB children z TableRow)
+            # Check if raw is Table model (has rows OR children with TableRow)
             is_table = False
             debug_info = {}
             
-            # Sprawdź czy to Table model po nazwie klasy
+            # Check if this is Table model by class name
             if hasattr(raw, '__class__'):
                 class_name = raw.__class__.__name__
                 debug_info['class_name'] = class_name
@@ -2015,14 +1992,14 @@ class OptimizedPipelineJSONExporter:
                     is_table = True
                     debug_info['is_table_by_class'] = True
             
-            # Sprawdź czy ma rows (standardowa struktura) - nawet jeśli puste, to może mieć children
+            # Check if has rows (standard structure) - even if empty, it may be...
             if hasattr(raw, 'rows'):
                 debug_info['has_rows'] = True
                 debug_info['rows_value'] = raw.rows
                 debug_info['rows_len'] = len(raw.rows) if raw.rows else 0
                 is_table = True
             
-            # Sprawdź czy ma children które są TableRow (Table dziedziczy z Body)
+            # Check if has children which are TableRow (Table inherits from Body)
             if hasattr(raw, 'children'):
                 debug_info['has_children'] = True
                 debug_info['children_value'] = raw.children
@@ -2035,37 +2012,37 @@ class OptimizedPipelineJSONExporter:
                         if hasattr(first_child, 'cells'):
                             debug_info['first_child_cells_len'] = len(first_child.cells) if first_child.cells else 0
                         if first_child and hasattr(first_child, 'cells'):
-                            # children to TableRow, które mają cells
+                            # children are TableRow, which have cells
                             is_table = True
             
             if is_table:
                 try:
                     table_data = self._serialize_table_from_raw(raw, depth)
-                    # Upewnij się, że type jest "table"
+                    # Ensure type is "table"
                     if isinstance(table_data, dict):
                         table_data["type"] = "table"
-                    # Sprawdź czy table_data ma rows (nie może być puste)
+                    # Check if table_data has rows (cannot be empty)
                     if table_data.get("rows"):
                         return table_data
                 except (AttributeError, TypeError, Exception) as e:
-                    # Jeśli błąd, spróbuj dalej
+                    # If error, try further
                     pass
         
-        # Sprawdź czy payload to TableLayout - serializuj bezpośrednio
-        # UWAGA: TableLayout.rows może być pusty, ale sprawdź czy są dane
+        # Check if payload is TableLayout - serialize directly
+        # NOTE: TableLayout.rows may be empty, but check if there is data
         if hasattr(payload, 'rows'):
             rows = payload.rows
-            # Sprawdź czy rows nie są puste
+            # Check if rows are not empty
             if rows and len(rows) > 0:
                 table_data = self._serialize_table_layout(payload, depth)
-                # Upewnij się, że type jest "table"
+                # Ensure type is "table"
                 if isinstance(table_data, dict):
                     table_data["type"] = "table"
                 return table_data
         
-        # WAŻNE: Sprawdź czy payload to ImageLayout - serializuj jako obraz
+        # IMPORTANT: Check if payload is ImageLayout - serialize as image
         if hasattr(payload, 'path') or hasattr(payload, 'image_path') or hasattr(payload, 'rel_id'):
-            # To może być ImageLayout - wyciągnij informacje o obrazie
+            # This may be ImageLayout - extract image information
             image_info = self._extract_image_info(payload)
             if image_info:
                 # Zarejestruj obraz w media_list
@@ -2085,17 +2062,17 @@ class OptimizedPipelineJSONExporter:
             "type": "BlockContent"
         }
         
-        # Serializuj payload (główna zawartość)
+        # Serialize payload (main content)
         payload_data = self._serialize_content(payload, depth + 1)
         if payload_data:
             result["payload"] = payload_data
         
-        # Dla paragrafów - wyciągnij runs z formatowaniem z raw
-        # Sprawdź numbering w różnych miejscach (raw może być dict lub obiekt)
+        # For paragraphs - extract runs with formatting from raw
+        # Check numbering in different places (raw may be dict or object)
         numbering = None
         if raw:
             if isinstance(raw, dict):
-                # Sprawdź czy raw ma runs_payload (z LayoutEngine)
+                # Check if raw has runs_payload (from LayoutEngine)
                 if 'runs_payload' in raw:
                     runs = self._serialize_runs_from_payload(raw['runs_payload'])
                     if runs:
@@ -2103,27 +2080,27 @@ class OptimizedPipelineJSONExporter:
                             result["payload"] = {}
                         result["payload"]["runs"] = runs
                 
-                # Sprawdź czy raw ma numbering (lista)
+                # Check if raw has numbering (list)
                 if 'numbering' in raw:
                     numbering = raw['numbering']
             elif hasattr(raw, 'numbering') and raw.numbering:
                 # Raw to obiekt z atrybutem numbering
                 numbering = raw.numbering
                 if not isinstance(numbering, dict):
-                    # Konwertuj na dict jeśli potrzeba
+                    # Convert to dict if needed
                     numbering = {
                         'id': getattr(numbering, 'id', None),
                         'level': getattr(numbering, 'level', None)
                     }
         
-        # Jeśli mamy numbering, serializuj list info
+        # If we have numbering, serialize list info
         if numbering and isinstance(numbering, dict):
             list_info = self._serialize_list_info(numbering, raw if isinstance(raw, dict) else {})
             if list_info:
-                # Dodaj bezpośrednio do result, nie w payload
+                # Add directly to result, not in payload
                 result["list"] = list_info
             
-            # Sprawdź czy raw ma paragraph properties (spacing, tabs, etc.)
+            # Check if raw has paragraph properties (spacing, tabs, etc.)
             if 'style' in raw or 'properties' in raw:
                 para_props = self._serialize_paragraph_properties(raw)
                 if para_props:
@@ -2131,15 +2108,15 @@ class OptimizedPipelineJSONExporter:
                         result["payload"] = {}
                     result["payload"]["paragraph_properties"] = para_props
         
-        # Dla tabel - zawsze sprawdź raw (nawet jeśli include_raw_content=False)
-        # ponieważ tabele mogą być przechowywane w raw
+        # For tables - always check raw (even if include_raw_content=False)
+        # because tables may be stored in raw
         if raw:
             raw_type_name = type(raw).__name__.lower() if hasattr(raw, '__class__') else str(type(raw)).lower()
             if isinstance(raw, dict):
                 raw_type_name = raw.get('type', '').lower()
             
             if 'table' in raw_type_name:
-                # Sprawdź czy raw ma rows (Table model)
+                # Check if raw has rows (Table model)
                 has_rows = False
                 rows_count = 0
                 
@@ -2156,21 +2133,21 @@ class OptimizedPipelineJSONExporter:
                         rows_count = len(rows)
                 
                 if has_rows:
-                    # Tabela w raw - serializuj i dodaj bezpośrednio do result (nie w payload)
+                    # Table in raw - serialize and add directly to result (not in payload...)
                     table_data = self._serialize_table_from_raw(raw, depth)
-                    # Scal z result (nadpisz jeśli już istnieje)
+                    # Merge with result (override if already exists)
                     if 'rows' in table_data and table_data['rows']:
                         result["rows"] = table_data["rows"]
-                    # Dodaj właściwości tabeli bezpośrednio do result
+                    # Add table properties directly to result
                     for key in ['borders', 'columns', 'cell_margins', 'cell_spacing', 'alignment', 'style', 'type']:
                         if key in table_data:
                             result[key] = table_data[key]
-                    # Upewnij się, że type jest "table"
+                    # Ensure type is "table"
                     result["type"] = "table"
-                    # Usuń payload jeśli był dodany wcześniej (tabela powinna być bezpośrednio w result)
+                    # Remove payload if was added earlier (table should be directly...
                     if 'payload' in result:
                         del result["payload"]
-                    # Zwróć result zamiast kontynuować (tabela jest już w pełni serializowana)
+                    # Return result instead of continuing (table is already fully serialized...)
                     return result
             elif self.include_raw_content:
                 result["raw_type"] = type(raw).__name__ if hasattr(raw, '__class__') else str(type(raw))
@@ -2182,7 +2159,7 @@ class OptimizedPipelineJSONExporter:
         return result
     
     def _serialize_runs_from_payload(self, runs_payload: List[Any]) -> List[Dict[str, Any]]:
-        """Serializuje runs z runs_payload z pełnym formatowaniem."""
+        """Serializes runs from runs_payload with full formatting."""
         runs = []
         for run in runs_payload:
             if isinstance(run, dict):
@@ -2232,7 +2209,7 @@ class OptimizedPipelineJSONExporter:
                     if run_style.get('position'):
                         run_data['position'] = run_style.get('position')  # Vertical position
                 
-                # Sprawdź też bezpośrednio w run
+                # Also check directly in run
                 for key in ['bold', 'italic', 'underline', 'font_name', 'font_size', 'color', 'highlight', 'superscript', 'subscript', 'strike_through']:
                     if key in run:
                         run_data[key] = run[key]
@@ -2253,14 +2230,14 @@ class OptimizedPipelineJSONExporter:
                             'target_mode': hyperlink.get('target_mode')
                         }
                     else:
-                        # Hyperlink może być obiektem
+                        # Hyperlink may be object
                         run_data['hyperlink'] = {
                             'id': getattr(hyperlink, 'id', None),
                             'target': getattr(hyperlink, 'target', None),
                             'target_mode': getattr(hyperlink, 'target_mode', None)
                         }
                 
-                # Sprawdź też w children (hyperlinks mogą być w children)
+                # Also check in children (hyperlinks may be in children)
                 if run.get('children'):
                     for child in run.get('children', []):
                         if isinstance(child, dict) and child.get('type') == 'hyperlink':
@@ -2295,7 +2272,7 @@ class OptimizedPipelineJSONExporter:
                     "text": run.text or ""
                 }
                 
-                # Formatowanie z atrybutów
+                # Formatting from attributes
                 if hasattr(run, 'bold') and run.bold:
                     run_data['bold'] = True
                 if hasattr(run, 'italic') and run.italic:
@@ -2344,7 +2321,7 @@ class OptimizedPipelineJSONExporter:
         return runs
     
     def _serialize_list_info(self, numbering: Dict[str, Any], raw: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """Serializuje informacje o liście (numbering)."""
+        """Serializes list information (numbering)."""
         num_id = numbering.get('id')
         level = numbering.get('level')
         
@@ -2352,12 +2329,12 @@ class OptimizedPipelineJSONExporter:
             return None
         
         list_info = {
-            "type": "ordered",  # Domyślnie ordered, sprawdzimy format
+            "type": "ordered",  # Default ordered, will check format
             "level": int(level) if level else 0,
             "numbering_id": str(num_id)
         }
         
-        # Sprawdź marker jeśli dostępny
+        # Check marker if available
         if 'marker' in raw:
             marker = raw['marker']
             if isinstance(marker, dict):
@@ -2365,7 +2342,7 @@ class OptimizedPipelineJSONExporter:
                 if marker_text:
                     list_info['marker'] = marker_text
                 
-                # Sprawdź format
+                # Check format
                 format_type = marker.get('format', 'decimal')
                 if format_type in ['bullet', 'none', 'nothing']:
                     list_info['type'] = 'unordered'
@@ -2373,7 +2350,7 @@ class OptimizedPipelineJSONExporter:
                     list_info['type'] = 'ordered'
                     list_info['format'] = format_type
         
-        # Sprawdź indent z numbering metrics
+        # Check indent from numbering metrics
         if 'numbering_metrics' in raw:
             metrics = raw['numbering_metrics']
             if isinstance(metrics, dict):
@@ -2385,7 +2362,7 @@ class OptimizedPipelineJSONExporter:
         return list_info
     
     def _serialize_paragraph_properties(self, raw: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """Serializuje właściwości paragrafu (spacing, tabs, page breaks, etc.)."""
+        """Serializes paragraph properties (spacing, tabs, page breaks, etc.)."""
         props = {}
         
         # Spacing
@@ -2459,28 +2436,28 @@ class OptimizedPipelineJSONExporter:
         return props if props else None
     
     def _serialize_table_from_raw(self, table: Any, depth: int) -> Dict[str, Any]:
-        """Serializuje tabelę z raw obiektu (Table model) lub dict z pełną strukturą."""
+        """Serializes table from raw object (Table model) or dict with full structure..."""
         result = {
             "type": "table",
             "rows": []
         }
         row_props: List[Dict[str, Any]] = []
         
-        # Sprawdź czy table to dict (może być już zserializowany)
+        # Check if table is dict (may already be serialized)
         if isinstance(table, dict):
-            # Dict ma już strukturę tabeli - wyciągnij rows
+            # Dict already has table structure - extract rows
             rows = table.get('rows', [])
             
-            # Wyciągnij właściwości tabeli z dict
+            # Extract table properties from dict
             if 'grid' in table:
                 result['columns'] = self._serialize_table_grid(table['grid'])
             if 'style' in table:
                 result['style'] = table['style']
             
-            # Serializuj rows (mogą być obiektami TableRow)
+            # Serialize rows (may be TableRow objects)
             for row in rows:
                 row_data = []
-                # Sprawdź czy row to obiekt TableRow czy dict
+                # Check if row is TableRow object or dict
                 if hasattr(row, 'cells'):
                     # row to obiekt TableRow
                     for cell in row.cells:
@@ -2498,7 +2475,7 @@ class OptimizedPipelineJSONExporter:
                             cell_content.update(cell_merge_info)
                         row_data.append(cell_content)
                 elif isinstance(row, dict):
-                    # row to dict - użyj bezpośrednio
+                    # row is dict - use directly
                     row_data = row.get('cells', [])
                 
                 if row_data:
@@ -2514,7 +2491,7 @@ class OptimizedPipelineJSONExporter:
                 result["properties"] = table_properties
             return result
         
-        # Wyciągnij właściwości tabeli
+        # Extract table properties
         table_props = self._extract_table_properties_from_raw(table)
         if table_props:
             result.update(table_props)
@@ -2524,7 +2501,7 @@ class OptimizedPipelineJSONExporter:
         elif hasattr(table, "style") and isinstance(table.style, dict):
             style_dict = table.style
         
-        # DEBUG: Sprawdź strukturę tabeli
+        # DEBUG: Check table structure
         debug_info = {
             'has_rows': hasattr(table, 'rows'),
             'has_children': hasattr(table, 'children'),
@@ -2544,7 +2521,7 @@ class OptimizedPipelineJSONExporter:
         
         logger.debug(f"_serialize_table_from_raw debug: {debug_info}")
         
-        # Metoda 1: Sprawdź czy table ma rows (standardowa struktura Table.rows)
+        # Method 1: Check if table has rows (standard Table.rows structure)
         if hasattr(table, 'rows') and table.rows:
             logger.debug(f"Using method 1: table.rows (len={len(table.rows)})")
             for row in table.rows:
@@ -2564,12 +2541,12 @@ class OptimizedPipelineJSONExporter:
                         if cell_merge_info:
                             cell_content.update(cell_merge_info)
                         row_data.append(cell_content)
-                if row_data:  # Dodaj tylko jeśli row ma cells
+                if row_data:  # Add only if row has cells
                     result["rows"].append(row_data)
                     row_props.append(self._extract_row_properties(row))
         
-        # Metoda 2: Jeśli rows jest puste, sprawdź children (Table dziedziczy z Body)
-        # Table.children to TableRow, które mają cells
+        # Method 2: If rows is empty, check children (Table inherits from Body...)
+        # Table.children are TableRow, which have cells
         elif hasattr(table, 'children') and table.children:
             # Zbierz wszystkie cells z children (TableRow) i zgrupuj w rows
             for child in table.children:
@@ -2587,17 +2564,17 @@ class OptimizedPipelineJSONExporter:
                         result["rows"].append(row_data)
                         row_props.append(self._extract_row_properties(child))
         
-        # Metoda 3: Jeśli children to bezpośrednio cells (rzadki przypadek)
+        # Method 3: If children are directly cells (rare case)
         elif hasattr(table, 'children') and table.children:
-            # Sprawdź czy children to TableCell (bezpośrednio)
+            # Check if children are TableCell (directly)
             cells = []
             for child in table.children:
-                # Sprawdź czy to TableCell
+                # Check if this is TableCell
                 if hasattr(child, 'cells') or (hasattr(child, '__class__') and 'TableCell' in child.__class__.__name__):
                     cells.append(child)
             
-            # Jeśli mamy cells, zgrupuj je w rows na podstawie pozycji
-            # (to wymaga dodatkowej logiki, ale na razie po prostu stwórz jeden row)
+            # If we have cells, group them into rows based on position
+            # (this requires additional logic, but for now just create one row)
             if cells:
                 row_data = []
                 for cell in cells:
@@ -2620,10 +2597,10 @@ class OptimizedPipelineJSONExporter:
         return result
     
     def _extract_table_properties_from_raw(self, table: Any) -> Dict[str, Any]:
-        """Wyciąga właściwości tabeli z raw Table model."""
+        """Extracts table properties from raw Table model."""
         props = {}
         
-        # Sprawdź properties
+        # Check properties
         if hasattr(table, 'properties') and table.properties:
             table_props = table.properties
             if hasattr(table_props, 'borders') and table_props.borders:
@@ -2639,11 +2616,11 @@ class OptimizedPipelineJSONExporter:
             if hasattr(table_props, 'grid') and table_props.grid:
                 props['columns'] = self._serialize_table_grid(table_props.grid)
         
-        # Sprawdź grid bezpośrednio
+        # Check grid directly
         if hasattr(table, 'grid') and table.grid:
             props['columns'] = self._serialize_table_grid(table.grid)
         
-        # Sprawdź style bezpośrednio
+        # Check style directly
         if hasattr(table, 'style'):
             style = table.style
             if isinstance(style, dict):
@@ -2655,19 +2632,19 @@ class OptimizedPipelineJSONExporter:
         return props
     
     def _serialize_cell_from_raw(self, cell: Any) -> Dict[str, Any]:
-        """Serializuje komórkę z raw obiektu (TableCell model)."""
+        """Serializes cell from raw object (TableCell model)."""
         result = {
             "text": "",
             "blocks": []
         }
         
-        # Wyciągnij tekst z komórki
+        # Extract text from cell
         if hasattr(cell, 'get_text'):
             result["text"] = cell.get_text() or ''
         elif hasattr(cell, 'text'):
             result["text"] = str(cell.text) or ''
         
-        # Wyciągnij zawartość (paragraphs, tables, images)
+        # Extract content (paragraphs, tables, images)
         if hasattr(cell, 'children'):
             for child in cell.children:
                 block_data = self._serialize_cell_element(child)
@@ -2679,25 +2656,25 @@ class OptimizedPipelineJSONExporter:
                 if block_data:
                     result["blocks"].append(block_data)
         
-        # WAŻNE: Dodaj właściwości komórki (margins, borders, colspan, rowspan)
+        # IMPORTANT: Add cell properties (margins, borders, colspan, rowspan)
         cell_merge_info = self._extract_cell_merge_info(cell)
         if cell_merge_info:
             result.update(cell_merge_info)
         
-        # Usuń puste bloki
+        # Remove empty blocks
         if not result["blocks"]:
             del result["blocks"]
         
         return result
     
     def _serialize_cell_element(self, element: Any) -> Optional[Dict[str, Any]]:
-        """Serializuje element w komórce (paragraph, table, image)."""
+        """Serializes element in cell (paragraph, table, image)."""
         if element is None:
             return None
         
         result = {}
         
-        # Sprawdź typ elementu
+        # Check element type
         element_type = type(element).__name__.lower()
         
         if 'paragraph' in element_type:
@@ -2712,7 +2689,7 @@ class OptimizedPipelineJSONExporter:
                 result["rows"] = self._serialize_table_from_raw(element, depth=0)["rows"]
         elif 'image' in element_type or 'drawing' in element_type:
             result["type"] = "image"
-            # Wyciągnij informacje o obrazie
+            # Extract image information
             if hasattr(element, 'get_src'):
                 result["src"] = element.get_src() or ''
             if hasattr(element, 'rel_id'):
@@ -2721,13 +2698,13 @@ class OptimizedPipelineJSONExporter:
         return result if result else None
     
     def _serialize_paragraph_layout(self, paragraph: Any, depth: int) -> Dict[str, Any]:
-        """Serializuje ParagraphLayout - wyciąga tekst i runs z formatowaniem."""
+        """Serializes ParagraphLayout - extracts text and runs with formatting."""
         result = {
             "type": "paragraph",
             "text": ""
         }
         
-        # WAŻNE: Przeszukaj paragraf w poszukiwaniu obrazów (mogą być inline w runs)
+        # IMPORTANT: Search paragraph for images (may be inline in runs...)
         self._find_and_register_media(paragraph, "paragraph", context="paragraph")
         
         text_parts = []
@@ -2735,12 +2712,12 @@ class OptimizedPipelineJSONExporter:
         
         if hasattr(paragraph, 'lines'):
             for line in paragraph.lines:
-                # Przeszukaj linię
+                # Search line
                 self._find_and_register_media(line, "paragraph_line", context="paragraph_line")
                 
                 if hasattr(line, 'items'):
                     for item in line.items:
-                        # Przeszukaj każdy item (może zawierać obrazy w runs)
+                        # Search each item (may contain images in runs)
                         self._find_and_register_media(item, "paragraph_item", context="paragraph_item")
                         
                         if hasattr(item, 'data') and isinstance(item.data, dict):
@@ -2748,7 +2725,7 @@ class OptimizedPipelineJSONExporter:
                             if item_text:
                                 text_parts.append(item_text)
                                 
-                                # Wyciągnij formatowanie z item.data jeśli dostępne
+                                # Extract formatting from item.data if available
                                 run_data = self._extract_run_from_item(item)
                                 if run_data:
                                     runs.append(run_data)
@@ -2756,18 +2733,18 @@ class OptimizedPipelineJSONExporter:
         if text_parts:
             result["text"] = ' '.join(text_parts)
         
-        # WAŻNE: Dodaj runs bezpośrednio do result (nie w payload)
+        # IMPORTANT: Add runs directly to result (not in payload)
         if runs:
             result["runs"] = runs
         
-        # Dodaj minimalne metadane jeśli potrzebne
+        # Add minimal metadata if needed
         if self.include_raw_content and hasattr(paragraph, 'style'):
             result["style_ref"] = getattr(paragraph.style, 'name', None)
         
         return result
     
     def _extract_run_from_item(self, item: Any) -> Optional[Dict[str, Any]]:
-        """Wyciąga informacje o run z item (dla formatowania)."""
+        """Extracts run information from item (for formatting)."""
         if not hasattr(item, 'data') or not isinstance(item.data, dict):
             return None
         
@@ -2780,7 +2757,7 @@ class OptimizedPipelineJSONExporter:
             "text": text
         }
         
-        # Wyciągnij formatowanie z data
+        # Extract formatting from data
         if 'style' in data:
             style = data['style']
             if isinstance(style, dict):
@@ -2806,24 +2783,24 @@ class OptimizedPipelineJSONExporter:
                 if style.get('strike_through') or style.get('strikethrough'):
                     run['strike_through'] = True
         
-        # Sprawdź też bezpośrednio w data
+        # Also check directly in data
         for key in ['bold', 'italic', 'underline', 'font_name', 'font_size', 'color', 'highlight']:
             if key in data:
                 run[key] = data[key]
         
-        return run if len(run) > 1 else None  # Zwróć tylko jeśli ma formatowanie
+        return run if len(run) > 1 else None  # Return only if has formatting
     
     def _serialize_table_layout(self, table: Any, depth: int) -> Dict[str, Any]:
-        """Serializuje TableLayout - wyciąga pełną strukturę tabeli z borders, columns, margins, etc."""
+        """Serializes TableLayout - extracts full table structure with borders, columns..."""
         result = {
             "type": "table",
             "rows": []
         }
         
-        # WAŻNE: Przeszukaj całą tabelę w poszukiwaniu obrazów
+        # IMPORTANT: Search entire table for images
         self._find_and_register_media(table, "table", context="table")
         
-        # Wyciągnij właściwości tabeli
+        # Extract table properties
         table_props = self._extract_table_properties(table)
         if table_props:
             result.update(table_props)
@@ -2833,7 +2810,7 @@ class OptimizedPipelineJSONExporter:
         elif hasattr(table, "style") and isinstance(table.style, dict):
             style_dict = table.style
         
-        # Sprawdź różne możliwe struktury TableLayout
+        # Check various possible TableLayout structures
         rows_data = []
         row_props: List[Dict[str, Any]] = []
         
@@ -2854,7 +2831,7 @@ class OptimizedPipelineJSONExporter:
                             cell_content = self._serialize_table_cell_layout(cell)
                             if cell_content:
                                 row_data.append(cell_content)
-                    # Alternatywnie, row może być TableRow z cells
+                    # Alternatively, row may be TableRow with cells
                     elif hasattr(row, 'cells'):
                         for cell in row.cells:
                             cell_content = self._serialize_cell_content(cell)
@@ -2863,7 +2840,7 @@ class OptimizedPipelineJSONExporter:
                                 cell_content.update(cell_merge_info)
                             row_data.append(cell_content)
                     elif hasattr(row, '__iter__') and not isinstance(row, (str, bytes)):
-                        # Row jest iterowalne (lista komórek)
+                        # Row is iterable (list of cells)
                         for cell in row:
                             cell_content = self._serialize_cell_content(cell)
                             cell_merge_info = self._extract_cell_merge_info(cell)
@@ -2876,19 +2853,19 @@ class OptimizedPipelineJSONExporter:
                         props = self._extract_row_properties(row)
                         row_props.append(props)
         
-        # Opcja 2: Sprawdź czy w payload/data jest tabela
+        # Option 2: Check if payload/data has table
         if not rows_data and hasattr(table, 'payload'):
             payload = table.payload
             if hasattr(payload, 'rows'):
                 return self._serialize_table_layout(payload, depth)
         
-        # Opcja 3: Sprawdź czy w raw jest tabela (z BlockContent)
+        # Option 3: Check if raw has table (from BlockContent)
         if not rows_data and hasattr(table, 'raw'):
             raw = table.raw
             if raw and (hasattr(raw, 'rows') or (isinstance(raw, dict) and 'rows' in raw)):
                 return self._serialize_table_from_raw(raw, depth)
         
-        # Jeśli nadal nie ma rows, ale to TableLayout, sprawdź czy może być w content/data
+        # If still no rows, but this is TableLayout, check if may be in content...
         if not rows_data and hasattr(table, 'content'):
             content = table.content
             if hasattr(content, 'rows'):
@@ -2896,7 +2873,7 @@ class OptimizedPipelineJSONExporter:
         
         result["rows"] = rows_data
         if row_props and any(row_props):
-            # Upewnij się, że długość odpowiada liczbie wierszy
+            # Ensure length matches number of rows
             while len(row_props) < len(rows_data):
                 row_props.append({})
             result["row_properties"] = row_props
@@ -2906,16 +2883,16 @@ class OptimizedPipelineJSONExporter:
         return result
     
     def _serialize_table_cell_layout(self, cell_layout: Any) -> Dict[str, Any]:
-        """Serializuje TableCellLayout z pełną zawartością."""
+        """Serializes TableCellLayout with full content."""
         result = {
             "text": "",
             "blocks": []
         }
         
-        # WAŻNE: Przeszukaj komórkę w poszukiwaniu obrazów
+        # IMPORTANT: Search cell for images
         self._find_and_register_media(cell_layout, "table_cell_layout", context="table_cell_layout")
         
-        # Sprawdź różne możliwe struktury TableCellLayout
+        # Check various possible TableCellLayout structures
         text_parts = []
         blocks_data = []
         
@@ -2924,7 +2901,7 @@ class OptimizedPipelineJSONExporter:
             for block in cell_layout.blocks:
                 self._find_and_register_media(block, "table_cell_block", context="table_cell_block")
                 
-                # Wyciągnij tekst
+                # Extract text
                 block_text = self._extract_text_from_block(block)
                 if block_text:
                     text_parts.append(block_text)
@@ -2938,14 +2915,14 @@ class OptimizedPipelineJSONExporter:
         elif hasattr(cell_layout, 'content'):
             content = cell_layout.content
             if hasattr(content, 'lines'):
-                # ParagraphLayout w komórce
+                # ParagraphLayout in cell
                 para_data = self._serialize_paragraph_layout(content, depth=0)
                 if para_data:
                     blocks_data.append(para_data)
                     if 'text' in para_data:
                         text_parts.append(para_data['text'])
         
-        # Opcja 3: Sprawdź czy cell_layout ma bezpośrednio text/data
+        # Option 3: Check if cell_layout has text/data directly
         if hasattr(cell_layout, 'text'):
             text = getattr(cell_layout, 'text', '')
             if text:
@@ -2961,7 +2938,7 @@ class OptimizedPipelineJSONExporter:
         if blocks_data:
             result["blocks"] = blocks_data
         
-        # Wyciągnij właściwości komórki
+        # Extract cell properties
         cell_props = self._extract_cell_properties(cell_layout)
         if cell_props:
             result.update(cell_props)
@@ -2970,17 +2947,17 @@ class OptimizedPipelineJSONExporter:
         if merge_info:
             result.update(merge_info)
         
-        # Usuń puste bloki
+        # Remove empty blocks
         if not result["blocks"]:
             del result["blocks"]
         
         return result
     
     def _extract_table_properties(self, table: Any) -> Dict[str, Any]:
-        """Wyciąga właściwości tabeli (borders, columns, margins, style, etc.)."""
+        """Extracts table properties (borders, columns, margins, style, etc.)."""
         props = {}
         
-        # Sprawdź style tabeli
+        # Check table style
         if hasattr(table, 'style'):
             style = table.style
             if isinstance(style, dict):
@@ -2989,7 +2966,7 @@ class OptimizedPipelineJSONExporter:
                 if borders:
                     props['borders'] = self._serialize_borders(borders)
                 
-                # Cell margins (domyślne dla całej tabeli)
+                # Cell margins (default for entire table)
                 cell_margins = style.get('cell_margins') or style.get('margins')
                 if cell_margins:
                     props['cell_margins'] = self._serialize_margins(cell_margins)
@@ -3025,7 +3002,7 @@ class OptimizedPipelineJSONExporter:
                 if style.get('table_indent') is not None:
                     props.setdefault('indent', {}).update({'value': style.get('table_indent')})
         
-        # Sprawdź properties obiektu
+        # Check object properties
         if hasattr(table, 'properties'):
             table_props = table.properties
             if hasattr(table_props, 'borders') and table_props.borders:
@@ -3052,7 +3029,7 @@ class OptimizedPipelineJSONExporter:
                 if shading:
                     props['shading'] = shading
         
-        # Sprawdź grid bezpośrednio
+        # Check grid directly
         if hasattr(table, 'grid') and table.grid:
             props['columns'] = self._serialize_table_grid(table.grid)
             props['grid'] = table.grid
@@ -3066,7 +3043,7 @@ class OptimizedPipelineJSONExporter:
         return props
     
     def _serialize_borders(self, borders: Any) -> Dict[str, Any]:
-        """Serializuje ramki tabeli/komórki."""
+        """Serializes table/cell borders."""
         if not borders:
             return {}
         
@@ -3089,7 +3066,7 @@ class OptimizedPipelineJSONExporter:
         return {}
 
     def _serialize_shading(self, shading: Any) -> Dict[str, Any]:
-        """Konwertuje dane shading na prostą strukturę JSON."""
+        """Converts shading data to simple JSON structure."""
         if not shading:
             return {}
         if isinstance(shading, dict):
@@ -3097,7 +3074,7 @@ class OptimizedPipelineJSONExporter:
             for key, value in shading.items():
                 plain_key = key.split('}')[-1]
                 result[plain_key] = value
-            # Najważniejsze pola: fill (tło), color (tekst), val (wzór)
+            # Most important fields: fill (background), color (text), val (pattern)
             fill = shading.get('fill')
             if fill:
                 result.setdefault('fill', fill)
@@ -3111,7 +3088,7 @@ class OptimizedPipelineJSONExporter:
         return {"value": shading}
     
     def _serialize_margins(self, margins: Any) -> Dict[str, float]:
-        """Serializuje marginesy (komórki lub tabeli)."""
+        """Serializes margins (cell or table)."""
         if not margins:
             return {}
         
@@ -3120,15 +3097,15 @@ class OptimizedPipelineJSONExporter:
             for side in ['top', 'bottom', 'left', 'right']:
                 margin = margins.get(side)
                 if margin:
-                    # Konwertuj z twips na punkty jeśli potrzeba
+                    # Convert from twips to points if needed
                     if isinstance(margin, (int, float)):
-                        # Jeśli wartość jest duża (> 100), prawdopodobnie w twips
+                        # If value is large (> 100), probably in twips
                         if margin > 100:
                             result[side] = margin / 20.0  # twips to points
                         else:
                             result[side] = float(margin)
                     elif isinstance(margin, dict):
-                        # Może być w formacie {w: 1440, type: "dxa"}
+                        # May be in format {w: 1440, type: "dxa"}
                         width = margin.get('w') or margin.get('width') or margin.get('value')
                         if width:
                             if isinstance(width, (int, float)) and width > 100:
@@ -3158,7 +3135,7 @@ class OptimizedPipelineJSONExporter:
             return numeric / 20.0
     
     def _serialize_table_grid(self, grid: List[Any]) -> List[Dict[str, Any]]:
-        """Serializuje grid tabeli (kolumny z szerokościami)."""
+        """Serializes table grid (columns with widths)."""
         columns = []
         for col in grid:
             if isinstance(col, dict):
@@ -3166,19 +3143,19 @@ class OptimizedPipelineJSONExporter:
                     'width': col.get('width') or col.get('w'),
                     'width_type': col.get('width_type') or col.get('type') or 'auto'
                 }
-                # Konwertuj z twips na punkty jeśli potrzeba
+                # Convert from twips to points if needed
                 if col_info['width'] and isinstance(col_info['width'], (int, float)):
                     if col_info['width'] > 100:
                         col_info['width'] = col_info['width'] / 20.0
                 columns.append(col_info)
             elif isinstance(col, (int, float)):
-                # Tylko szerokość
+                # Width only
                 width = col / 20.0 if col > 100 else col
                 columns.append({'width': width, 'width_type': 'auto'})
         return columns
     
     def _extract_cell_merge_info(self, cell: Any) -> Dict[str, Any]:
-        """Wyciąga informacje o merged cells (grid_span, vertical_merge)."""
+        """Extracts merged cells information (grid_span, vertical_merge)."""
         merge_info = {}
         
         # Grid span (horizontal merge)
@@ -3218,7 +3195,7 @@ class OptimizedPipelineJSONExporter:
         elif isinstance(vertical_merge, int) and vertical_merge > 1:
             merge_info['rowspan'] = vertical_merge
         
-        # Cell margins (specyficzne dla komórki)
+        # Cell margins (specific to cell)
         cell_margins = None
         if hasattr(cell, 'cell_margins'):
             cell_margins = cell.cell_margins
@@ -3232,7 +3209,7 @@ class OptimizedPipelineJSONExporter:
             if margins:
                 merge_info['margins'] = margins
         
-        # Cell borders (specyficzne dla komórki)
+        # Cell borders (specific to cell)
         cell_borders = None
         if hasattr(cell, 'borders'):
             cell_borders = cell.borders
@@ -3285,7 +3262,7 @@ class OptimizedPipelineJSONExporter:
         return merge_info
 
     def _extract_row_properties(self, row: Any) -> Dict[str, Any]:
-        """Zwraca właściwości wiersza tabeli."""
+        """Returns table row properties."""
         props: Dict[str, Any] = {}
         if hasattr(row, 'height') and row.height:
             props['height_twips'] = row.height
@@ -3308,35 +3285,35 @@ class OptimizedPipelineJSONExporter:
                 props['shading'] = shading
         if hasattr(row, 'style') and isinstance(row.style, dict) and row.style:
             props.setdefault('raw_style', row.style)
-        # Usuń puste wpisy
+        # Remove empty entries
         return {k: v for k, v in props.items() if v not in (None, {}, [])}
     
     def _serialize_cell_content(self, cell: Any) -> Dict[str, Any]:
-        """Serializuje zawartość komórki tabeli z pełnymi informacjami."""
+        """Serializes table cell content with full information."""
         result = {
             "text": "",
             "blocks": []
         }
         
-        # WAŻNE: Przeszukaj komórkę w poszukiwaniu obrazów przed serializacją
+        # IMPORTANT: Search cell for images before serialization
         self._find_and_register_media(cell, "table_cell", context="table_cell")
         
-        # Sprawdź różne możliwe struktury komórki
+        # Check various possible cell structures
         text_parts = []
         blocks_data = []
         
         # Opcja 1: cell.blocks (TableLayout cell)
         if hasattr(cell, 'blocks'):
             for block in cell.blocks:
-                # WAŻNE: Przeszukaj każdy blok w komórce w poszukiwaniu obrazów
+                # IMPORTANT: Search each block in cell for images
                 self._find_and_register_media(block, "table_cell_block", context="table_cell_block")
                 
-                # Wyciągnij tekst
+                # Extract text
                 block_text = self._extract_text_from_block(block)
                 if block_text:
                     text_parts.append(block_text)
                 
-                # Serializuj blok (może zawierać obrazy, tabele zagnieżdżone, etc.)
+                # Serialize block (may contain images, nested tables, etc.)
                 block_data = self._serialize_cell_block(block)
                 if block_data:
                     blocks_data.append(block_data)
@@ -3346,7 +3323,7 @@ class OptimizedPipelineJSONExporter:
             for child in cell.children:
                 self._find_and_register_media(child, "table_cell_child", context="table_cell_child")
                 
-                # Wyciągnij tekst
+                # Extract text
                 if hasattr(child, 'get_text'):
                     child_text = child.get_text() or ''
                     if child_text:
@@ -3371,7 +3348,7 @@ class OptimizedPipelineJSONExporter:
                 if element_data:
                     blocks_data.append(element_data)
         
-        # Opcja 4: cell.get_text() (prosta komórka)
+        # Option 4: cell.get_text() (simple cell)
         elif hasattr(cell, 'get_text'):
             text = cell.get_text() or ''
             if text:
@@ -3389,19 +3366,19 @@ class OptimizedPipelineJSONExporter:
         if blocks_data:
             result["blocks"] = blocks_data
         
-        # Wyciągnij właściwości komórki (margins, borders, vertical alignment, colspan, rowspan)
+        # Extract cell properties (margins, borders, vertical alignment, colspan...
         cell_merge_info = self._extract_cell_merge_info(cell)
         if cell_merge_info:
             result.update(cell_merge_info)
         
-        # Usuń puste bloki
+        # Remove empty blocks
         if not result["blocks"]:
             del result["blocks"]
         
         return result
     
     def _extract_cell_properties(self, cell: Any) -> Dict[str, Any]:
-        """Wyciąga właściwości komórki (margins, borders, vertical alignment)."""
+        """Extracts cell properties (margins, borders, vertical alignment)."""
         props = {}
         
         # Cell margins
@@ -3445,13 +3422,13 @@ class OptimizedPipelineJSONExporter:
         return props
     
     def _serialize_cell_block(self, block: Any) -> Optional[Dict[str, Any]]:
-        """Serializuje blok w komórce tabeli."""
+        """Serializes block in table cell."""
         if block is None:
             return None
         
         result = {}
         
-        # Sprawdź typ bloku
+        # Check block type
         if hasattr(block, 'payload'):
             payload = block.payload
             if hasattr(payload, 'lines'):
@@ -3474,7 +3451,7 @@ class OptimizedPipelineJSONExporter:
                 if media_id is not None:
                     result["media_id"] = media_id
             elif hasattr(payload, 'rows'):
-                # TableLayout (zagnieżdżona tabela)
+                # TableLayout (nested table)
                 result["type"] = "table"
                 result["rows"] = self._serialize_table_layout(payload, depth=0)["rows"]
         
@@ -3487,7 +3464,7 @@ class OptimizedPipelineJSONExporter:
         }
         
         if hasattr(layout, 'data') and isinstance(layout.data, dict):
-            # Wyciągnij tekst jeśli dostępny
+            # Extract text if available
             if 'text' in layout.data:
                 result["text"] = layout.data['text']
             else:
@@ -3498,14 +3475,14 @@ class OptimizedPipelineJSONExporter:
         return result
     
     def _serialize_object(self, obj: Any, depth: int) -> Dict[str, Any]:
-        """Serializuje obiekt - NIE używa repr(), zawsze zwraca czysty JSON."""
-        # Sprawdź czy to dict - jeśli tak, użyj go bezpośrednio
+        """Serializes object - does NOT use repr(), always returns clean JSON."""
+        # Check if this is dict - if so, use it directly
         if isinstance(obj, dict):
             result = {}
-            # Przenieś wszystkie pola jako normalne wartości JSON
+            # Move all fields as normal JSON values
             for key, value in obj.items():
                 if value is not None:
-                    # Serializuj rekurencyjnie zamiast używać repr()
+                    # Serialize recursively instead of using repr()
                     if isinstance(value, (str, int, float, bool, type(None))):
                         result[key] = value
                     elif isinstance(value, (list, tuple)):
@@ -3520,16 +3497,16 @@ class OptimizedPipelineJSONExporter:
             "type": type(obj).__name__
         }
         
-        # Sprawdź czy to dict-like object
+        # Check if this is dict-like object
         if hasattr(obj, '__dict__'):
             obj_dict = obj.__dict__
-            # Wyciągnij ważne pola jako normalne wartości JSON
+            # Extract important fields as normal JSON values
             important_fields = ['text', 'data', 'content', 'value', 'style', 'blocks', 'payload', 'raw', 'type', 'blocks', 'runs', 'lines', 'items']
             for field in important_fields:
                 if field in obj_dict:
                     value = obj_dict[field]
                     if value is not None:
-                        # Serializuj rekurencyjnie zamiast używać repr()
+                        # Serialize recursively instead of using repr()
                         if isinstance(value, (str, int, float, bool, type(None))):
                             result[field] = value
                         elif isinstance(value, (list, tuple)):
@@ -3539,7 +3516,7 @@ class OptimizedPipelineJSONExporter:
                             if serialized:
                                 result[field] = serialized
         
-        # Sprawdź czy ma atrybuty bezpośrednio (nie w __dict__)
+        # Check if has attributes directly (not in __dict__)
         for attr in ['text', 'data', 'content', 'style', 'blocks', 'payload', 'raw', 'runs', 'lines', 'items']:
             if hasattr(obj, attr) and attr not in result:
                 value = getattr(obj, attr, None)
@@ -3553,7 +3530,7 @@ class OptimizedPipelineJSONExporter:
                         if serialized:
                             result[attr] = serialized
         
-        # Sprawdź czy to SimpleNamespace lub podobny obiekt
+        # Check if this is SimpleNamespace or similar object
         if hasattr(obj, '__class__') and hasattr(obj, '__dict__'):
             # Przeszukaj wszystkie atrybuty
             for key in dir(obj):
@@ -3563,18 +3540,18 @@ class OptimizedPipelineJSONExporter:
                         if value is not None and not callable(value):
                             if isinstance(value, (str, int, float, bool, type(None))):
                                 result[key] = value
-                            elif isinstance(value, (list, tuple)) and len(value) < 100:  # Ogranicz długie listy
-                                result[key] = [self._serialize_content(item, depth + 1) if not isinstance(item, (str, int, float, bool)) else item for item in value[:10]]  # Ogranicz do 10 elementów
+                            elif isinstance(value, (list, tuple)) and len(value) < 100:  # Limit long lists
+                                result[key] = [self._serialize_content(item, depth + 1) if not isinstance(item, (str, int, float, bool)) else item for item in value[:10]]  # Limit to 10 elements
                     except:
                         pass
         
-        # Jeśli nie ma żadnych danych, zwróć minimalny obiekt
+        # If no data, return minimal object
         if len(result) == 1:  # Tylko 'type'
-            # Spróbuj wyciągnąć tekst jako ostatnią deskę ratunku
+            # Try to extract text as last resort
             if hasattr(obj, '__str__'):
                 try:
                     str_repr = str(obj)
-                    if str_repr and len(str_repr) < 200:  # Tylko krótkie stringi
+                    if str_repr and len(str_repr) < 200:  # Only short strings
                         result['value'] = str_repr
                 except:
                     pass
@@ -3582,7 +3559,7 @@ class OptimizedPipelineJSONExporter:
         return result
     
     def _extract_text_from_block(self, block: Any) -> str:
-        """Wyciąga tekst z bloku."""
+        """Extracts text from block."""
         if hasattr(block, 'payload') and hasattr(block.payload, 'lines'):
             text_parts = []
             for line in block.payload.lines:
@@ -3603,14 +3580,14 @@ class OptimizedPipelineJSONExporter:
         return ''
     
     def _extract_sections(self) -> List[Dict[str, Any]]:
-        """Wyciąga informacje o sekcjach dokumentu."""
+        """Extracts document section information."""
         sections = []
         
         if not self.xml_parser:
             return sections
         
         try:
-            # Sprawdź czy parser ma metodę parse_sections
+            # Check if parser has parse_sections method
             if hasattr(self.xml_parser, 'parse_sections'):
                 parsed_sections = self.xml_parser.parse_sections()
                 for i, section in enumerate(parsed_sections):
@@ -3628,7 +3605,7 @@ class OptimizedPipelineJSONExporter:
                         "different_odd_even": section.get("different_odd_even", False)
                     }
                     sections.append(section_info)
-            # Alternatywnie, sprawdź czy document ma sections
+            # Alternatively, check if document has sections
             elif self.document and hasattr(self.document, '_sections'):
                 for i, section in enumerate(self.document._sections or []):
                     if isinstance(section, dict):
@@ -3654,12 +3631,12 @@ class OptimizedPipelineJSONExporter:
         return sections
     
     def _extract_notes(self) -> tuple[Dict[str, Any], Dict[str, Any]]:
-        """Wyciąga footnotes i endnotes z dokumentu."""
+        """Extracts footnotes and endnotes from document."""
         footnotes = {}
         endnotes = {}
         
         try:
-            # Sprawdź czy parser ma notes parser
+            # Check if parser has notes parser
             if self.xml_parser and hasattr(self.xml_parser, 'notes_parser'):
                 notes_parser = self.xml_parser.notes_parser
                 if notes_parser:
@@ -3681,7 +3658,7 @@ class OptimizedPipelineJSONExporter:
                             "content": self._serialize_note_content(note_data),
                             "paragraphs": note_data.get("paragraphs", [])
                         }
-            # Alternatywnie, użyj NotesParser bezpośrednio
+            # Alternatively, use NotesParser directly
             elif self.package_reader:
                 try:
                     from ..parser.notes_parser import NotesParser
@@ -3715,14 +3692,14 @@ class OptimizedPipelineJSONExporter:
         return footnotes, endnotes
     
     def _serialize_note_content(self, note_data: Dict[str, Any]) -> str:
-        """Serializuje treść przypisu do tekstu."""
+        """Serializes footnote content to text."""
         if isinstance(note_data, dict):
-            # Sprawdź różne możliwe lokalizacje treści
+            # Check various possible content locations
             content = note_data.get("content") or note_data.get("text") or note_data.get("value")
             if content:
                 return str(content)
             
-            # Sprawdź paragraphs
+            # Check paragraphs
             paragraphs = note_data.get("paragraphs", [])
             if paragraphs:
                 text_parts = []

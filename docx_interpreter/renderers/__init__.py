@@ -52,14 +52,14 @@ class HTMLRenderer:
         self.editable = editable
         self.placeholder_resolver = PlaceholderResolver(getattr(document, "placeholder_values", {}))
         
-        # Inicjalizuj NumberingFormatter jeśli numbering data jest dostępne
+        # Initialize NumberingFormatter if numbering data is available
         self.numbering_formatter = None
         self._init_numbering_formatter()
         
-        # Inicjalizuj FieldRenderer dla obsługi field codes
+        # Initialize FieldRenderer for field codes handling
         self.field_renderer = FieldRenderer(context)
         
-        # Inicjalizuj FootnoteRenderer dla obsługi footnotes i endnotes
+        # Initialize FootnoteRenderer for footnotes and endnotes handling
         footnotes = getattr(document, 'footnotes', None) or {}
         if hasattr(document, 'get_footnotes'):
             try:
@@ -76,7 +76,7 @@ class HTMLRenderer:
         
         self.footnote_renderer = FootnoteRenderer(footnotes, endnotes)
         
-        # Inicjalizuj WatermarkRenderer dla obsługi watermarków
+        # Initialize WatermarkRenderer for watermarks handling
         watermarks = getattr(document, 'watermarks', None) or []
         if hasattr(document, 'get_watermarks'):
             try:
@@ -88,7 +88,7 @@ class HTMLRenderer:
         # Store watermarks for PDF rendering
         self._watermarks = watermarks
         
-        # Inicjalizuj StyleManager dla obsługi stylów dokumentu
+        # Initialize StyleManager for document styles handling
         self.style_manager = None
         if hasattr(document, 'package_reader'):
             try:
@@ -135,23 +135,23 @@ class HTMLRenderer:
             css = ""
             js = ""
 
-        # Renderuj sekcję footnotes i endnotes jeśli są
+        # Render footnotes and endnotes section if present
         footnotes_section = self.footnote_renderer.render_footnotes_section()
         endnotes_section = self.footnote_renderer.render_endnotes_section()
         footnotes_css = self.footnote_renderer.get_footnote_css()
         
-        # Renderuj watermarki jeśli są
+        # Render watermarks if present
         # Default page size A4: 210mm x 297mm
         page_width_mm = 210.0
         page_height_mm = 297.0
         watermark_html = self.watermark_renderer.render_html(page_width_mm, page_height_mm)
         watermark_css = self.watermark_renderer.get_watermark_css()
 
-        # Renderuj nagłówki i stopki jeśli są dostępne
+        # Render headers and footers if available
         headers_html, headers_css = self._render_headers_footers('header')
         footers_html, footers_css = self._render_headers_footers('footer')
         
-        # Generuj CSS z stylów dokumentu
+        # Generate CSS from document styles
         document_styles_css = self._generate_document_styles_css()
         
         # Generuj CSS dla pozycjonowania tabel
@@ -181,16 +181,16 @@ class HTMLRenderer:
         return html
     
     def _collect_content_elements(self) -> List[Dict[str, Any]]:
-        """Zbiera paragrafy i tabele z dokumentu w kolejności występowania."""
+        """Collects paragraphs and tables from document in order of occurrence."""
         elements = []
         
-        # Jeśli dokument ma body z children, użyj ich kolejności
+        # If document has body with children, use their order
         if (hasattr(self.document, 'body') and 
             hasattr(self.document.body, 'children') and 
             hasattr(self.document.body.children, '__iter__')):
             try:
                 for child in self.document.body.children:
-                    # Sprawdź czy to tabela
+                    # Check if this is a table
                     if hasattr(child, 'rows') and hasattr(child, 'get_rows'):
                         # To jest tabela
                         table_data = {
@@ -214,7 +214,7 @@ class HTMLRenderer:
                 # Fallback do get_paragraphs/get_tables
                 pass
         
-        # Jeśli nie udało się zebrać z body.children, użyj get_paragraphs/get_tables
+        # If collecting from body.children failed, use get_paragraphs/get_tables...
         if not elements and hasattr(self.document, "get_paragraphs"):
             # Zbierz paragrafy
             for para in self.document.get_paragraphs() or []:
@@ -234,7 +234,7 @@ class HTMLRenderer:
                             }
                             elements.append(table_data)
                 except (TypeError, AttributeError):
-                    # get_tables() zwróciło Mock lub nie jest iterowalne
+                    # get_tables() returned Mock or is not iterable
                     pass
             
             # Zbierz obrazy
@@ -249,7 +249,7 @@ class HTMLRenderer:
                             }
                             elements.append(image_data)
                 except (TypeError, AttributeError):
-                    # get_images() zwróciło Mock lub nie jest iterowalne
+                    # get_images() returned Mock or is not iterable
                     pass
         elif hasattr(self.document, "get_text"):
             # Fallback: tylko tekst
@@ -264,7 +264,7 @@ class HTMLRenderer:
         return elements
     
     def _extract_paragraph_data(self, para: Any) -> Dict[str, Any]:
-        """Ekstraktuje dane paragrafu do słownika."""
+        """Extracts paragraph data to dictionary."""
         para_data = {
             'type': 'paragraph',
             'text': '',
@@ -272,7 +272,7 @@ class HTMLRenderer:
             'numbering': None
         }
         
-        # Sprawdź czy paragraf ma numbering (lista)
+        # Check if paragraph has numbering (list)
         if hasattr(para, 'numbering') and para.numbering:
             numbering_info = para.numbering
             if isinstance(numbering_info, dict):
@@ -282,25 +282,25 @@ class HTMLRenderer:
                     'format': numbering_info.get('format', 'decimal')
                 }
             else:
-                # Jeśli numbering jest w innym formacie, spróbuj wyciągnąć podstawowe info
+                # If numbering is in different format, try to extract basic info...
                 para_data['numbering'] = {
                     'id': getattr(numbering_info, 'id', None) or getattr(numbering_info, 'num_id', None),
                     'level': getattr(numbering_info, 'level', 0),
                     'format': getattr(numbering_info, 'format', 'decimal')
                 }
         
-        # Sprawdź czy paragraf ma field codes bezpośrednio jako children (nie w runach)
+        # Check if paragraph has field codes directly as children (not in...
         para_fields = []
         if hasattr(para, 'children') and para.children:
             for child in para.children:
-                # Sprawdź czy to Field
+                # Check if this is Field
                 if (hasattr(child, '__class__') and 
                     ('Field' in child.__class__.__name__ or 
                      hasattr(child, 'field_type') or 
                      hasattr(child, 'instr'))):
                     para_fields.append(child)
         
-        # Jeśli paragraf ma field codes bezpośrednio, renderuj je jako osobny run
+        # If paragraph has field codes directly, render them as separate run...
         if para_fields:
             field_text = ""
             for field in para_fields:
@@ -320,7 +320,7 @@ class HTMLRenderer:
         # Check if para has runs attribute and it's not empty
         if hasattr(para, 'runs') and para.runs:
             for run in para.runs:
-                # Sprawdź czy run ma obraz
+                # Check if run has image
                 run_image = getattr(run, 'image', None)
                 if run_image:
                     # Dodaj obraz jako specjalny element w paragrafie
@@ -331,13 +331,13 @@ class HTMLRenderer:
                         'position': 'inline'  # Obraz inline w runie
                     })
                 
-                # Sprawdź czy run ma textbox
+                # Check if run has textbox
                 run_textbox = getattr(run, 'textbox', None)
                 if run_textbox:
                     # Dodaj textbox jako specjalny element
                     if 'textboxes' not in para_data:
                         para_data['textboxes'] = []
-                    # Textbox to lista runów
+                    # Textbox is a list of runs
                     textbox_content = []
                     if isinstance(run_textbox, list):
                         for tb_run in run_textbox:
@@ -349,18 +349,18 @@ class HTMLRenderer:
                         'runs': run_textbox if isinstance(run_textbox, list) else []
                     })
                 
-                # Sprawdź czy run ma field codes (children typu Field)
+                # Check if run has field codes (children of type Field)
                 run_fields = []
                 if hasattr(run, 'children') and run.children:
                     for child in run.children:
-                        # Sprawdź czy to Field
+                        # Check if this is Field
                         if (hasattr(child, '__class__') and 
                             ('Field' in child.__class__.__name__ or 
                              hasattr(child, 'field_type') or 
                              hasattr(child, 'instr'))):
                             run_fields.append(child)
                 
-                # Jeśli run ma field codes, renderuj je
+                # If run has field codes, render them
                 if run_fields:
                     field_text = ""
                     for field in run_fields:
@@ -381,13 +381,13 @@ class HTMLRenderer:
                         para_data['runs'].append(run_data)
                         para_data['text'] += run_data['text']
                 
-                # Jeśli run ma footnote references, zapisz je
+                # If run has footnote references, save them
                 if run_footnote_refs:
                     if 'footnote_refs' not in para_data:
                         para_data['footnote_refs'] = []
                     para_data['footnote_refs'].extend(run_footnote_refs)
                 
-                # Jeśli run ma endnote references, zapisz je
+                # If run has endnote references, save them
                 run_endnote_refs = getattr(run, 'endnote_refs', []) or []
                 if run_endnote_refs:
                     if 'endnote_refs' not in para_data:
@@ -414,7 +414,7 @@ class HTMLRenderer:
         else:
             para_data['text'] = self.placeholder_resolver.resolve_text(str(getattr(para, "text", "")))
         
-        # Zbierz właściwości paragrafu (alignment, borders, background)
+        # Collect paragraph properties (alignment, borders, background)
         para_data['alignment'] = getattr(para, 'alignment', None)
         para_data['borders'] = getattr(para, 'borders', None)
         para_data['background'] = getattr(para, 'background', None)
@@ -428,20 +428,20 @@ class HTMLRenderer:
     
     def _collect_paragraphs_with_formatting(self) -> List[Dict[str, Any]]:
         """Zbiera paragrafy z formatowaniem (runs) i informacjami o listach."""
-        # Zachowana dla kompatybilności wstecznej
+        # Preserved for backward compatibility
         elements = self._collect_content_elements()
         return [e for e in elements if e.get('type') == 'paragraph']
     
     def _render_editable_body(self, content_elements: List[Dict[str, Any]]) -> str:
-        """Renderuje body z contenteditable i formatowaniem, obsługując listy i tabele."""
+        """Renders body with contenteditable and formatting, handling lists and tables..."""
         body_parts = []
         current_list = None  # (tag, level, list_items)
         list_items = []
         
         for i, elem in enumerate(content_elements):
-            # Obsługa obrazów
+            # Image handling
             if elem.get('type') == 'image':
-                # Zamknij otwartą listę jeśli jest
+                # Close open list if any
                 if current_list:
                     items = current_list[3] if len(current_list) > 3 else list_items
                     list_html = '\n'.join(f'  <li contenteditable="true" data-para-id="{len(body_parts) + j}">{item}</li>' 
@@ -455,9 +455,9 @@ class HTMLRenderer:
                 body_parts.append(image_html)
                 continue
             
-            # Obsługa tabel
+            # Table handling
             if elem.get('type') == 'table':
-                # Zamknij otwartą listę jeśli jest
+                # Close open list if any
                 if current_list:
                     items = current_list[3] if len(current_list) > 3 else list_items
                     list_html = '\n'.join(f'  <li contenteditable="true" data-para-id="{len(body_parts) + j}">{item}</li>' 
@@ -466,36 +466,36 @@ class HTMLRenderer:
                     list_items = []
                     current_list = None
                 
-                # Renderuj tabelę
+                # Render table
                 table_html = self._render_table_editable(elem)
                 body_parts.append(table_html)
                 continue
             
-            # Obsługa paragrafów
+            # Paragraph handling
             para = elem
             numbering = para.get('numbering')
             
-            # Renderuj zawartość paragrafu
+            # Render paragraph content
             if para['runs']:
                 # Renderuj z formatowaniem runs
                 run_parts = []
                 for run in para['runs']:
                     text = escape(run['text'])
                     
-                    # Zbuduj style string dla zagnieżdżonego formatowania
+                    # Build style string for nested formatting
                     style_parts = []
                     
                     # Kolory i czcionki
                     if run.get('color'):
                         color = run.get('color')
-                        # Upewnij się, że kolor jest w formacie hex
+                        # Make sure color is in hex format
                         if not color.startswith('#'):
                             color = '#' + color
                         style_parts.append(f'color: {color}')
                     
                     if run.get('font_size'):
                         font_size = run.get('font_size')
-                        # Konwertuj half-points do px (przybliżenie)
+                        # Convert half-points to px (approximation)
                         try:
                             if isinstance(font_size, str):
                                 try:
@@ -503,7 +503,7 @@ class HTMLRenderer:
                                 except ValueError:
                                     font_size = None
                             elif not isinstance(font_size, (int, float)):
-                                # Jeśli to Mock lub inny typ, pomiń
+                                # If this is Mock or other type, skip
                                 font_size = None
                             
                             if font_size is not None:
@@ -512,7 +512,7 @@ class HTMLRenderer:
                                 px = int(points * 1.33)  # 1pt ≈ 1.33px
                                 style_parts.append(f'font-size: {px}px')
                         except (TypeError, ValueError):
-                            # Jeśli konwersja się nie powiodła, pomiń font-size
+                            # If conversion failed, skip font-size
                             pass
                     
                     if run.get('font_name'):
@@ -536,9 +536,9 @@ class HTMLRenderer:
                     if is_superscript or is_subscript:
                         # Pobierz aktualny font_size z style_parts lub run
                         current_font_size_px = None
-                        font_size_unit = 'px'  # Domyślnie px (jak w kodzie powyżej)
+                        font_size_unit = 'px'  # Default px (as in code above)
                         
-                        # Sprawdź czy font-size jest już w style_parts
+                        # Check if font-size is already in style_parts
                         for i, style_part in enumerate(style_parts):
                             if style_part.startswith('font-size:'):
                                 try:
@@ -555,13 +555,13 @@ class HTMLRenderer:
                                     pass
                         
                         if current_font_size_px is None:
-                            # Spróbuj pobrać z run style (może być w różnych jednostkach)
+                            # Try to get from run style (may be in various units)
                             run_style = run.get('style', {})
                             if isinstance(run_style, dict):
                                 font_size_raw = run_style.get('font_size')
                                 if font_size_raw:
                                     try:
-                                        # Jeśli to half-points (jak w DOCX), konwertuj na px
+                                        # If this is half-points (as in DOCX), convert to px
                                         font_size_val = float(font_size_raw)
                                         # Half-points do points, potem do px
                                         points = font_size_val / 2
@@ -572,7 +572,7 @@ class HTMLRenderer:
                         if current_font_size_px:
                             # Zmniejsz font_size do 58% (tak samo jak w footnotes)
                             new_font_size_px = int(current_font_size_px * 0.58)
-                            # Usuń stary font-size z style_parts jeśli istnieje
+                            # Remove old font-size from style_parts if exists
                             style_parts = [s for s in style_parts if not s.startswith('font-size:')]
                             # Dodaj nowy font-size
                             style_parts.append(f'font-size: {new_font_size_px}px')
@@ -597,9 +597,9 @@ class HTMLRenderer:
             else:
                 para_html = escape(para['text'])
             
-            # Obsługa list
+            # List handling
             if numbering:
-                # Użyj NumberingFormatter do określenia typu listy
+                # Use NumberingFormatter to determine list type
                 list_info = self._get_list_tag_from_numbering(numbering)
                 if not list_info:
                     # Fallback do obecnej logiki
@@ -611,9 +611,9 @@ class HTMLRenderer:
                 
                 list_tag, level, format_type = list_info
                 
-                # Jeśli zmieniła się lista (tag lub level), zamknij poprzednią
+                # If list changed (tag or level), close previous
                 if current_list and (current_list[0] != list_tag or current_list[1] != level):
-                    # Zamknij poprzednią listę
+                    # Close previous list
                     items = current_list[3] if len(current_list) > 3 else list_items
                     list_html = '\n'.join(f'  <li contenteditable="true" data-para-id="{len(body_parts) + j}">{item}</li>' 
                                         for j, item in enumerate(items))
@@ -621,11 +621,11 @@ class HTMLRenderer:
                     list_items = []
                     current_list = None
                 
-                # Rozpocznij nową listę jeśli potrzeba
+                # Start new list if needed
                 if not current_list:
                     current_list = (list_tag, level, format_type, [])
                 elif len(current_list) == 3:
-                    # Konwertuj starą strukturę do nowej
+                    # Convert old structure to new
                     old_items = current_list[2] if isinstance(current_list[2], list) else list_items
                     current_list = (current_list[0], current_list[1], format_type, old_items)
                 
@@ -635,7 +635,7 @@ class HTMLRenderer:
                 else:
                     list_items.append(para_html)
             else:
-                # Jeśli był otwarta lista, zamknij ją
+                # If there was open list, close it
                 if current_list:
                     items = current_list[3] if len(current_list) > 3 else list_items
                     list_html = '\n'.join(f'  <li contenteditable="true" data-para-id="{len(body_parts) + j}">{item}</li>' 
@@ -644,14 +644,14 @@ class HTMLRenderer:
                     list_items = []
                     current_list = None
                 
-                # Zwykły paragraf z właściwościami
+                # Regular paragraph with properties
                 para_style = self._build_paragraph_style(para)
                 if para_style:
                     body_parts.append(f'<p contenteditable="true" data-para-id="{len(body_parts)}" style="{para_style}">{para_html}</p>')
                 else:
                     body_parts.append(f'<p contenteditable="true" data-para-id="{len(body_parts)}">{para_html}</p>')
         
-        # Zamknij ostatnią listę jeśli jest otwarta
+        # Close last list if open
         if current_list:
             items = current_list[3] if len(current_list) > 3 else list_items
             list_html = '\n'.join(f'  <li contenteditable="true" data-para-id="{len(body_parts) + j}">{item}</li>' 
@@ -661,14 +661,14 @@ class HTMLRenderer:
         return '\n'.join(body_parts)
     
     def _init_numbering_formatter(self) -> None:
-        """Inicjalizuje NumberingFormatter jeśli numbering data jest dostępne."""
+        """Initializes NumberingFormatter if numbering data is available."""
         try:
             from ..engine.numbering_formatter import NumberingFormatter
             
-            # Spróbuj pobrać numbering data z dokumentu
+            # Try to get numbering data from document
             numbering_data = None
             
-            # Sprawdź różne możliwe lokalizacje numbering data
+            # Check various possible locations of numbering data
             if hasattr(self.document, 'numbering'):
                 numbering_obj = self.document.numbering
                 if hasattr(numbering_obj, 'abstract_numberings') and hasattr(numbering_obj, 'numbering_instances'):
@@ -681,26 +681,21 @@ class HTMLRenderer:
             elif hasattr(self.document, 'get_numbering_data'):
                 numbering_data = self.document.get_numbering_data()
             
-            # Jeśli mamy numbering data, utwórz formatter
+            # If we have numbering data, create formatter
             if numbering_data:
                 self.numbering_formatter = NumberingFormatter(numbering_data)
         except (ImportError, AttributeError, Exception) as e:
-            # Jeśli nie można zainicjalizować, użyj fallback (obecna logika)
+            # If cannot initialize, use fallback (current logic)
             self.numbering_formatter = None
     
     def _build_paragraph_style(self, para_data: Dict[str, Any]) -> str:
         """
-        Buduje CSS style string dla paragrafu na podstawie jego właściwości.
-        
-        Args:
-            para_data: Dane paragrafu z właściwościami
-            
-        Returns:
-            CSS style string lub pusty string
+
+        Builds CSS style string for paragraph based on its properties...
         """
         style_parts = []
         
-        # Wyrównanie tekstu
+        # Text alignment
         alignment = para_data.get('alignment')
         if alignment:
             # Konwertuj alignment DOCX do CSS text-align
@@ -722,21 +717,21 @@ class HTMLRenderer:
             if border_css:
                 style_parts.append(border_css)
         
-        # Tło/Cieniowanie
+        # Background/Shading
         background = para_data.get('background')
         if background:
             bg_css = self._background_to_css(background)
             if bg_css:
                 style_parts.append(bg_css)
         
-        # Cień
+        # Shadow
         shadow = para_data.get('shadow')
         if shadow:
             shadow_css = self._shadow_to_css(shadow)
             if shadow_css:
                 style_parts.append(shadow_css)
         
-        # Odstępy
+        # Spacing
         spacing_before = para_data.get('spacing_before')
         if spacing_before and isinstance(spacing_before, (int, float, str)):
             try:
@@ -754,7 +749,7 @@ class HTMLRenderer:
             except (ValueError, TypeError):
                 pass
         
-        # Wcięcia
+        # Indentation
         left_indent = para_data.get('left_indent')
         if left_indent and isinstance(left_indent, (int, float, str)):
             try:
@@ -775,20 +770,17 @@ class HTMLRenderer:
     
     def _borders_to_css(self, borders: Dict[str, Any]) -> str:
         """
-        Konwertuje obramowania DOCX do CSS border.
-        
-        Args:
-            borders: Słownik z obramowaniami
-            
-        Returns:
-            CSS border string
+
+        Converts DOCX borders to CSS border.
+
+        Args:...
         """
         if not borders or not isinstance(borders, dict):
             return ''
         
         style_parts = []
         
-        # Sprawdź czy to pojedyncze obramowanie
+        # Check if this is single border
         if 'all' in borders or 'default' in borders:
             border_spec = borders.get('all') or borders.get('default')
             if border_spec:
@@ -796,7 +788,7 @@ class HTMLRenderer:
                 if border_css:
                     style_parts.append(f'border: {border_css}')
         else:
-            # Osobne obramowania dla każdej strony
+            # Separate borders for each side
             sides = ['top', 'right', 'bottom', 'left']
             for side in sides:
                 if side in borders:
@@ -809,23 +801,20 @@ class HTMLRenderer:
     
     def _border_spec_to_css(self, border_spec: Any) -> str:
         """
-        Konwertuje specyfikację obramowania do CSS.
-        
-        Args:
-            border_spec: Specyfikacja obramowania (dict lub inny format)
-            
-        Returns:
-            CSS border string (np. "1px solid #000000")
+
+        Converts border specification to CSS.
+
+        ...
         """
         if not border_spec:
             return ''
         
         if isinstance(border_spec, dict):
-            # Pobierz szerokość
+            # Get width
             width = border_spec.get('width') or border_spec.get('sz')
             if width:
                 try:
-                    # Jeśli width jest w twips (sz), konwertuj do px
+                    # If width is in twips (sz), convert to px
                     if isinstance(width, str) and width.isdigit():
                         width = float(width)
                     if width > 10:  # Prawdopodobnie twips
@@ -854,19 +843,15 @@ class HTMLRenderer:
     
     def _background_to_css(self, background: Any) -> str:
         """
-        Konwertuje tło/cieniowanie DOCX do CSS background-color.
-        
-        Args:
-            background: Tło (dict lub string)
-            
-        Returns:
-            CSS background-color string
+
+        Converts DOCX background/shading to CSS background-color.
+        ...
         """
         if not background:
             return ''
         
         if isinstance(background, dict):
-            # Sprawdź różne możliwe klucze dla koloru tła
+            # Check various possible keys for background color
             fill = background.get('fill') or background.get('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}fill')
             if fill:
                 if not fill.startswith('#'):
@@ -881,18 +866,15 @@ class HTMLRenderer:
     
     def _shadow_to_css(self, shadow: Any) -> str:
         """
-        Konwertuje cień DOCX do CSS box-shadow.
-        
-        Args:
-            shadow: Cień (dict)
-            
-        Returns:
-            CSS box-shadow string
+
+        Converts DOCX shadow to CSS box-shadow.
+
+        Args...
         """
         if not shadow or not isinstance(shadow, dict):
             return ''
         
-        # Pobierz właściwości cienia
+        # Get shadow properties
         offset_x = shadow.get('offset_x', 0) or shadow.get('offsetX', 0) or 0
         offset_y = shadow.get('offset_y', 0) or shadow.get('offsetY', 0) or 0
         blur = shadow.get('blur', 0) or shadow.get('blurRadius', 0) or 0
@@ -910,11 +892,8 @@ class HTMLRenderer:
     
     def _get_list_tag_from_numbering(self, numbering: Dict[str, Any]) -> tuple:
         """
-        Określa tag HTML listy (<ul> lub <ol>) na podstawie numbering.
-        Używa NumberingFormatter jeśli dostępny, w przeciwnym razie używa prostego formatu.
-        
-        Returns:
-            Tuple (tag, level, format_type) - tag HTML, poziom, typ formatu
+
+        Determines HTML list tag (<ul> or <ol>) based on numbering...
         """
         if not numbering:
             return None
@@ -923,7 +902,7 @@ class HTMLRenderer:
         level = numbering.get('level', 0)
         format_type = numbering.get('format', 'decimal')
         
-        # Jeśli mamy NumberingFormatter, użyj go do określenia formatu
+        # If we have NumberingFormatter, use it to determine format
         if self.numbering_formatter and num_id:
             try:
                 formatted = self.numbering_formatter.format(num_id, str(level))
@@ -933,14 +912,14 @@ class HTMLRenderer:
                 # Fallback do prostego formatu
                 pass
         
-        # Określ czy to bullet czy numbered
+        # Determine if this is bullet or numbered
         is_bullet = format_type.lower() in ('bullet', 'disc', 'circle', 'square', 'none')
         list_tag = 'ul' if is_bullet else 'ol'
         
         return (list_tag, int(level) if isinstance(level, (int, str)) else 0, format_type)
     
     def _render_table_editable(self, table_data: Dict[str, Any]) -> str:
-        """Renderuje tabelę jako edytowalny HTML."""
+        """Renders table as editable HTML."""
         table = table_data.get('table')
         if not table:
             return ''
@@ -952,14 +931,14 @@ class HTMLRenderer:
             for row_idx, row in enumerate(table.rows):
                 row_html = ['<tr>']
                 
-                # Renderuj komórki
+                # Render cells
                 if hasattr(row, 'cells'):
                     for cell_idx, cell in enumerate(row.cells):
-                        # Określ czy to header cell
+                        # Determine if this is header cell
                         is_header = getattr(row, 'is_header_row', False) or getattr(row, 'header', False)
                         cell_tag = 'th' if is_header else 'td'
                         
-                        # Renderuj zawartość komórki (paragrafy)
+                        # Render cell content (paragraphs)
                         cell_content = self._render_cell_content(cell)
                         
                         row_html.append(f'  <{cell_tag} contenteditable="true" data-row="{row_idx}" data-cell="{cell_idx}">{cell_content}</{cell_tag}>')
@@ -971,11 +950,11 @@ class HTMLRenderer:
         return '\n'.join(html_parts)
     
     def _render_cell_content(self, cell: Any) -> str:
-        """Renderuje zawartość komórki (paragrafy z formatowaniem)."""
+        """Renders cell content (paragraphs with formatting)."""
         if not cell:
             return ''
         
-        # Jeśli komórka ma metodę get_paragraphs, użyj jej
+        # If cell has get_paragraphs method, use it
         if hasattr(cell, 'get_paragraphs'):
             paragraphs = cell.get_paragraphs()
             para_parts = []
@@ -1001,20 +980,20 @@ class HTMLRenderer:
                 textbox_html = self._render_textbox(textbox)
                 para_parts.append(textbox_html)
         
-        # Renderuj zawartość tekstową
+        # Render text content
         if para_data.get('runs'):
             # Renderuj z formatowaniem runs
             run_parts = []
             for run in para_data['runs']:
                 text = escape(run['text'])
                 
-                # Dodaj footnote references jeśli są
+                # Add footnote references if any
                 if run.get('footnote_refs'):
                     for footnote_id in run['footnote_refs']:
                         footnote_ref_html = self.footnote_renderer.render_footnote_reference(footnote_id)
                         text += footnote_ref_html
                 
-                # Dodaj endnote references jeśli są
+                # Add endnote references if any
                 if run.get('endnote_refs'):
                     for endnote_id in run['endnote_refs']:
                         endnote_ref_html = self.footnote_renderer.render_endnote_reference(endnote_id)
@@ -1071,7 +1050,7 @@ class HTMLRenderer:
         else:
             para_parts.append(escape(para_data.get('text', '')))
         
-        # Renderuj obrazy inline (po tekście)
+        # Render inline images (after text)
         if para_data.get('images'):
             for img_data in para_data['images']:
                 image_html = self._render_image_editable(img_data)
@@ -1104,12 +1083,12 @@ class HTMLRenderer:
         return f'<div class="textbox" style="border: 1px solid #ccc; padding: 5px; margin: 5px 0; background-color: #f9f9f9;">{escape(content)}</div>'
     
     def _render_table_simple(self, table_data: Dict[str, Any]) -> str:
-        """Renderuje prostą tabelę (non-editable) z zaawansowanym CSS positioning."""
+        """Renders simple table (non-editable) with advanced CSS positioning..."""
         table = table_data.get('table')
         if not table:
             return '<table></table>'
         
-        # Pobierz właściwości tabeli
+        # Get table properties
         table_style = {}
         table_class = "table-default"
         
@@ -1138,7 +1117,7 @@ class HTMLRenderer:
         style_attr = f' style="{"; ".join(style_parts)}"' if style_parts else ""
         class_attr = f' class="{table_class}"' if table_class else ""
         
-        # Renderuj tabelę
+        # Render table
         html_parts = [f'<table{class_attr}{style_attr}>']
         
         # Renderuj wiersze
@@ -1146,18 +1125,18 @@ class HTMLRenderer:
             for row_idx, row in enumerate(table.rows):
                 row_html = ['<tr>']
                 
-                # Renderuj komórki
+                # Render cells
                 if hasattr(row, 'cells'):
                     for cell_idx, cell in enumerate(row.cells):
-                        # Określ czy to header cell
+                        # Determine if this is header cell
                         is_header = getattr(row, 'is_header_row', False) or getattr(row, 'header', False)
                         cell_tag = 'th' if is_header else 'td'
                         
-                        # Pobierz style komórki
+                        # Get cell styles
                         cell_style = self._get_cell_style(cell)
                         cell_style_attr = f' style="{"; ".join([f"{k}: {v}" for k, v in cell_style.items()])}"' if cell_style else ""
                         
-                        # Renderuj zawartość komórki
+                        # Render cell content
                         cell_content = self._render_cell_content(cell)
                         
                         row_html.append(f'  <{cell_tag}{cell_style_attr}>{cell_content}</{cell_tag}>')
@@ -1169,13 +1148,13 @@ class HTMLRenderer:
         return '\n'.join(html_parts)
     
     def _get_cell_style(self, cell: Any) -> Dict[str, str]:
-        """Pobiera style dla komórki tabeli."""
+        """Gets styles for table cell."""
         style = {}
         
         if not cell:
             return style
         
-        # Sprawdź właściwości komórki
+        # Check cell properties
         if hasattr(cell, 'properties') and cell.properties:
             props = cell.properties
             
@@ -1219,24 +1198,24 @@ class HTMLRenderer:
         if not image:
             return ''
         
-        # Pobierz właściwości obrazu
+        # Get image properties
         width = getattr(image, 'width', 0) or getattr(image, 'get_width', lambda: 0)()
         height = getattr(image, 'height', 0) or getattr(image, 'get_height', lambda: 0)()
         alt_text = getattr(image, 'get_alt', lambda: '')() or getattr(image, 'alt_text', '')
         rel_id = getattr(image, 'rel_id', '') or getattr(image, 'get_rel_id', lambda: '')()
         
-        # Spróbuj pobrać src (ścieżkę do obrazu)
+        # Try to get src (image path)
         src = ''
         if hasattr(image, 'get_src'):
             src = image.get_src()
         elif hasattr(image, 'part_path'):
             src = image.part_path or ''
         
-        # Jeśli nie ma src, użyj rel_id jako identyfikatora
+        # If no src, use rel_id as identifier
         if not src and rel_id:
             src = f"image_{rel_id}"
         
-        # Konwertuj wymiary (jeśli są w EMU, konwertuj do px)
+        # Convert dimensions (if in EMU, convert to px)
         # 1 EMU = 1/914400 cala, 1 cal = 96px
         if width > 1000:  # Prawdopodobnie EMU
             width_px = int(width / 914400 * 96)
@@ -1272,21 +1251,19 @@ class HTMLRenderer:
     
     def _render_headers_footers(self, type_name: str) -> tuple[str, str]:
         """
-        Renderuje nagłówki lub stopki w HTML.
-        
+
+        Renders headers or footers in HTML.
+
         Args:
-            type_name: 'header' lub 'footer'
-            
-        Returns:
-            Tuple (html_content, css_styles)
+        ...
         """
         html_parts = []
         css_parts = []
         
-        # Spróbuj pobrać headers/footers z dokumentu
+        # Try to get headers/footers from document
         headers_footers = []
         
-        # Sprawdź różne źródła danych
+        # Check various data sources
         if hasattr(self.document, 'get_headers') and type_name == 'header':
             try:
                 headers_footers = self.document.get_headers() or []
@@ -1298,7 +1275,7 @@ class HTMLRenderer:
             except Exception:
                 pass
         
-        # Jeśli nie ma metody get_headers/get_footers, sprawdź parser
+        # If no get_headers/get_footers method, check parser
         if not headers_footers and hasattr(self.document, 'package_reader'):
             try:
                 from ..parser.header_footer_parser import HeaderFooterParser
@@ -1313,12 +1290,12 @@ class HTMLRenderer:
         if not headers_footers:
             return "", ""
         
-        # Renderuj każdy header/footer
+        # Render each header/footer
         for idx, hf in enumerate(headers_footers):
             hf_id = f"{type_name}-{idx}"
             hf_html_parts = []
             
-            # Pobierz zawartość header/footer
+            # Get header/footer content
             content = []
             if isinstance(hf, dict):
                 content = hf.get('content', []) or hf.get('elements', [])
@@ -1330,7 +1307,7 @@ class HTMLRenderer:
                 except Exception:
                     content = []
             
-            # Renderuj elementy zawartości
+            # Render content elements
             for element in content:
                 if isinstance(element, dict):
                     element_type = element.get('type', '')
@@ -1343,7 +1320,7 @@ class HTMLRenderer:
                         para_html = self._render_header_footer_paragraph(element, type_name)
                         hf_html_parts.append(para_html)
                     elif element_type == 'table' or 'table' in str(element).lower():
-                        # Renderuj tabelę
+                        # Render table
                         table_html = self._render_header_footer_table(element, type_name)
                         hf_html_parts.append(table_html)
                 elif hasattr(element, 'rel_id') or (hasattr(element, '__class__') and 'Image' in element.__class__.__name__):
@@ -1356,7 +1333,7 @@ class HTMLRenderer:
                     para_html = self._render_header_footer_paragraph(para_data, type_name)
                     hf_html_parts.append(para_html)
             
-            # Jeśli nie ma zawartości, spróbuj pobrać tekst
+            # If no content, try to get text
             if not hf_html_parts:
                 text = ""
                 if isinstance(hf, dict):
@@ -1372,7 +1349,7 @@ class HTMLRenderer:
                 if text:
                     hf_html_parts.append(f'<span>{escape(text)}</span>')
             
-            # Utwórz kontener dla header/footer
+            # Create container for header/footer
             if hf_html_parts:
                 newline = "\n"
                 join_str = f"{newline}  "
@@ -1431,13 +1408,13 @@ class HTMLRenderer:
         if not image:
             return ""
         
-        # Pobierz właściwości obrazu
+        # Get image properties
         width = getattr(image, 'width', None) or element.get('width')
         height = getattr(image, 'height', None) or element.get('height')
         alt_text = getattr(image, 'get_alt', lambda: '')() or getattr(image, 'alt_text', '') or element.get('alt_text', '')
         rel_id = getattr(image, 'rel_id', '') or getattr(image, 'get_rel_id', lambda: '')() or element.get('rel_id', '')
         
-        # Spróbuj pobrać src (ścieżkę do obrazu)
+        # Try to get src (image path)
         src = ''
         if hasattr(image, 'get_src'):
             src = image.get_src()
@@ -1450,11 +1427,11 @@ class HTMLRenderer:
         elif element.get('src'):
             src = element.get('src')
         
-        # Jeśli nie ma src, użyj rel_id jako identyfikatora
+        # If no src, use rel_id as identifier
         if not src and rel_id:
             src = f"media/{rel_id}"
         
-        # Jeśli nadal nie ma src, użyj domyślnego
+        # If still no src, use default
         if not src:
             src = "image.png"
         
@@ -1485,8 +1462,8 @@ class HTMLRenderer:
         return self._render_paragraph_html(para_data)
     
     def _render_header_footer_table(self, element: Dict[str, Any], type_name: str) -> str:
-        """Renderuje tabelę w header/footer."""
-        # Użyj istniejącej metody renderowania tabel
+        """Renders table in header/footer."""
+        # Use existing table rendering method
         if isinstance(element, dict) and 'table' in element:
             table = element['table']
             if hasattr(table, 'to_html'):
@@ -1497,10 +1474,9 @@ class HTMLRenderer:
     
     def _generate_document_styles_css(self) -> str:
         """
-        Generuje CSS z stylów dokumentu używając StyleManager.
-        
-        Returns:
-            CSS string z definicjami stylów
+
+        Generates CSS from document styles using StyleManager.
+        ...
         """
         if not self.style_manager:
             return ""
@@ -1617,7 +1593,7 @@ class HTMLRenderer:
                         shading = f"#{shading}"
                     css_rules.append(f"background-color: {shading};")
             
-            # Dodaj reguły CSS jeśli są
+            # Add CSS rules if any
             if css_rules:
                 css_parts.append(f"{css_selector} {{")
                 css_parts.append("  " + "\n  ".join(css_rules))
@@ -1629,10 +1605,9 @@ class HTMLRenderer:
     
     def _get_table_positioning_css(self) -> str:
         """
-        Generuje CSS dla zaawansowanego pozycjonowania tabel.
-        
-        Returns:
-            CSS string z regułami pozycjonowania tabel
+
+        Generates CSS for advanced table positioning.
+        ...
         """
         return """
         <style>
@@ -1795,65 +1770,11 @@ class HTMLRenderer:
     
     def _get_editable_js(self) -> str:
         """Zwraca JavaScript dla edytowalnego HTML."""
-        return """
+        """
+
         <script>
-            // Zapisz zmiany do localStorage
-            document.addEventListener('DOMContentLoaded', function() {
-                const paragraphs = document.querySelectorAll('p[contenteditable="true"]');
-                
-                paragraphs.forEach(function(p) {
-                    // Zapisz przy zmianie
-                    p.addEventListener('input', function() {
-                        saveContent();
-                    });
-                    
-                    // Obsługa skrótów klawiszowych
-                    p.addEventListener('keydown', function(e) {
-                        // Ctrl+B - bold
-                        if (e.ctrlKey && e.key === 'b') {
-                            e.preventDefault();
-                            document.execCommand('bold', false, null);
-                        }
-                        // Ctrl+I - italic
-                        if (e.ctrlKey && e.key === 'i') {
-                            e.preventDefault();
-                            document.execCommand('italic', false, null);
-                        }
-                        // Ctrl+U - underline
-                        if (e.ctrlKey && e.key === 'u') {
-                            e.preventDefault();
-                            document.execCommand('underline', false, null);
-                        }
-                    });
-                });
-                
-                // Wczytaj zapisane dane
-                loadContent();
-            });
-            
-            function saveContent() {
-                const paragraphs = document.querySelectorAll('p[contenteditable="true"]');
-                const content = Array.from(paragraphs).map(p => p.innerHTML);
-                localStorage.setItem('docx_content', JSON.stringify(content));
-            }
-            
-            function loadContent() {
-                const saved = localStorage.getItem('docx_content');
-                if (saved) {
-                    try {
-                        const content = JSON.parse(saved);
-                        const paragraphs = document.querySelectorAll('p[contenteditable="true"]');
-                        content.forEach((html, i) => {
-                            if (paragraphs[i]) {
-                                paragraphs[i].innerHTML = html;
-                            }
-                        });
-                    } catch (e) {
-                        console.error('Failed to load saved content:', e);
-                    }
-                }
-            }
-        </script>
+        // Save changes to localStorage
+        ...
         """
 
     def save_to_file(self, html: str, output_path: Union[str, Path]) -> bool:

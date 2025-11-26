@@ -1,15 +1,6 @@
 """
-Zaawansowany Document Merger - scalanie dokumentów DOCX z możliwością selektywnego łączenia elementów.
 
-Umożliwia:
-- Łączenie całych dokumentów (jak docx-compose)
-- Selektywne łączenie elementów:
-  - Body (paragrafy, tabele) z jednego dokumentu
-  - Headers (default, first, even) z innego
-  - Footers (default, first, even) z jeszcze innego
-  - Sections z właściwościami strony
-  - Styles/Themes
-  - Numbering
+Advanced Document Merger - merging DOCX documents with ability to...
 """
 
 from __future__ import annotations
@@ -28,7 +19,7 @@ from .layout.footer import Footer, FooterType
 
 logger = logging.getLogger(__name__)
 
-# Import relationship merger jeśli dostępny
+# Import relationship merger if available
 try:
     from .merger.relationship_merger import RelationshipMerger
 except ImportError:
@@ -39,7 +30,7 @@ except ImportError:
 
 
 class MergeOptions:
-    """Opcje scalania dokumentów."""
+    """Document merge options."""
     
     def __init__(
         self,
@@ -50,14 +41,11 @@ class MergeOptions:
         merge_media: bool = True
     ):
         """
-        Inicjalizuje opcje scalania.
-        
+
+        Initializes merge options.
+
         Args:
-            page_break: Czy dodać podział strony przed scalonymi elementami
-            resolve_style_conflicts: Czy automatycznie rozwiązywać konflikty stylów
-            resolve_numbering_conflicts: Czy automatycznie rozwiązywać konflikty numeracji
-            preserve_formatting: Czy zachować formatowanie
-            merge_media: Czy łączyć media (obrazy, etc.)
+        ...
         """
         self.page_break = page_break
         self.resolve_style_conflicts = resolve_style_conflicts
@@ -68,25 +56,26 @@ class MergeOptions:
 
 class DocumentMerger:
     """
-    Zaawansowany engine do scalania dokumentów DOCX.
-    
-    Umożliwia zarówno pełne scalanie dokumentów jak i selektywne łączenie
-    poszczególnych elementów (body, headers, footers, sections, styles, numbering).
+
+    Advanced engine for merging DOCX documents.
+
+    Enables...
     """
     
     def __init__(self, target_document: Any) -> None:
         """
-        Inicjalizuje merger.
-        
+
+        Initializes merger.
+
         Args:
-            target_document: Dokument docelowy (do którego będą dodawane elementy)
+        target...
         """
         self.target = target_document
         self._style_id_mapping: Dict[str, str] = {}
         self._numbering_id_mapping: Dict[int, int] = {}
         self._relationship_merger: Optional[Any] = None
         
-        # Pobierz PackageReader dla dokumentu docelowego jeśli dostępny
+        # Get PackageReader for target document if available
         self._target_package_reader = self._get_package_reader(target_document)
     
     def merge_full(
@@ -95,24 +84,15 @@ class DocumentMerger:
         options: Optional[MergeOptions] = None
     ) -> None:
         """
-        Łączy cały dokument z dokumentem źródłowym (jak docx-compose).
-        
-        Zachowuje wszystkie relacje OPC, kopiuje części i aktualizuje zależności.
-        
-        Args:
-            source_document: Dokument źródłowy (Document, ścieżka, lub Path)
-            options: Opcje scalania
-            
-        Examples:
-            >>> merger = DocumentMerger(target_doc)
-            >>> merger.merge_full(source_doc, MergeOptions(page_break=True))
+
+        Merges entire document with source document (like docx-compose)...
         """
         if options is None:
             options = MergeOptions()
         
         source = self._load_document(source_document)
         
-        # Inicjalizuj relationship merger jeśli dostępny
+        # Initialize relationship merger if available
         source_package_reader = self._get_package_reader(source)
         if RelationshipMerger and self._target_package_reader and source_package_reader:
             self._relationship_merger = RelationshipMerger(
@@ -151,16 +131,9 @@ class DocumentMerger:
         position: str = "append"
     ) -> None:
         """
-        Łączy tylko body (paragrafy, tabele) z dokumentu źródłowego.
-        
-        Args:
-            source_document: Dokument źródłowy
-            options: Opcje scalania
-            position: Pozycja dodania ("append", "prepend", "insert")
-            
-        Examples:
-            >>> merger = DocumentMerger(target_doc)
-            >>> merger.merge_body(source_doc, MergeOptions(page_break=True))
+
+        Merges only body (paragraphs, tables) from source document.
+        ...
         """
         if options is None:
             options = MergeOptions()
@@ -177,7 +150,7 @@ class DocumentMerger:
         source_paragraphs = self._get_paragraphs(source_body)
         source_tables = self._get_tables(source_body)
         
-        # Dodaj page break jeśli wymagane
+        # Add page break if required
         if options.page_break and position == "append":
             if source_paragraphs:
                 # Dodaj page break przed pierwszym paragrafem
@@ -191,7 +164,7 @@ class DocumentMerger:
             if position == "append":
                 target_body.add_paragraph(new_para)
             elif position == "prepend":
-                # Prepend wymaga dostępu do listy children
+                # Prepend requires access to children list
                 if hasattr(target_body, 'children'):
                     target_body.children.insert(0, new_para)
                 else:
@@ -215,27 +188,17 @@ class DocumentMerger:
         header_types: Optional[List[str]] = None
     ) -> None:
         """
-        Łączy nagłówki z dokumentu źródłowego.
-        
-        Args:
-            source_document: Dokument źródłowy
-            options: Opcje scalania
-            header_types: Lista typów nagłówków do scalenia (None = wszystkie)
-                         Możliwe wartości: "default", "first", "even"
-                         
-        Examples:
-            >>> merger = DocumentMerger(target_doc)
-            >>> # Scal tylko default header
-            >>> merger.merge_headers(source_doc, header_types=["default"])
-            >>> # Scal wszystkie nagłówki
-            >>> merger.merge_headers(source_doc)
+
+        Merges headers from source document.
+
+        Args:...
         """
         if options is None:
             options = MergeOptions()
         
         source = self._load_document(source_document)
         
-        # Pobierz sekcje z obu dokumentów
+        # Get sections from both documents
         target_sections = self._get_sections(self.target)
         source_sections = self._get_sections(source)
         
@@ -247,11 +210,11 @@ class DocumentMerger:
             logger.warning("Source document has no sections")
             return
         
-        # Domyślnie scal wszystkie typy
+        # By default merge all types
         if header_types is None:
             header_types = ["default", "first", "even"]
         
-        # Scal nagłówki z pierwszej sekcji source do pierwszej sekcji target
+        # Merge headers from first section source to first section target
         target_section = target_sections[0]
         source_section = source_sections[0]
         
@@ -273,18 +236,11 @@ class DocumentMerger:
         footer_types: Optional[List[str]] = None
     ) -> None:
         """
-        Łączy stopki z dokumentu źródłowego.
-        
+
+        Merges footers from source document.
+
         Args:
-            source_document: Dokument źródłowy
-            options: Opcje scalania
-            footer_types: Lista typów stopek do scalenia (None = wszystkie)
-                         Możliwe wartości: "default", "first", "even"
-                         
-        Examples:
-            >>> merger = DocumentMerger(target_doc)
-            >>> # Scal tylko default footer
-            >>> merger.merge_footers(source_doc, footer_types=["default"])
+        ...
         """
         if options is None:
             options = MergeOptions()
@@ -298,7 +254,7 @@ class DocumentMerger:
         if not target_sections or not source_sections:
             return
         
-        # Domyślnie scal wszystkie typy
+        # By default merge all types
         if footer_types is None:
             footer_types = ["default", "first", "even"]
         
@@ -322,16 +278,8 @@ class DocumentMerger:
         copy_properties: bool = True
     ) -> None:
         """
-        Łączy sekcje z dokumentu źródłowego (właściwości strony, marginesy, etc.).
-        
-        Args:
-            source_document: Dokument źródłowy
-            options: Opcje scalania
-            copy_properties: Czy kopiować właściwości sekcji (rozmiar strony, marginesy)
-                            
-        Examples:
-            >>> merger = DocumentMerger(target_doc)
-            >>> merger.merge_sections(source_doc, copy_properties=True)
+
+        Merges sections from source document (page properties, margins...
         """
         if options is None:
             options = MergeOptions()
@@ -345,11 +293,11 @@ class DocumentMerger:
             return
         
         if copy_properties:
-            # Skopiuj właściwości z pierwszej sekcji source do pierwszej sekcji target
+            # Copy properties from first section source to first section target...
             target_section = target_sections[0]
             source_section = source_sections[0]
             
-            # Kopiuj właściwości strony
+            # Copy page properties
             target_section.page_width = source_section.page_width
             target_section.page_height = source_section.page_height
             target_section.orientation = source_section.orientation
@@ -360,7 +308,7 @@ class DocumentMerger:
             target_section.margin_left = source_section.margin_left
             target_section.margin_right = source_section.margin_right
             
-            # Kopiuj właściwości kolumn
+            # Copy column properties
             target_section.column_layout = source_section.column_layout
             target_section.column_count = source_section.column_count
             target_section.column_spacing = source_section.column_spacing
@@ -371,18 +319,16 @@ class DocumentMerger:
         options: Optional[MergeOptions] = None
     ) -> None:
         """
-        Łączy style z dokumentu źródłowego, rozwiązując konflikty.
-        
-        Args:
-            source_document: Dokument źródłowy
-            options: Opcje scalania
+
+        Merges styles from source document, resolving conflicts.
+        ...
         """
         if options is None:
             options = MergeOptions()
         
         source = self._load_document(source_document)
         
-        # Pobierz style z obu dokumentów
+        # Get styles from both documents
         target_styles = self._get_styles(self.target)
         source_styles = self._get_styles(source)
         
@@ -391,7 +337,7 @@ class DocumentMerger:
         if not source_styles:
             return
         
-        # Rozwiąż konflikty stylów
+        # Resolve style conflicts
         for style_id, style_data in source_styles.items():
             if style_id in target_styles:
                 # Konflikt - dodaj suffix
@@ -399,7 +345,7 @@ class DocumentMerger:
                 self._style_id_mapping[style_id] = new_style_id
                 target_styles[new_style_id] = copy.deepcopy(style_data)
             else:
-                # Brak konfliktu - dodaj bezpośrednio
+                # No conflict - add directly
                 target_styles[style_id] = copy.deepcopy(style_data)
     
     def merge_numbering(
@@ -408,26 +354,23 @@ class DocumentMerger:
         options: Optional[MergeOptions] = None
     ) -> None:
         """
-        Łączy numerację z dokumentu źródłowego, rozwiązując konflikty.
-        
-        Args:
-            source_document: Dokument źródłowy
-            options: Opcje scalania
+
+        Merges numbering from source document, resolving conflicts...
         """
         if options is None:
             options = MergeOptions()
         
         source = self._load_document(source_document)
         
-        # Pobierz numbering z obu dokumentów
+        # Get numbering from both documents
         target_numbering = self._get_numbering(self.target)
         source_numbering = self._get_numbering(source)
         
         if not target_numbering or not source_numbering:
             return
         
-        # Rozwiąż konflikty numbering IDs
-        # TODO: Pełna implementacja wymaga dostępu do numbering system
+        # Resolve numbering ID conflicts
+        # TODO: Full implementation requires access to numbering system
         logger.info("Numbering merge - basic implementation")
     
     def merge_media(
@@ -436,11 +379,8 @@ class DocumentMerger:
         options: Optional[MergeOptions] = None
     ) -> None:
         """
-        Łączy media (obrazy, etc.) z dokumentu źródłowego wraz z relacjami.
-        
-        Args:
-            source_document: Dokument źródłowy
-            options: Opcje scalania
+
+        Merges media (images, etc.) from source document along with relationships...
         """
         if options is None:
             options = MergeOptions()
@@ -451,12 +391,12 @@ class DocumentMerger:
             logger.warning("RelationshipMerger not available - media merge limited")
             return
         
-        # Pobierz wszystkie obrazy z dokumentu źródłowego
+        # Get all images from source document
         source_body = self._get_body(source)
         if not source_body:
             return
         
-        # Znajdź wszystkie obrazy w paragrafach i tabelach
+        # Find all images in paragraphs and tables
         paragraphs = self._get_paragraphs(source_body)
         for para in paragraphs:
             runs = self._get_runs(para)
@@ -471,7 +411,7 @@ class DocumentMerger:
                         )
                         # TODO: Zaktualizuj rel_id w run.image w docelowym dokumencie
         
-        # Znajdź obrazy w tabelach
+        # Find images in tables
         tables = self._get_tables(source_body)
         for table in tables:
             rows = self._get_table_rows(table)
@@ -495,28 +435,8 @@ class DocumentMerger:
         options: Optional[MergeOptions] = None
     ) -> None:
         """
-        Zaawansowane selektywne łączenie elementów z różnych dokumentów.
-        
-        Args:
-            sources: Słownik określający źródła dla każdego elementu:
-                    {
-                        "body": source_doc1,      # Body z tego dokumentu
-                        "headers": source_doc2,  # Headers z tego dokumentu
-                        "footers": source_doc3,   # Footers z tego dokumentu
-                        "sections": source_doc4,   # Sections z tego dokumentu
-                        "styles": source_doc5,    # Styles z tego dokumentu
-                        "numbering": source_doc6   # Numbering z tego dokumentu
-                    }
-            options: Opcje scalania
-            
-        Examples:
-            >>> merger = DocumentMerger(target_doc)
-            >>> merger.merge_selective({
-            ...     "body": "content.docx",
-            ...     "headers": "header_template.docx",
-            ...     "footers": "footer_template.docx",
-            ...     "styles": "style_template.docx"
-            ... })
+
+        Advanced selective merging of elements from different documents...
         """
         if options is None:
             options = MergeOptions()
@@ -554,7 +474,7 @@ class DocumentMerger:
     
     # Helper methods
     def _load_document(self, source: Union[Any, str, Path]) -> Any:
-        """Ładuje dokument jeśli podano ścieżkę."""
+        """Loads document if path is provided."""
         if isinstance(source, (str, Path)):
             # Import Document API
             from .document_api import Document
@@ -603,7 +523,7 @@ class DocumentMerger:
         return []
     
     def _get_headers(self, section: Section) -> Dict[str, Header]:
-        """Pobiera nagłówki z sekcji."""
+        """Gets headers from section."""
         if hasattr(section, 'headers'):
             return section.headers
         return {}
@@ -631,8 +551,8 @@ class DocumentMerger:
         return None
     
     def _get_package_reader(self, document: Any) -> Optional[Any]:
-        """Pobiera PackageReader z dokumentu jeśli dostępny."""
-        # Sprawdź różne możliwe lokalizacje PackageReader
+        """Gets PackageReader from document if available."""
+        # Check various possible PackageReader locations
         if hasattr(document, 'package_reader'):
             return document.package_reader
         elif hasattr(document, '_package_reader'):
@@ -646,7 +566,7 @@ class DocumentMerger:
             if hasattr(parser, 'package_reader'):
                 return parser.package_reader
         
-        # Jeśli dokument jest ścieżką, utwórz PackageReader
+        # If document is a path, create PackageReader
         if isinstance(document, (str, Path)):
             from .parser.package_reader import PackageReader
             try:
@@ -657,7 +577,7 @@ class DocumentMerger:
         return None
     
     def _parse_header_type(self, header_type_str: str) -> Optional[HeaderType]:
-        """Parsuje typ nagłówka."""
+        """Parses header type."""
         mapping = {
             "default": HeaderType.DEFAULT,
             "first": HeaderType.FIRST_PAGE,
@@ -677,22 +597,22 @@ class DocumentMerger:
         return mapping.get(footer_type_str.lower())
     
     def _deep_copy_paragraph(self, para: Paragraph) -> Paragraph:
-        """Głęboka kopia paragrafu."""
+        """Deep copy of paragraph."""
         new_para = copy.deepcopy(para)
         return new_para
     
     def _deep_copy_table(self, table: Table) -> Table:
-        """Głęboka kopia tabeli."""
+        """Deep copy of table."""
         new_table = copy.deepcopy(table)
         return new_table
     
     def _deep_copy_header(self, header: Header) -> Header:
-        """Głęboka kopia nagłówka."""
+        """Deep copy of header."""
         new_header = copy.deepcopy(header)
         return new_header
     
     def _deep_copy_footer(self, footer: Footer) -> Footer:
-        """Głęboka kopia stopki."""
+        """Deep copy of footer."""
         new_footer = copy.deepcopy(footer)
         return new_footer
 

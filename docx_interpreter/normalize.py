@@ -642,7 +642,7 @@ class StyleNormalizer:
         # Parse original styles to preserve base styles (Normal, DefaultParagraphFont, etc.)
         root = ET.Element(_w("styles"))
         
-        # Jeśli used_style_ids jest None, kopiuj wszystkie style z oryginalnego dokumentu
+        # If used_style_ids is None, copy all styles from original...
         if used_style_ids is None:
             keep_styles = None  # None oznacza "kopiuj wszystkie"
         else:
@@ -657,7 +657,7 @@ class StyleNormalizer:
                 doc_defaults_orig = original_root.find(f".//{_w('docDefaults')}")
                 if doc_defaults_orig is not None:
                     root.append(doc_defaults_orig)
-                # Copy base styles and used styles only (lub wszystkie jeśli keep_styles jest None)
+                # Copy base styles and used styles only (or all if keep_styles...)
                 for style_el in original_root.findall(f".//{_w('style')}"):
                     if keep_styles is None:
                         # Kopiuj wszystkie style

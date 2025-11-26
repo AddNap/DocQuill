@@ -108,7 +108,7 @@ try:
 except ImportError:
     DocumentAPI = None
 
-# Simple High-Level API - główny punkt wejścia dla użytkowników
+# Simple High-Level API - main entry point for users
 try:
     from .api import (
         Document,
@@ -143,8 +143,8 @@ except ImportError:
     MergeOptions = None
 
 __all__ = [
-    # Simple High-Level API (główny punkt wejścia)
-    "Document",           # Główna klasa Document
+    # Simple High-Level API (main entry point)
+    "Document",           # Main Document class
     "open_document",     # Convenience function
     "create_document",   # Convenience function
     "fill_template",    # Convenience function

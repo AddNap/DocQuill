@@ -237,7 +237,7 @@ class NotesParser:
         paragraph = {
             'type': 'paragraph',
             'runs': [],
-            'text': '',  # Dodaj pełny tekst paragrafu
+            'text': '',  # Add full paragraph text
             'styles': {}
         }
         
@@ -245,7 +245,7 @@ class NotesParser:
         for run in paragraph_element.findall('.//{http://schemas.openxmlformats.org/wordprocessingml/2006/main}r'):
             run_content = self._parse_run(run)
             paragraph['runs'].append(run_content)
-            # Dodaj tekst z run do pełnego tekstu paragrafu
+            # Add text from run to full paragraph text
             if isinstance(run_content, dict) and 'text' in run_content:
                 paragraph['text'] += run_content['text']
         
@@ -365,7 +365,7 @@ class NotesParser:
             tag_name = child.tag.split('}')[-1] if '}' in child.tag else child.tag
             
             if tag_name == 'rStyle':
-                # Parse run style reference (odwołanie do stylu z styles.xml)
+                # Parse run style reference (reference to style from styles.xml)
                 style_id = child.get(f'{{{ns}}}val', '') or child.get('val', '')
                 if style_id:
                     properties['run_style'] = style_id

@@ -1,8 +1,10 @@
 """
-Document API - Wysokopoziomowe API do manipulacji dokumentami DOCX (Jinja-like).
 
-Ten moduł zapewnia wygodne API podobne do starej biblioteki DocQuill,
-ale korzysta z istniejących modeli i rendererów bez ich modyfikacji.
+Document API - High-level API for DOCX document manipulation (Jinja-like).
+
+This module provides a convenient API similar to the old DocQuill library,
+but uses existing models and renderers without modifying them.
+
 """
 
 from __future__ import annotations
@@ -26,40 +28,44 @@ from .exceptions import DocxInterpreterError
 
 class Document:
     """
-    Wysokopoziomowe API do manipulacji dokumentami DOCX.
-    
-    Zapewnia wygodne metody podobne do starej biblioteki DocQuill:
+
+    High-level API for DOCX document manipulation.
+
+    Provides convenient methods similar to the old DocQuill library:
     - add_paragraph(), replace_text(), save()
     - fill_placeholders() - Jinja-like placeholder system
     - create_numbered_list(), create_bullet_list()
     - merge(), append(), prepend()
-    
-    Używa istniejących modeli i rendererów bez ich modyfikacji.
+
+    Uses existing models and renderers without modifying them.
+
     """
     
     def __init__(self, document_model: Optional[Any] = None) -> None:
         """
-        Inicjalizuje Document API.
-        
+
+        Initializes Document API.
+
         Args:
-            document_model: Opcjonalny istniejący model dokumentu
+        document_model: Optional existing document model
+
         """
         self._document_model = document_model
         self._body: Optional[Body] = None
         self._placeholder_engine: Optional[PlaceholderEngine] = None
-        self._watermarks: List[Any] = []  # Lista watermarków
+        self._watermarks: List[Any] = []  # List of watermarks
         
-        # Inicjalizuj body jeśli dokument model jest dostępny
+        # Initialize body if document model is available
         if document_model:
             self._init_from_model(document_model)
         else:
-            # Utwórz pusty dokument
+            # Create empty document
             self._body = Body()
             self._placeholder_engine = PlaceholderEngine(self)
     
     def _init_from_model(self, document_model: Any) -> None:
-        """Inicjalizuje Document z istniejącego modelu."""
-        # Próbuj pobrać body z modelu
+        """Initializes Document from existing model."""
+        # Try to get body from model
         if hasattr(document_model, 'body'):
             self._body = document_model.body
         elif hasattr(document_model, '_body'):
@@ -67,7 +73,7 @@ class Document:
         elif hasattr(document_model, 'get_body'):
             self._body = document_model.get_body()
         else:
-            # Utwórz nowy body
+            # Create new body
             self._body = Body()
         
         self._placeholder_engine = PlaceholderEngine(self)
@@ -75,27 +81,29 @@ class Document:
     @classmethod
     def open(cls, file_path: Union[str, Path, BinaryIO]) -> "Document":
         """
-        Otwiera dokument z pliku DOCX.
-        
+
+        Opens document from DOCX file.
+
         Args:
-            file_path: Ścieżka do pliku DOCX
-            
+        file_path: Path to DOCX file
+
         Returns:
-            Document: Otworzony dokument
+        Document: Opened document
+
         """
-        # Import parserów
+        # Import parsers
         from .parser.package_reader import PackageReader
         from .parser.xml_parser import XMLParser
         from .models.body import Body
         
-        # Otwórz dokument
+        # Open document
         reader = PackageReader(file_path)
         parser = XMLParser(reader)
         
         # Parsuj body
         body = parser.parse_body()
         
-        # Utwórz prosty model dokumentu
+        # Create simple document model
         document_model = type('DocumentModel', (), {
             'body': body,
             'parser': parser,
@@ -150,20 +158,22 @@ class Document:
         font_name: Optional[str] = None
     ) -> Run:
         """
-        Dodaje run do paragrafu z formatowaniem.
-        
+
+        Adds run to paragraph with formatting.
+
         Args:
-            paragraph: Paragraf do którego dodać run
-            text: Tekst runa
-            bold: Czy pogrubiony
-            italic: Czy kursywa
-            underline: Czy podkreślony
-            font_color: Kolor czcionki (np. "008000")
-            font_size: Rozmiar czcionki w punktach
-            font_name: Nazwa czcionki
-            
+        paragraph: Paragraph to add run to
+        text: Run text
+        bold: Whether bold
+        italic: Whether italic
+        underline: Whether underlined
+        font_color: Font color (e.g. "008000")
+        font_size: Font size in points
+        font_name: Font name
+
         Returns:
-            Run: Utworzony run
+        Run: Created run
+
         """
         run = Run(text=text)
         run.bold = bold
@@ -188,16 +198,18 @@ class Document:
         case_sensitive: bool = False
     ) -> int:
         """
-        Zastępuje tekst w dokumencie.
-        
+
+        Replaces text in document.
+
         Args:
-            old_text: Tekst do zastąpienia
-            new_text: Nowy tekst
-            scope: Zakres ("body", "headers", "footers", "all")
-            case_sensitive: Czy uwzględniać wielkość liter
-            
+        old_text: Text to replace
+        new_text: New text
+        scope: Scope ("body", "headers", "footers", "all")
+        case_sensitive: Whether to consider case
+
         Returns:
-            Liczba zastąpień
+        Number of replacements
+
         """
         replacements = 0
         
@@ -205,7 +217,7 @@ class Document:
             # Case-insensitive search
             old_text_lower = old_text.lower()
         
-        # Zastąp w paragrafach body
+        # Replace in body paragraphs
         if scope in ["body", "all"]:
             paragraphs = self.body.get_paragraphs()
             for para in paragraphs:
@@ -223,7 +235,7 @@ class Document:
                             replacements += 1
                     else:
                         if old_text_lower in run_text.lower():
-                            # Zachowaj oryginalną wielkość liter
+                            # Preserve original case
                             import re
                             pattern = re.compile(re.escape(old_text), re.IGNORECASE)
                             new_run_text = pattern.sub(new_text, run_text)
@@ -240,30 +252,32 @@ class Document:
         max_passes: int = 5
     ) -> int:
         """
-        Wypełnia placeholdery w dokumencie (Jinja-like).
-        
+
+        Fills placeholders in document (Jinja-like).
+
         Args:
-            data: Słownik {placeholder_name: value}
-            multi_pass: Czy używać wieloprzebiegowego renderowania
-            max_passes: Maksymalna liczba przebiegów
-            
+        data: Dictionary {placeholder_name: value}
+        multi_pass: Whether to use multi-pass rendering
+        max_passes: Maximum number of passes
+
         Returns:
-            Liczba zastąpionych placeholderów
-            
+        Number of replaced placeholders
+
         Examples:
-            >>> doc = Document.open("template.docx")
-            >>> doc.fill_placeholders({
-            ...     "TEXT:Name": "Jan Kowalski",
-            ...     "DATE:IssueDate": "2025-10-16",
-            ...     "CURRENCY:Amount": 1500.50,
-            ...     "QR:OrderCode": "ORDER-123",
-            ...     "TABLE:Items": {
-            ...         "headers": ["Product", "Qty", "Price"],
-            ...         "rows": [["Laptop", "1", "4500"], ["Mouse", "2", "150"]]
-            ...     },
-            ...     "IMAGE:Logo": "logo.png",
-            ...     "LIST:Features": ["Fast", "Reliable", "Secure"]
-            ... })
+        >>> doc = Document.open("template.docx")
+        >>> doc.fill_placeholders({
+        ...     "TEXT:Name": "John Smith",
+        ...     "DATE:IssueDate": "2025-10-16",
+        ...     "CURRENCY:Amount": 1500.50,
+        ...     "QR:OrderCode": "ORDER-123",
+        ...     "TABLE:Items": {
+        ...         "headers": ["Product", "Qty", "Price"],
+        ...         "rows": [["Laptop", "1", "4500"], ["Mouse", "2", "150"]]
+        ...     },
+        ...     "IMAGE:Logo": "logo.png",
+        ...     "LIST:Features": ["Fast", "Reliable", "Secure"]
+        ... })
+
         """
         if self._placeholder_engine is None:
             self._placeholder_engine = PlaceholderEngine(self)
@@ -272,14 +286,16 @@ class Document:
     
     def process_conditional_block(self, block_name: str, show: bool) -> bool:
         """
-        Przetwarza blok warunkowy (START_nazwa / END_nazwa).
-        
+
+        Processes conditional block (START_name / END_name).
+
         Args:
-            block_name: Nazwa bloku
-            show: Czy pokazać blok (True) czy usunąć (False)
-            
+        block_name: Block name
+        show: Whether to show block (True) or remove (False)
+
         Returns:
-            True jeśli przetworzono
+        True if processed
+
         """
         if self._placeholder_engine is None:
             self._placeholder_engine = PlaceholderEngine(self)
@@ -288,10 +304,12 @@ class Document:
     
     def extract_placeholders(self) -> List[PlaceholderInfo]:
         """
-        Wyciąga wszystkie placeholdery z dokumentu.
-        
+
+        Extracts all placeholders from document.
+
         Returns:
-            Lista obiektów PlaceholderInfo
+        List of PlaceholderInfo objects
+
         """
         if self._placeholder_engine is None:
             self._placeholder_engine = PlaceholderEngine(self)
@@ -308,23 +326,25 @@ class Document:
         font_name: str = "Arial"
     ) -> Watermark:
         """
-        Dodaje watermark (znak wodny) do dokumentu.
-        
+
+        Adds watermark to document.
+
         Args:
-            text: Tekst watermarku
-            angle: Kąt obrotu w stopniach (domyślnie 45)
-            opacity: Przezroczystość 0.0-1.0 (domyślnie 0.5)
-            color: Kolor tekstu (domyślnie #CCCCCC)
-            font_size: Rozmiar czcionki w punktach (domyślnie 72)
-            font_name: Nazwa czcionki (domyślnie Arial)
-            
+        text: Watermark text
+        angle: Rotation angle in degrees (default 45)
+        opacity: Opacity 0.0-1.0 (default 0.5)
+        color: Text color (default #CCCCCC)
+        font_size: Font size in points (default 72)
+        font_name: Font name (default Arial)
+
         Returns:
-            Watermark: Utworzony watermark
-            
+        Watermark: Created watermark
+
         Examples:
-            >>> doc = Document.open("template.docx")
-            >>> doc.add_watermark("CONFIDENTIAL", angle=45, opacity=0.3)
-            >>> doc.add_watermark("DRAFT", color="#FF0000", opacity=0.5)
+        >>> doc = Document.open("template.docx")
+        >>> doc.add_watermark("CONFIDENTIAL", angle=45, opacity=0.3)
+        >>> doc.add_watermark("DRAFT", color="#FF0000", opacity=0.5)
+
         """
         watermark = Watermark(
             text=text,
@@ -339,68 +359,76 @@ class Document:
     
     def get_watermarks(self) -> List[Watermark]:
         """
-        Zwraca listę watermarków w dokumencie.
-        
+
+        Returns list of watermarks in document.
+
         Returns:
-            Lista watermarków
+        List of watermarks
+
         """
         return self._watermarks.copy()
     
     @property
     def watermarks(self) -> List[Watermark]:
-        """Zwraca listę watermarków (property)."""
+        """Returns list of watermarks (property)."""
         return self._watermarks
     
     def create_numbered_list(self) -> NumberingGroup:
         """
-        Tworzy listę numerowaną.
-        
+
+        Creates numbered list.
+
         Returns:
-            NumberingGroup: Grupa numeracji
+        NumberingGroup: Numbering group
+
         """
         from .models.numbering import NumberingGroup
         
         group = NumberingGroup()
-        # Konfiguracja domyślnej listy numerowanej
+        # Default numbered list configuration
         group.set_format("decimal")
         
         return group
     
     def create_bullet_list(self) -> NumberingGroup:
         """
-        Tworzy listę punktową.
-        
+
+        Creates bullet list.
+
         Returns:
-            NumberingGroup: Grupa numeracji
+        NumberingGroup: Numbering group
+
         """
         from .models.numbering import NumberingGroup
         
         group = NumberingGroup()
-        # Konfiguracja domyślnej listy punktowej
+        # Default bullet list configuration
         group.set_format("bullet")
         
         return group
     
     def save(self, file_path: Union[str, Path]) -> None:
         """
-        Zapisuje dokument do pliku DOCX.
-        
+
+        Saves document to DOCX file.
+
         Args:
-            file_path: Ścieżka do pliku wyjściowego
-            
+        file_path: Path to output file
+
         Examples:
-            >>> doc.save("output.docx")
+        >>> doc.save("output.docx")
+
         """
         from .export.docx_exporter import DOCXExporter
         
-        # Jeśli dokument ma _file_path (oryginalny plik), użyj go jako szablonu
+        # If document has _file_path (original file), use it as template
         source_docx_path = None
         if hasattr(self._document_model, '_file_path') and self._document_model._file_path:
             source_docx_path = self._document_model._file_path
         elif hasattr(self._document_model, '_source_docx') and self._document_model._source_docx:
             source_docx_path = self._document_model._source_docx
         
-        # Użyj DOCXExporter do zapisu (z source_docx_path jeśli dostępny)
+        # Use DOCXExporter to save (with source_docx_path if available)
         exporter = DOCXExporter(self._document_model, source_docx_path=source_docx_path)
         success = exporter.export(file_path)
         
@@ -413,11 +441,13 @@ class Document:
         page_break: bool = False
     ) -> None:
         """
-        Łączy dokument z innym dokumentem.
-        
+
+        Merges document with another document.
+
         Args:
-            other: Inny dokument (Document, ścieżka do pliku, lub Path)
-            page_break: Czy dodać podział strony przed połączonym dokumentem
+        other: Another document (Document, file path, or Path)
+        page_break: Whether to add page break before merged document
+
         """
         from .merger import DocumentMerger, MergeOptions
         
@@ -431,11 +461,13 @@ class Document:
         page_break: bool = False
     ) -> None:
         """
-        Dodaje dokument na koniec.
-        
+
+        Appends document at the end.
+
         Args:
-            other: Inny dokument (Document, ścieżka do pliku, lub Path)
-            page_break: Czy dodać podział strony
+        other: Another document (Document, file path, or Path)
+        page_break: Whether to add page break
+
         """
         from .merger import DocumentMerger, MergeOptions
         
@@ -449,11 +481,13 @@ class Document:
         page_break: bool = False
     ) -> None:
         """
-        Dodaje dokument na początku.
-        
+
+        Prepends document at the beginning.
+
         Args:
-            other: Inny dokument (Document, ścieżka do pliku, lub Path)
-            page_break: Czy dodać podział strony
+        other: Another document (Document, file path, or Path)
+        page_break: Whether to add page break
+
         """
         from .merger import DocumentMerger, MergeOptions
         
@@ -467,28 +501,30 @@ class Document:
         page_break: bool = False
     ) -> None:
         """
-        Zaawansowane selektywne łączenie elementów z różnych dokumentów.
-        
+
+        Advanced selective merging of elements from different documents.
+
         Args:
-            sources: Słownik określający źródła dla każdego elementu:
-                    {
-                        "body": source_doc1,      # Body z tego dokumentu
-                        "headers": source_doc2,    # Headers z tego dokumentu
-                        "footers": source_doc3,    # Footers z tego dokumentu
-                        "sections": source_doc4,   # Sections z tego dokumentu
-                        "styles": source_doc5,     # Styles z tego dokumentu
-                        "numbering": source_doc6   # Numbering z tego dokumentu
-                    }
-            page_break: Czy dodać podział strony przed scalonymi elementami
-            
+        sources: Dictionary specifying sources for each element:
+        {
+        "body": source_doc1,      # Body from this document
+        "headers": source_doc2,    # Headers from this document
+        "footers": source_doc3,    # Footers from this document
+        "sections": source_doc4,   # Sections from this document
+        "styles": source_doc5,     # Styles from this document
+        "numbering": source_doc6   # Numbering from this document
+        }
+        page_break: Whether to add page break before merged elements
+
         Examples:
-            >>> doc = Document.open("template.docx")
-            >>> doc.merge_selective({
-            ...     "body": "content.docx",
-            ...     "headers": "header_template.docx",
-            ...     "footers": "footer_template.docx",
-            ...     "styles": "style_template.docx"
-            ... })
+        >>> doc = Document.open("template.docx")
+        >>> doc.merge_selective({
+        ...     "body": "content.docx",
+        ...     "headers": "header_template.docx",
+        ...     "footers": "footer_template.docx",
+        ...     "styles": "style_template.docx"
+        ... })
+
         """
         from .merger import DocumentMerger, MergeOptions
         
@@ -502,11 +538,13 @@ class Document:
         header_types: Optional[List[str]] = None
     ) -> None:
         """
-        Łączy nagłówki z dokumentu źródłowego.
-        
+
+        Merges headers from source document.
+
         Args:
-            source: Dokument źródłowy
-            header_types: Lista typów nagłówków ("default", "first", "even")
+        source: Source document
+        header_types: List of header types ("default", "first", "even")
+
         """
         from .merger import DocumentMerger, MergeOptions
         
@@ -520,11 +558,13 @@ class Document:
         footer_types: Optional[List[str]] = None
     ) -> None:
         """
-        Łączy stopki z dokumentu źródłowego.
-        
+
+        Merges footers from source document.
+
         Args:
-            source: Dokument źródłowy
-            footer_types: Lista typów stopek ("default", "first", "even")
+        source: Source document
+        footer_types: List of footer types ("default", "first", "even")
+
         """
         from .merger import DocumentMerger, MergeOptions
         
@@ -538,11 +578,13 @@ class Document:
         copy_properties: bool = True
     ) -> None:
         """
-        Łączy sekcje z dokumentu źródłowego (właściwości strony, marginesy).
-        
+
+        Merges sections from source document (page properties, margins).
+
         Args:
-            source: Dokument źródłowy
-            copy_properties: Czy kopiować właściwości sekcji
+        source: Source document
+        copy_properties: Whether to copy section properties
+
         """
         from .merger import DocumentMerger, MergeOptions
         
@@ -555,10 +597,12 @@ class Document:
         source: Union["Document", str, Path]
     ) -> None:
         """
-        Łączy style z dokumentu źródłowego.
-        
+
+        Merges styles from source document.
+
         Args:
-            source: Dokument źródłowy
+        source: Source document
+
         """
         from .merger import DocumentMerger, MergeOptions
         
@@ -573,18 +617,20 @@ class Document:
         footer_types: Optional[List[str]] = None
     ) -> None:
         """
-        Aplikuje layout (headers/footers) z dokumentu szablonu.
-        
-        Convenience method która łączy merge_headers() i merge_footers().
-        
+
+        Applies layout (headers/footers) from template document.
+
+        Convenience method that combines merge_headers() and merge_footers().
+
         Args:
-            template: Dokument szablonu z headers/footers
-            header_types: Lista typów nagłówków do aplikacji (None = wszystkie)
-            footer_types: Lista typów stopek do aplikacji (None = wszystkie)
-            
+        template: Template document with headers/footers
+        header_types: List of header types to apply (None = all)
+        footer_types: List of footer types to apply (None = all)
+
         Examples:
-            >>> doc.apply_layout("template.docx")
-            >>> doc.apply_layout("template.docx", header_types=["default"], footer_types=["default"])
+        >>> doc.apply_layout("template.docx")
+        >>> doc.apply_layout("template.docx", header_types=["default"], footer_types=["default"])
+
         """
         self.merge_headers(template, header_types)
         self.merge_footers(template, footer_types)
@@ -595,18 +641,20 @@ class Document:
         editable: bool = False
     ) -> None:
         """
-        Renderuje dokument do HTML.
-        
+
+        Renders document to HTML.
+
         Args:
-            output_path: Ścieżka do pliku wyjściowego HTML
-            editable: Czy HTML ma być edytowalny (contenteditable)
-            
+        output_path: Path to output HTML file
+        editable: Whether HTML should be editable (contenteditable)
+
         Note:
-            Używa istniejącego HTMLRenderer bez modyfikacji.
+        Uses existing HTMLRenderer without modification.
+
         """
         from .renderers import HTMLRenderer
         
-        # Użyj istniejącego renderera
+        # Use existing renderer
         renderer = HTMLRenderer(self._document_model or self, editable=editable)
         html_content = renderer.render()
         renderer.save_to_file(html_content, output_path)
@@ -619,37 +667,39 @@ class Document:
         margins: Optional[Tuple[float, float, float, float]] = None
     ) -> None:
         """
-        Renderuje dokument do PDF używając PDFCompiler.
-        
+
+        Renders document to PDF using PDFCompiler.
+
         Args:
-            output_path: Ścieżka do pliku wyjściowego PDF
-            engine: Silnik renderowania ("reportlab" lub "direct") - obecnie zawsze używa PDFCompiler
-            page_size: Rozmiar strony w punktach (width, height), domyślnie A4 (595, 842)
-            margins: Marginesy w punktach (top, bottom, left, right), domyślnie (72, 72, 72, 72)
-            
+        output_path: Path to output PDF file
+        engine: Rendering engine ("reportlab" or "direct") - currently always uses PDFCompiler
+        page_size: Page size in points (width, height), default A4 (595, 842)
+        margins: Margins in points (top, bottom, left, right), default (72, 72, 72, 72)
+
         Examples:
-            >>> doc.render_pdf("output.pdf")
-            >>> doc.render_pdf("output.pdf", page_size=(595, 842), margins=(72, 72, 72, 72))
+        >>> doc.render_pdf("output.pdf")
+        >>> doc.render_pdf("output.pdf", page_size=(595, 842), margins=(72, 72, 72, 72))
+
         """
         from .engine.layout_pipeline import LayoutPipeline
         from .engine.pdf.pdf_compiler import PDFCompiler
         from .engine.geometry import Size, Margins
         from .engine.page_engine import PageConfig
         
-        # Domyślne wartości
+        # Default values
         if page_size is None:
             page_size = (595, 842)  # A4 w punktach
         if margins is None:
             margins = (72, 72, 72, 72)  # 1 cal = 72 punkty
         
-        # Pobierz package_reader jeśli dostępny
+        # Get package_reader if available
         package_reader = None
         if hasattr(self._document_model, '_package_reader'):
             package_reader = self._document_model._package_reader
         elif hasattr(self._document_model, 'parser') and hasattr(self._document_model.parser, 'package_reader'):
             package_reader = self._document_model.parser.package_reader
         
-        # Utwórz PageConfig
+        # Create PageConfig
         page_config = PageConfig(
             page_size=Size(page_size[0], page_size[1]),
             base_margins=Margins(
@@ -660,13 +710,13 @@ class Document:
             )
         )
         
-        # Utwórz adapter dla LayoutPipeline
+        # Create adapter for LayoutPipeline
         class DocumentAdapter:
             def __init__(self, body_obj, parser, sections=None):
                 self.elements = body_obj.children if hasattr(body_obj, 'children') else []
                 self.parser = parser
                 self._body = body_obj
-                # Kopiuj sekcje z parametru lub spróbuj pobrać z parsera
+                # Copy sections from parameter or try to get from parser
                 self._sections = sections or []
                 if not self._sections and parser and hasattr(parser, 'parse_sections'):
                     try:
@@ -699,7 +749,7 @@ class Document:
         
         document_model = DocumentAdapter(body, parser, sections)
         
-        # Utwórz LayoutPipeline i przetwórz dokument
+        # Create LayoutPipeline and process document
         pipeline = LayoutPipeline(page_config)
         unified_layout = pipeline.process(
             document_model,
@@ -707,7 +757,7 @@ class Document:
             validate=False
         )
         
-        # Utwórz PDFCompiler i skompiluj do PDF
+        # Create PDFCompiler and compile to PDF
         compiler = PDFCompiler(
             output_path=str(output_path),
             page_size=page_size,
@@ -725,18 +775,20 @@ class Document:
         preserve_structure: bool = True
     ) -> None:
         """
-        Aktualizuje dokument na podstawie edytowanego pliku HTML.
-        
+
+        Updates document based on edited HTML file.
+
         Args:
-            html_path: Ścieżka do pliku HTML z edytowaną zawartością
-            preserve_structure: Czy zachować strukturę dokumentu (tabele, obrazy, etc.)
-            
+        html_path: Path to HTML file with edited content
+        preserve_structure: Whether to preserve document structure (tables, images, etc.)
+
         Examples:
-            >>> doc = Document.open("template.docx")
-            >>> doc.render_html("editable.html", editable=True)
-            >>> # ... edycja w przeglądarce ...
-            >>> doc.update_from_html_file("editable.html")
-            >>> doc.save("updated.docx")
+        >>> doc = Document.open("template.docx")
+        >>> doc.render_html("editable.html", editable=True)
+        >>> # ... edit in browser ...
+        >>> doc.update_from_html_file("editable.html")
+        >>> doc.save("updated.docx")
+
         """
         from .parser.html_parser import HTMLParser as HTMLDocParser
         from .models.paragraph import Paragraph
@@ -758,10 +810,10 @@ class Document:
             logger.error("Document body not found")
             return
         
-        # Jeśli preserve_structure, aktualizuj tylko paragrafy tekstowe
-        # W przeciwnym razie zastąp całą zawartość body
+        # If preserve_structure, update only text paragraphs
+        # Otherwise replace all body content
         if preserve_structure:
-            # Znajdź wszystkie paragrafy tekstowe w dokumencie
+            # Find all text paragraphs in document
             if hasattr(body, 'get_paragraphs'):
                 paragraphs = body.get_paragraphs()
             elif hasattr(body, 'children'):
@@ -769,13 +821,13 @@ class Document:
             else:
                 paragraphs = []
             
-            # Aktualizuj istniejące paragrafy
+            # Update existing paragraphs
             for i, para in enumerate(paragraphs):
                 if i < len(parsed_paragraphs):
                     parsed_para = parsed_paragraphs[i]
                     self._update_paragraph_from_html(para, parsed_para)
             
-            # Dodaj nowe paragrafy jeśli jest ich więcej w HTML
+            # Add new paragraphs if there are more in HTML
             if len(parsed_paragraphs) > len(paragraphs):
                 for i in range(len(paragraphs), len(parsed_paragraphs)):
                     parsed_para = parsed_paragraphs[i]
@@ -785,10 +837,10 @@ class Document:
                     elif hasattr(body, 'add_child'):
                         body.add_child(new_para)
         else:
-            # Zastąp całą zawartość body
-            # Usuń wszystkie istniejące paragrafy
+            # Replace all body content
+            # Remove all existing paragraphs
             if hasattr(body, 'children'):
-                # Usuń tylko paragrafy, zachowaj tabele i inne elementy
+                # Remove only paragraphs, keep tables and other elements
                 paragraphs_to_remove = [
                     child for child in body.children
                     if hasattr(child, '__class__') and 'Paragraph' in child.__class__.__name__
@@ -821,21 +873,21 @@ class Document:
                     body.add_child(new_image)
     
     def _update_paragraph_from_html(self, para: Any, parsed_para: Dict[str, Any]) -> None:
-        """Aktualizuje istniejący paragraf na podstawie HTML."""
+        """Updates existing paragraph based on HTML."""
         from .models.run import Run
         
-        # Aktualizuj numbering jeśli paragraf jest częścią listy
+        # Update numbering if paragraph is part of list
         numbering_info = parsed_para.get('numbering')
         if numbering_info:
             numbering_id = numbering_info.get('id')
             level = numbering_info.get('level', 0)
             
-            # Spróbuj użyć istniejącego numbering_id lub ustaw bezpośrednio
+            # Try to use existing numbering_id or set directly
             if numbering_id:
                 try:
                     para.set_list(level=level, numbering_id=numbering_id)
                 except (ValueError, AttributeError):
-                    # Jeśli set_list nie działa, ustaw numbering bezpośrednio
+                    # If set_list doesn't work, set numbering directly
                     if hasattr(para, 'numbering'):
                         para.numbering = {
                             'id': numbering_id,
@@ -843,14 +895,14 @@ class Document:
                             'format': numbering_info.get('format', 'decimal')
                         }
         elif hasattr(para, 'numbering'):
-            # Usuń numbering jeśli nie ma go w HTML
+            # Remove numbering if not present in HTML
             para.numbering = None
         
-        # Wyczyść istniejące runs
+        # Clear existing runs
         if hasattr(para, 'runs'):
             para.runs.clear()
         if hasattr(para, 'children'):
-            # Usuń tylko runs, zachowaj inne elementy
+            # Remove only runs, keep other elements
             runs_to_remove = [
                 child for child in para.children
                 if hasattr(child, '__class__') and 'Run' in child.__class__.__name__
@@ -874,7 +926,7 @@ class Document:
             # Ustaw kolory i czcionki
             if run_data.get('color'):
                 color = run_data.get('color')
-                # Upewnij się, że kolor jest w formacie hex (RRGGBB) bez #
+                # Ensure color is in hex format (RRGGBB) without #
                 if color.startswith('#'):
                     color = color[1:]
                 # Ustaw kolor
@@ -882,7 +934,7 @@ class Document:
             
             if run_data.get('font_size'):
                 font_size = run_data.get('font_size')
-                # font_size może być stringiem (half-points) lub intem
+                # font_size can be string (half-points) or int
                 if isinstance(font_size, str):
                     try:
                         font_size = int(font_size)
@@ -907,18 +959,18 @@ class Document:
         
         para = Paragraph()
         
-        # Ustaw numbering jeśli paragraf jest częścią listy
+        # Set numbering if paragraph is part of list
         numbering_info = parsed_para.get('numbering')
         if numbering_info:
             numbering_id = numbering_info.get('id')
             level = numbering_info.get('level', 0)
             
-            # Spróbuj użyć istniejącego numbering_id lub utwórz nowy
+            # Try to use existing numbering_id or create new one
             if numbering_id:
                 try:
                     para.set_list(level=level, numbering_id=numbering_id)
                 except (ValueError, AttributeError):
-                    # Jeśli set_list nie działa, ustaw numbering bezpośrednio
+                    # If set_list doesn't work, set numbering directly
                     para.numbering = {
                         'id': numbering_id,
                         'level': level,
@@ -941,7 +993,7 @@ class Document:
             # Ustaw kolory i czcionki
             if run_data.get('color'):
                 color = run_data.get('color')
-                # Upewnij się, że kolor jest w formacie hex (RRGGBB) bez #
+                # Ensure color is in hex format (RRGGBB) without #
                 if color.startswith('#'):
                     color = color[1:]
                 # Ustaw kolor
@@ -949,7 +1001,7 @@ class Document:
             
             if run_data.get('font_size'):
                 font_size = run_data.get('font_size')
-                # font_size może być stringiem (half-points) lub intem
+                # font_size can be string (half-points) or int
                 if isinstance(font_size, str):
                     try:
                         font_size = int(font_size)
@@ -967,7 +1019,7 @@ class Document:
         return para
     
     def _create_table_from_html(self, parsed_table: Dict[str, Any]) -> Any:
-        """Tworzy nową tabelę na podstawie HTML."""
+        """Creates new table based on HTML."""
         from .models.table import Table, TableRow, TableCell
         
         table = Table()
@@ -980,11 +1032,11 @@ class Document:
             if row_data.get('is_header'):
                 row.set_header_row(True)
             
-            # Dodaj komórki
+            # Add cells
             for cell_data in row_data.get('cells', []):
                 cell = TableCell()
                 
-                # Dodaj paragrafy do komórki
+                # Add paragraphs to cell
                 for para_data in cell_data.get('paragraphs', []):
                     para = self._create_paragraph_from_html(para_data)
                     cell.add_paragraph(para)
@@ -1001,21 +1053,21 @@ class Document:
         
         image = Image()
         
-        # Ustaw właściwości obrazu
+        # Set image properties
         rel_id = parsed_image.get('rel_id', '')
         if rel_id:
             image.set_rel_id(rel_id)
         
         src = parsed_image.get('src', '')
         if src:
-            # Jeśli src wygląda jak ścieżka, zapisz jako part_path
+            # If src looks like path, save as part_path
             if '/' in src or '\\' in src or src.startswith('image_'):
                 image.set_part_path(src)
         
         width = parsed_image.get('width')
         height = parsed_image.get('height')
         if width and height:
-            # Konwertuj px do EMU jeśli potrzeba (1px ≈ 9525 EMU)
+            # Convert px to EMU if needed (1px ≈ 9525 EMU)
             if width < 1000:  # Prawdopodobnie px
                 width = int(width * 9525)
             if height < 1000:  # Prawdopodobnie px
