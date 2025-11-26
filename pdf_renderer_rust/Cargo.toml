@@ -1,0 +1,29 @@
+[package]
+name = "pdf_renderer_rust"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "pdf_renderer_rust"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+pdf-writer = "0.9"
+pyo3 = { version = "0.20", features = ["extension-module", "abi3-py38", "serde"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+image = "0.24"
+ttf-parser = "0.20"
+subsetter = "0.1"
+thiserror = "1.0"
+log = "0.4"
+jpeg-decoder = "0.3"
+emf-converter = { path = "../docx_interpreter/media/converter/rust/emf-converter" }
+resvg = "0.40"
+usvg = "0.40"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+

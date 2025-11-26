@@ -1,0 +1,3 @@
+lxml==6.0.2
+reportlab==4.4.4
+

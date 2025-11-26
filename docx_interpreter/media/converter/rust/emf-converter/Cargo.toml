@@ -1,0 +1,19 @@
+[package]
+name = "emf-converter"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "emf_converter"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+pyo3 = { version = "0.20", features = ["extension-module"] }
+byteorder = "1.5"
+svg = "0.14"
+base64 = "0.22"
+
+[profile.release]
+opt-level = 3
+lto = true
+

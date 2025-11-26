@@ -1,0 +1,21 @@
+[package]
+name = "rust_pdf_canvas"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "rust_pdf_canvas"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+pdf-writer = "0.9"
+pyo3 = { version = "0.20", features = ["extension-module", "abi3-py38"] }
+image = "0.24"
+jpeg-decoder = "0.3"
+ttf-parser = "0.20"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+
