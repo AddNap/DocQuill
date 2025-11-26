@@ -5,7 +5,7 @@ from __future__ import annotations
 from html import escape
 from io import BytesIO
 from pathlib import Path
-from typing import Iterable, Optional, Sequence, Union
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Union
 
 from ..engine.placeholder_resolver import PlaceholderResolver
 from ..engine.geometry import Margins, Size
@@ -348,6 +348,9 @@ class HTMLRenderer:
                         'content': ' '.join(textbox_content),
                         'runs': run_textbox if isinstance(run_textbox, list) else []
                     })
+                
+                # Get footnote and endnote references from run
+                run_footnote_refs = getattr(run, 'footnote_refs', []) or []
                 
                 # Check if run has field codes (children of type Field)
                 run_fields = []
