@@ -18,12 +18,12 @@ logger = logging.getLogger(__name__)
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from docx_interpreter.parser.package_reader import PackageReader
-from docx_interpreter.parser.xml_parser import XMLParser
-from docx_interpreter.engine.layout_pipeline import LayoutPipeline
-from docx_interpreter.engine.geometry import Size, Margins
-from docx_interpreter.engine.page_engine import PageConfig
-from docx_interpreter.engine.pdf.pdf_compiler import PDFCompiler as PDFCompilerPython
+from docquill.parser.package_reader import PackageReader
+from docquill.parser.xml_parser import XMLParser
+from docquill.engine.layout_pipeline import LayoutPipeline
+from docquill.engine.geometry import Size, Margins
+from docquill.engine.page_engine import PageConfig
+from docquill.engine.pdf.pdf_compiler import PDFCompiler as PDFCompilerPython
 
 # Try to import Rust renderer directly
 try:
@@ -34,10 +34,10 @@ try:
         pdf_renderer_rust = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(pdf_renderer_rust)
         # Override the pdf_renderer_rust module in the wrapper
-        import docx_interpreter.engine.pdf.pdf_compiler_rust as pdf_compiler_rust_module
+        import docquill.engine.pdf.pdf_compiler_rust as pdf_compiler_rust_module
         pdf_compiler_rust_module.pdf_renderer_rust = pdf_renderer_rust
         pdf_compiler_rust_module.HAS_RUST_RENDERER = True
-        from docx_interpreter.engine.pdf.pdf_compiler_rust import PDFCompilerRust
+        from docquill.engine.pdf.pdf_compiler_rust import PDFCompilerRust
     else:
         raise ImportError("Rust module .so file not found")
 except Exception as e:
@@ -75,8 +75,8 @@ def test_rust_renderer():
         logger.info(f"Parsed: {len(body.children)} elements")
         
         # Preconvert images
-        from docx_interpreter.parser.image_preconverter import preconvert_images_from_model
-        from docx_interpreter.media import MediaConverter
+        from docquill.parser.image_preconverter import preconvert_images_from_model
+        from docquill.media import MediaConverter
         media_converter = MediaConverter()
         preconvert_images_from_model(body, package_reader, pipeline.image_cache, media_converter)
         
@@ -100,7 +100,7 @@ def test_rust_renderer():
             section = sections[0]
             if 'margins' in section:
                 docx_margins = section['margins']
-                from docx_interpreter.engine.geometry import twips_to_points
+                from docquill.engine.geometry import twips_to_points
                 
                 def get_margin_twips(key, default=1440):
                     val = docx_margins.get(key, default)

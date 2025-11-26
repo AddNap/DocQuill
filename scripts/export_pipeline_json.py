@@ -15,13 +15,13 @@ from dataclasses import asdict, is_dataclass
 # Dodaj ścieżkę do projektu
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from docx_interpreter import Document
-from docx_interpreter.engine.unified_layout import UnifiedLayout, LayoutPage, LayoutBlock
-from docx_interpreter.engine.geometry import Rect, Size, Margins
-from docx_interpreter.engine.layout_pipeline import LayoutPipeline
-from docx_interpreter.engine.page_engine import PageConfig
-from docx_interpreter.parser.package_reader import PackageReader
-from docx_interpreter.parser.xml_parser import XMLParser
+from docquill import Document
+from docquill.engine.unified_layout import UnifiedLayout, LayoutPage, LayoutBlock
+from docquill.engine.geometry import Rect, Size, Margins
+from docquill.engine.layout_pipeline import LayoutPipeline
+from docquill.engine.page_engine import PageConfig
+from docquill.parser.package_reader import PackageReader
+from docquill.parser.xml_parser import XMLParser
 
 
 def serialize_dataclass(obj: Any) -> Any:

@@ -9,6 +9,10 @@ import os
 from pathlib import Path
 from unittest.mock import Mock, MagicMock
 
+# Add packages to path for testing
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root / "packages" / "docquill_core"))
+
 
 @pytest.fixture(autouse=True)
 def configure_logging():
@@ -85,7 +89,7 @@ def mock_document():
         'author': 'Test Author'
     })
     
-    # Body and elements
+    # Body and elements - create properly configured mock paragraph
     mock_paragraph = Mock()
     mock_paragraph.text = "Test paragraph"
     mock_paragraph.get_text = Mock(return_value="Test paragraph")
@@ -93,8 +97,23 @@ def mock_document():
         'type': 'paragraph',
         'text': 'Test paragraph'
     })
+    # Configure runs as empty list (not Mock)
     mock_paragraph.runs = []
     mock_paragraph.style = None
+    mock_paragraph.numbering = None
+    mock_paragraph.children = []
+    mock_paragraph.alignment = None
+    mock_paragraph.borders = None
+    mock_paragraph.background = None
+    mock_paragraph.shadow = None
+    mock_paragraph.spacing_before = None
+    mock_paragraph.spacing_after = None
+    mock_paragraph.left_indent = None
+    mock_paragraph.right_indent = None
+    # Make sure hasattr checks work properly
+    del mock_paragraph.rows  # Remove auto-created 'rows' attribute
+    del mock_paragraph.get_rows  # Remove auto-created 'get_rows' attribute
+    del mock_paragraph.rel_id  # Remove auto-created 'rel_id' attribute
     
     doc.body = Mock()
     doc.body.children = [mock_paragraph]
@@ -102,7 +121,7 @@ def mock_document():
     doc.body.tables = []
     doc.body.images = []
     
-    # Methods
+    # Methods - return actual lists, not Mocks
     doc.get_paragraphs = Mock(return_value=[mock_paragraph])
     doc.get_tables = Mock(return_value=[])
     doc.get_images = Mock(return_value=[])
@@ -117,6 +136,37 @@ def mock_document():
     
     # Placeholder values
     doc.placeholder_values = {}
+    
+    # Headers and footers
+    doc.headers = []
+    doc.footers = []
+    doc.get_headers = Mock(return_value=[])
+    doc.get_footers = Mock(return_value=[])
+    
+    # Footnotes and endnotes - must be dicts, not lists
+    doc.footnotes = {}
+    doc.endnotes = {}
+    doc.get_footnotes = Mock(return_value={})
+    doc.get_endnotes = Mock(return_value={})
+    
+    # Watermarks
+    doc.watermarks = []
+    doc.get_watermarks = Mock(return_value=[])
+    
+    # Package reader - set to None to avoid style parsing issues
+    doc.package_reader = None
+    
+    # Pages - for layout export
+    doc.pages = []
+    
+    # Sections - for layout export
+    doc.sections = []
+    
+    # Elements - for content export
+    doc.elements = [mock_paragraph]
+    
+    # Title - for text export
+    doc.title = "Test Document"
     
     return doc
 
@@ -177,10 +227,14 @@ def sample_zip_content():
     <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
     <Default Extension="xml" ContentType="application/xml"/>
     <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+    <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
+    <Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>
 </Types>''',
         '_rels/.rels': '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
     <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+    <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>
+    <Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/>
 </Relationships>''',
         'word/document.xml': '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
@@ -195,6 +249,23 @@ def sample_zip_content():
         'word/_rels/document.xml.rels': '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
 </Relationships>''',
+        'docProps/core.xml': '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/">
+    <dc:title>Test Document</dc:title>
+    <dc:creator>Test Author</dc:creator>
+    <cp:lastModifiedBy>Test Author</cp:lastModifiedBy>
+    <dcterms:created>2025-01-01T00:00:00Z</dcterms:created>
+    <dcterms:modified>2025-01-01T00:00:00Z</dcterms:modified>
+</cp:coreProperties>''',
+        'docProps/app.xml': '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties">
+    <Application>Microsoft Office Word</Application>
+    <Pages>1</Pages>
+    <Words>2</Words>
+</Properties>''',
+        'docProps/custom.xml': '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/custom-properties">
+</Properties>''',
     }
 
 

@@ -1,0 +1,109 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "docquill"
+version = "0.1.0"
+description = "Professional DOCX document processing library with AI-ready JSON export, PDF/HTML rendering, and round-trip editing"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.9"
+authors = [
+    { name = "AddNap" }
+]
+keywords = [
+    "docx",
+    "document",
+    "word",
+    "pdf",
+    "html",
+    "parser",
+    "renderer",
+    "ai",
+    "nlp",
+    "office",
+    "openxml"
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Office/Business :: Office Suites",
+    "Topic :: Text Processing :: Markup :: XML",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = [
+    "lxml>=4.9.0",
+    "reportlab>=4.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "black>=23.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0",
+]
+rust = [
+    "docquill-pdf-rust>=0.1.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/AddNap/DocQuill"
+Documentation = "https://github.com/AddNap/DocQuill/tree/main/docs"
+Repository = "https://github.com/AddNap/DocQuill"
+Issues = "https://github.com/AddNap/DocQuill/issues"
+
+[project.scripts]
+docquill = "docquill.__main__:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["docquill"]
+exclude = [
+    "docquill/media/converter/rust.zip",
+    "docquill/media/converter/java/**",
+    "docquill/media/converter/rust/**",
+]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/docquill",
+]
+exclude = [
+    "docquill/media/converter/rust.zip",
+    "docquill/media/converter/java/**",
+    "docquill/media/converter/rust/**",
+]
+
+[tool.black]
+line-length = 100
+target-version = ["py39", "py310", "py311", "py312"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["../../tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+

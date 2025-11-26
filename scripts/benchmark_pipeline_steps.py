@@ -28,14 +28,14 @@ from typing import Dict, List, Optional
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from docx_interpreter.parser.package_reader import PackageReader
-from docx_interpreter.parser.xml_parser import XMLParser
-from docx_interpreter.engine.layout_pipeline import LayoutPipeline
-from docx_interpreter.engine.geometry import Margins, Size, twips_to_points
-from docx_interpreter.engine.page_engine import PageConfig
-from docx_interpreter.engine.pagination_manager import PaginationManager
-from docx_interpreter.engine.page_variator import PageVariator
-from docx_interpreter.engine.pdf.pdf_compiler import PDFCompiler
+from docquill.parser.package_reader import PackageReader
+from docquill.parser.xml_parser import XMLParser
+from docquill.engine.layout_pipeline import LayoutPipeline
+from docquill.engine.geometry import Margins, Size, twips_to_points
+from docquill.engine.page_engine import PageConfig
+from docquill.engine.pagination_manager import PaginationManager
+from docquill.engine.page_variator import PageVariator
+from docquill.engine.pdf.pdf_compiler import PDFCompiler
 
 
 DEFAULT_DOC = PROJECT_ROOT / "tests" / "files" / "Zapytanie_Ofertowe.docx"

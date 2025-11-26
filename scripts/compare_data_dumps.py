@@ -13,8 +13,8 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from docx_interpreter.engine.pdf.pdf_compiler import PdfCompiler
-from docx_interpreter.engine.pdf.pdf_compiler_rust import PdfCompilerRust
+from docquill.engine.pdf.pdf_compiler import PdfCompiler
+from docquill.engine.pdf.pdf_compiler_rust import PdfCompilerRust
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -118,8 +118,8 @@ def compare_dumps(docx_path):
     logger.info("🔍 Extracting layout data...")
     
     # We need to get the unified layout first
-    from docx_interpreter.engine.unified_layout import UnifiedLayout
-    from docx_interpreter.docx_interpreter import DocxInterpreter
+    from docquill.engine.unified_layout import UnifiedLayout
+    from docquill.docx_interpreter import DocxInterpreter
     
     interpreter = DocxInterpreter(docx_path)
     layout = interpreter.create_layout()

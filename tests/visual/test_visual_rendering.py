@@ -34,15 +34,15 @@ def _ensure_samples_exist(samples: Iterable[Path]) -> None:
 
 _ensure_samples_exist(VISUAL_SAMPLES)
 
-from docx_interpreter.engine.assembler.utils import parse_cell_margins
-from docx_interpreter.engine.geometry import Margins, Size, twips_to_points
-from docx_interpreter.engine.layout_pipeline import LayoutPipeline
-from docx_interpreter.engine.layout_primitives import BlockContent, ParagraphLayout
-from docx_interpreter.engine.page_engine import PageConfig
-from docx_interpreter.engine.pdf.pdf_compiler import PDFCompiler
-from docx_interpreter.engine.pdfcompiler.debug_compiler import DebugPDFCompiler
-from docx_interpreter.parser.package_reader import PackageReader
-from docx_interpreter.parser.xml_parser import XMLParser
+from docquill.engine.assembler.utils import parse_cell_margins
+from docquill.engine.geometry import Margins, Size, twips_to_points
+from docquill.engine.layout_pipeline import LayoutPipeline
+from docquill.engine.layout_primitives import BlockContent, ParagraphLayout
+from docquill.engine.page_engine import PageConfig
+from docquill.engine.pdf.pdf_compiler import PDFCompiler
+from docquill.engine.pdfcompiler.debug_compiler import DebugPDFCompiler
+from docquill.parser.package_reader import PackageReader
+from docquill.parser.xml_parser import XMLParser
 
 
 def _round(value: float) -> float:

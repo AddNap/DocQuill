@@ -3,9 +3,9 @@
 
 import json
 from pathlib import Path
-from docx_interpreter.document import Document
-from docx_interpreter.engine import SimpleLayoutEngine
-from docx_interpreter.engine.geometry import Size, Margins
+from docquill.document import Document
+from docquill.engine import SimpleLayoutEngine
+from docquill.engine.geometry import Size, Margins
 
 
 def format_value(value, max_depth=3, current_depth=0):

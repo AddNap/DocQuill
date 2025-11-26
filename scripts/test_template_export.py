@@ -8,7 +8,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from docx_interpreter import Document
+from docquill import Document
 
 def test_template_export(docx_path: str, output_path: str = None):
     """Testuje eksport DOCX z użyciem szablonu."""

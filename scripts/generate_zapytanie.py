@@ -3,7 +3,7 @@
 
 import sys
 from pathlib import Path
-from docx_interpreter.document import Document
+from docquill.document import Document
 from compiler import PdfCompiler, CompilerOptions
 
 def main():

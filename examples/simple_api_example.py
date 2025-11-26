@@ -6,7 +6,7 @@ Demonstruje prosty interfejs do pracy z dokumentami DOCX.
 """
 
 from pathlib import Path
-from docx_interpreter import Document
+from docquill import Document
 
 def main():
     """Przykład użycia prostego API."""

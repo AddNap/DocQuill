@@ -18,8 +18,8 @@ import argparse
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, project_root)
 
-from docx_interpreter import Document
-from docx_interpreter.renderers import HTMLRenderer, PDFRenderer, DOCXRenderer
+from docquill import Document
+from docquill.renderers import HTMLRenderer, PDFRenderer, DOCXRenderer
 
 class BenchmarkResults:
     """Container for benchmark results."""

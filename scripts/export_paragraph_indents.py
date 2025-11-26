@@ -11,11 +11,11 @@ from typing import Any, Dict
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from docx_interpreter.engine.geometry import Margins, Size, twips_to_points
-from docx_interpreter.engine.layout_pipeline import LayoutPipeline
-from docx_interpreter.engine.page_engine import PageConfig
-from docx_interpreter.parser.package_reader import PackageReader
-from docx_interpreter.parser.xml_parser import XMLParser
+from docquill.engine.geometry import Margins, Size, twips_to_points
+from docquill.engine.layout_pipeline import LayoutPipeline
+from docquill.engine.page_engine import PageConfig
+from docquill.parser.package_reader import PackageReader
+from docquill.parser.xml_parser import XMLParser
 
 
 class DocumentAdapter:

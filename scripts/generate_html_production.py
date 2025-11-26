@@ -15,12 +15,12 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from docx_interpreter.parser.package_reader import PackageReader
-from docx_interpreter.parser.xml_parser import XMLParser
-from docx_interpreter.engine.layout_pipeline import LayoutPipeline
-from docx_interpreter.engine.geometry import Size, Margins, twips_to_points
-from docx_interpreter.engine.page_engine import PageConfig
-from docx_interpreter.engine.html import HTMLCompiler, HTMLCompilerConfig
+from docquill.parser.package_reader import PackageReader
+from docquill.parser.xml_parser import XMLParser
+from docquill.engine.layout_pipeline import LayoutPipeline
+from docquill.engine.geometry import Size, Margins, twips_to_points
+from docquill.engine.page_engine import PageConfig
+from docquill.engine.html import HTMLCompiler, HTMLCompilerConfig
 
 
 def _read_margins_from_docx(xml_parser: XMLParser) -> Margins:

@@ -10,7 +10,7 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from docx_interpreter.media import MediaConverter
+from docquill.media import MediaConverter
 
 
 def benchmark_converter(wmf_path: Path, iterations: int = 100):

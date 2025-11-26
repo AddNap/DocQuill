@@ -13,8 +13,8 @@ from collections import defaultdict
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from docx_interpreter import Document
-from docx_interpreter.parser import PackageReader, XMLParser
+from docquill import Document
+from docquill.parser import PackageReader, XMLParser
 
 
 def extract_document_info(docx_path: Path) -> Dict[str, Any]:
@@ -34,7 +34,7 @@ def extract_document_info(docx_path: Path) -> Dict[str, Any]:
     
     try:
         # Użyj bezpośrednio parsera zamiast Document API (bardziej niezawodne)
-        from docx_interpreter.parser import PackageReader, XMLParser
+        from docquill.parser import PackageReader, XMLParser
         
         package_reader = PackageReader(docx_path)
         parser = XMLParser(package_reader)

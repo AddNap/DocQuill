@@ -5,7 +5,7 @@
 <h1 align="center">DocQuill</h1>
 
 <p align="center">
-  <strong>Advanced Python library for DOCX manipulation with Jinja-like templating, document merging, and high-quality PDF/HTML rendering.</strong>
+  <strong>Professional Python library for DOCX manipulation with Jinja-like templating, document merging, and high-quality PDF/HTML rendering.</strong>
 </p>
 
 <p align="center">
@@ -23,14 +23,31 @@
 - **AI-Ready JSON Export** – Structured layout export for analysis and modification by AI/ML pipelines
 - **Full DOCX Support** – Footnotes, endnotes, textboxes, watermarks, field codes, bookmarks, and more
 
+## 📦 Project Structure
+
+This is a monorepo containing multiple packages:
+
+```
+packages/
+├── docquill_core/       # Main Python package (pip install docquill)
+├── docquill_pdf_rust/   # Optional high-performance Rust PDF renderer
+└── docquill_pro/        # Future PRO modules (xlsx, pptx, pdf_ai)
+```
+
 ## Quick Start
 
 ```bash
-pip install docx-interpreter
+pip install docquill
+```
+
+For high-performance PDF rendering:
+
+```bash
+pip install docquill[rust]
 ```
 
 ```python
-from docx_interpreter import Document
+from docquill import Document
 
 # Open and fill a template
 doc = Document.open("template.docx")
@@ -73,7 +90,7 @@ doc.to_html("output.html")
 ## Core API
 
 ```python
-from docx_interpreter import Document
+from docquill import Document
 
 # Document lifecycle
 doc = Document.open("file.docx")      # Open existing
@@ -135,17 +152,31 @@ layout.export_json("layout.json", format="optimized_pipeline")
 # - Semantic markers (source_uid, sequence)
 ```
 
-## Features
+## Development
 
-| Feature | DocQuill |
-|---------|----------|
-| Full DOCX parsing | ✅ |
-| PDF rendering | ✅ |
-| HTML rendering | ✅ |
-| Placeholder engine | ✅ 20+ types |
-| Native Python | ✅ |
-| Open source | ✅ Apache 2.0 |
-| Price | Free |
+### Building from source
+
+```bash
+# Clone the repository
+git clone https://github.com/AddNap/DocQuill.git
+cd DocQuill
+
+# Install docquill_core in development mode
+cd packages/docquill_core
+pip install -e ".[dev]"
+
+# (Optional) Build Rust PDF renderer
+cd ../docquill_pdf_rust
+pip install maturin
+maturin develop --release
+```
+
+### Running tests
+
+```bash
+# From project root
+pytest tests/
+```
 
 ## Technology Stack
 
@@ -160,7 +191,7 @@ Apache License 2.0 – see [LICENSE](LICENSE) for details.
 
 ## 🤝 Contributing
 
-Contributions welcome! Please read the contribution guidelines before submitting PRs.
+Contributions welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) before submitting PRs.
 
 ---
 

@@ -12,8 +12,8 @@ from pathlib import Path
 # Dodaj ścieżkę do modułów
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from docx_interpreter.importers.pipeline_json_importer import PipelineJSONImporter
-from docx_interpreter.export.docx_exporter import DOCXExporter
+from docquill.importers.pipeline_json_importer import PipelineJSONImporter
+from docquill.export.docx_exporter import DOCXExporter
 
 
 def main():

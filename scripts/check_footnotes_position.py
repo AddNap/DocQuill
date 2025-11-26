@@ -9,12 +9,12 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from docx_interpreter.parser.package_reader import PackageReader
-from docx_interpreter.parser.notes_parser import NotesParser
-from docx_interpreter.parser.xml_parser import XMLParser
-from docx_interpreter.engine.layout_pipeline import LayoutPipeline
-from docx_interpreter.engine.geometry import Size, Margins
-from docx_interpreter.engine.page_engine import PageConfig
+from docquill.parser.package_reader import PackageReader
+from docquill.parser.notes_parser import NotesParser
+from docquill.parser.xml_parser import XMLParser
+from docquill.engine.layout_pipeline import LayoutPipeline
+from docquill.engine.geometry import Size, Margins
+from docquill.engine.page_engine import PageConfig
 import json
 
 

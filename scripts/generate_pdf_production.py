@@ -16,12 +16,12 @@ logging.basicConfig(level=logging.INFO, format='%(levelname)s - %(name)s - %(mes
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from docx_interpreter.parser.package_reader import PackageReader
-from docx_interpreter.parser.xml_parser import XMLParser
-from docx_interpreter.engine.layout_pipeline import LayoutPipeline
-from docx_interpreter.engine.geometry import Size, Margins
-from docx_interpreter.engine.page_engine import PageConfig
-from docx_interpreter.engine.pdf.pdf_compiler import PDFCompiler
+from docquill.parser.package_reader import PackageReader
+from docquill.parser.xml_parser import XMLParser
+from docquill.engine.layout_pipeline import LayoutPipeline
+from docquill.engine.geometry import Size, Margins
+from docquill.engine.page_engine import PageConfig
+from docquill.engine.pdf.pdf_compiler import PDFCompiler
 
 
 def main():
@@ -88,7 +88,7 @@ def main():
         print("🔄 Krok 2: Konfiguracja strony...")
         
         # Pobierz marginesy z DOCX (jeśli są dostępne)
-        from docx_interpreter.engine.geometry import twips_to_points
+        from docquill.engine.geometry import twips_to_points
         t0 = time.perf_counter()
         sections = xml_parser.parse_sections()
         margins = Margins(top=72, bottom=72, left=72, right=72)  # Domyślne marginesy (1 cal = 72 punkty)
@@ -138,8 +138,8 @@ def main():
         print(f"✅ Dokument sparsowany: {len(body.children)} elementów")
         
         # Prekonwertuj obrazy WMF/EMF asynchronicznie
-        from docx_interpreter.parser.image_preconverter import preconvert_images_from_model
-        from docx_interpreter.media import MediaConverter
+        from docquill.parser.image_preconverter import preconvert_images_from_model
+        from docquill.media import MediaConverter
         media_converter = MediaConverter()
         t0 = time.perf_counter()
         preconvert_images_from_model(body, package_reader, pipeline.image_cache, media_converter)
@@ -176,8 +176,8 @@ def main():
         # Re-inicjalizuj footnote_renderer z package_reader
         if hasattr(pipeline.layout_assembler, 'footnote_renderer') and package_reader:
             try:
-                from docx_interpreter.parser.notes_parser import NotesParser
-                from docx_interpreter.renderers.footnote_renderer import FootnoteRenderer
+                from docquill.parser.notes_parser import NotesParser
+                from docquill.renderers.footnote_renderer import FootnoteRenderer
                 notes_parser = NotesParser(package_reader)
                 footnotes = notes_parser.get_footnotes() or {}
                 endnotes = notes_parser.get_endnotes() or {}

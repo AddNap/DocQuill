@@ -27,9 +27,9 @@ def main():
     
     # Otwórz dokument bezpośrednio przez parser (bez LayoutPipeline)
     # aby uniknąć podstawiania placeholderów
-    from docx_interpreter.parser.package_reader import PackageReader
-    from docx_interpreter.parser.xml_parser import XMLParser
-    from docx_interpreter.export.docx_exporter import DOCXExporter
+    from docquill.parser.package_reader import PackageReader
+    from docquill.parser.xml_parser import XMLParser
+    from docquill.export.docx_exporter import DOCXExporter
     
     print(f"📄 Otwieranie dokumentu bezpośrednio przez parser...")
     package_reader = PackageReader(str(input_path))

@@ -16,12 +16,12 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 # Importy z parsera i engine
-from docx_interpreter.parser.package_reader import PackageReader
-from docx_interpreter.parser.xml_parser import XMLParser
-from docx_interpreter.engine.layout_pipeline import LayoutPipeline
-from docx_interpreter.engine.geometry import Size, Margins
-from docx_interpreter.engine.page_engine import PageConfig
-from docx_interpreter.engine.pdfcompiler.debug_compiler import DebugPDFCompiler
+from docquill.parser.package_reader import PackageReader
+from docquill.parser.xml_parser import XMLParser
+from docquill.engine.layout_pipeline import LayoutPipeline
+from docquill.engine.geometry import Size, Margins
+from docquill.engine.page_engine import PageConfig
+from docquill.engine.pdfcompiler.debug_compiler import DebugPDFCompiler
 
 
 def main():
@@ -70,7 +70,7 @@ def main():
         
         # Konfiguracja strony (A4 w punktach)
         # Pobierz marginesy z DOCX (jeśli są dostępne)
-        from docx_interpreter.engine.geometry import twips_to_points
+        from docquill.engine.geometry import twips_to_points
         sections = xml_parser.parse_sections()
         margins = Margins(top=72, bottom=72, left=72, right=72)  # Domyślne marginesy (1 cal = 72 punkty)
         

@@ -6,12 +6,12 @@ import os
 from pathlib import Path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from docx_interpreter.parser.package_reader import PackageReader
-from docx_interpreter.parser.xml_parser import XMLParser
-from docx_interpreter.engine.layout_pipeline import LayoutPipeline
-from docx_interpreter.engine.unified_layout import UnifiedLayout
-from docx_interpreter.engine.geometry import Size, Margins
-from docx_interpreter.engine.page_engine import PageConfig
+from docquill.parser.package_reader import PackageReader
+from docquill.parser.xml_parser import XMLParser
+from docquill.engine.layout_pipeline import LayoutPipeline
+from docquill.engine.unified_layout import UnifiedLayout
+from docquill.engine.geometry import Size, Margins
+from docquill.engine.page_engine import PageConfig
 import json
 
 def dump_dict(obj, indent=0):
