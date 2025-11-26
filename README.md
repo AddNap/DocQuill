@@ -1,348 +1,159 @@
 # DocQuill
 
-Zaawansowana biblioteka do manipulacji dokumentami DOCX z funkcjonalnościami Jinja-like i zaawansowanym scalaniem dokumentów.
+> Advanced Python library for DOCX manipulation with Jinja-like templating, document merging, and high-quality PDF/HTML rendering.
 
-## ✨ Główne Funkcjonalności
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 
-- ✅ **Jinja-like Placeholder System** - 20+ typów placeholderów z automatycznym formatowaniem
-- ✅ **Zaawansowane Scalanie Dokumentów** - selektywne łączenie elementów z różnych dokumentów
-- ✅ **Obsługa Relacji OPC** - zachowanie wszystkich relacji podczas scalania
-- ✅ **Proste API** - intuicyjny interfejs dla użytkowników
-- ✅ **Renderowanie** - HTML i PDF (używa istniejących rendererów bez modyfikacji)
+## ✨ Features
 
-## 🚀 Szybki Start
+- **Jinja-like Placeholder System** – 20+ placeholder types with automatic formatting (text, dates, currency, phone, QR codes, tables, images, lists, conditional blocks)
+- **Document Merging** – Selective merging of body, headers, footers, and styles with full OPC relationship preservation
+- **PDF Rendering** – High-quality output via Rust backend (default) or ReportLab fallback
+- **HTML Workflow** – Bidirectional DOCX ⇄ HTML conversion with editable HTML support
+- **AI-Ready JSON Export** – Structured layout export for analysis and modification by AI/ML pipelines
+- **Full DOCX Support** – Footnotes, endnotes, textboxes, watermarks, field codes, bookmarks, and more
 
-```python
-from docx_interpreter import Document
-
-# Otwórz dokument
-doc = Document.open("template.docx")
-
-# Wypełnij placeholdery (Jinja-like)
-doc.fill_placeholders({
-    "TEXT:Name": "Jan Kowalski",
-    "DATE:IssueDate": "2025-10-16",
-    "CURRENCY:Amount": 1500.50,  # → 1 500,50 PLN
-    "PHONE:Contact": "123456789",  # → +48 123 456 789
-    "QR:OrderCode": "ORDER-123",
-    "TABLE:Items": {
-        "headers": ["Product", "Qty", "Price"],
-        "rows": [["Laptop", "1", "4500"]]
-    }
-})
-
-# Renderuj do HTML
-doc.render_html("output.html")
-```
-
-## 📚 Przykłady
-
-### Tworzenie i Edycja Dokumentów
-
-```python
-from docx_interpreter import Document
-
-# Utwórz nowy dokument
-doc = Document.create()
-
-# Dodaj paragrafy
-doc.add_paragraph("Tytuł dokumentu", style="Heading1")
-doc.add_paragraph("Normalny tekst")
-
-# Dodaj paragraf z formatowaniem
-para = doc.add_paragraph("Tekst z ")
-doc.add_run(para, "pogrubieniem", bold=True)
-doc.add_run(para, " i ", italic=False)
-doc.add_run(para, "kursywą", italic=True)
-doc.add_run(para, " oraz ", underline=False)
-doc.add_run(para, "podkreśleniem", underline=True)
-
-# Dodaj kolorowy tekst
-para_color = doc.add_paragraph("Kolorowy tekst: ")
-doc.add_run(para_color, "zielony", font_color="008000")
-doc.add_run(para_color, " i ", font_color=None)
-doc.add_run(para_color, "czerwony", font_color="FF0000")
-
-# Zapisz dokument
-doc.save("new_document.docx")
-```
-
-### Wypełnianie Szablonu
-
-```python
-from docx_interpreter import Document
-
-doc = Document.open("template.docx")
-
-# Wypełnij placeholdery (Jinja-like)
-doc.fill_placeholders({
-    "TEXT:Name": "Jan Kowalski",
-    "DATE:IssueDate": "2025-10-16",
-    "CURRENCY:Amount": 1500.50,  # → 1 500,50 PLN
-    "PHONE:Contact": "123456789",  # → +48 123 456 789
-    "QR:OrderCode": "ORDER-123",
-    "TABLE:Items": {
-        "headers": ["Product", "Qty", "Price"],
-        "rows": [
-            ["Laptop", "1", "4500"],
-            ["Mouse", "2", "50"]
-        ]
-    },
-    "IMAGE:Logo": "logo.png",
-    "LIST:Features": ["Feature 1", "Feature 2", "Feature 3"]
-})
-
-doc.save("filled.docx")
-```
-
-### HTML Workflow (Edycja w Przeglądarce)
-
-```python
-from docx_interpreter import Document
-
-# Otwórz dokument
-doc = Document.open("template.docx")
-
-# Renderuj do edytowalnego HTML
-doc.render_html("editable.html", editable=True)
-
-# ... edycja w przeglądarce (dodawanie tekstu, formatowanie, tabele, obrazy) ...
-
-# Zaktualizuj dokument z edytowanego HTML
-doc.update_from_html_file("editable.html", preserve_structure=True)
-
-# Zapisz zaktualizowany dokument
-doc.save("updated.docx")
-```
-
-### Łączenie Dokumentów
-
-```python
-from docx_interpreter import Document
-
-# Pełne scalanie
-doc = Document.open("main.docx")
-doc.merge("appendix.docx", page_break=True)
-doc.save("merged.docx")
-
-# Selektywne scalanie elementów z różnych dokumentów
-doc = Document.open("main.docx")
-doc.merge_selective({
-    "body": Document.open("content.docx"),
-    "headers": Document.open("header_template.docx"),
-    "footers": Document.open("footer_template.docx"),
-    "styles": Document.open("style_template.docx")
-})
-doc.save("merged_selective.docx")
-
-# Scalanie tylko nagłówków
-doc.merge_headers("header_template.docx")
-
-# Scalanie tylko stopek
-doc.merge_footers("footer_template.docx")
-```
-
-### Renderowanie
-
-```python
-from docx_interpreter import Document
-
-doc = Document.open("document.docx")
-
-# Renderuj do HTML (edytowalny)
-doc.render_html("output.html", editable=True)
-
-# Renderuj do HTML (tylko do odczytu)
-doc.render_html("output_readonly.html", editable=False)
-
-# Renderuj do PDF
-doc.render_pdf("output.pdf")
-```
-
-### Bloki Warunkowe
-
-```python
-from docx_interpreter import Document
-
-doc = Document.open("template.docx")
-
-# Pokaż/ukryj blok warunkowy
-# W dokumencie: {{ START_SpecialOffer }}...{{ END_SpecialOffer }}
-doc.process_conditional_block("SpecialOffer", show=True)  # Pokaż
-doc.process_conditional_block("SpecialOffer", show=False)  # Ukryj
-
-doc.save("processed.docx")
-```
-
-### Listy
-
-```python
-from docx_interpreter import Document
-
-doc = Document.create()
-
-# Utwórz listę numerowaną
-numbered_list = doc.create_numbered_list()
-para1 = doc.add_paragraph("Pierwszy element")
-para1.set_list(numbered_list, level=0)
-para2 = doc.add_paragraph("Drugi element")
-para2.set_list(numbered_list, level=0)
-
-# Utwórz listę punktową
-bullet_list = doc.create_bullet_list()
-para3 = doc.add_paragraph("Element punktowy")
-para3.set_list(bullet_list, level=0)
-
-doc.save("lists.docx")
-```
-
-### Zastępowanie Tekstu
-
-```python
-from docx_interpreter import Document
-
-doc = Document.open("template.docx")
-
-# Zastąp tekst w całym dokumencie
-doc.replace_text("Stary tekst", "Nowy tekst")
-
-# Zastąp tylko w body (nie w nagłówkach/stopkach)
-doc.replace_text("Stary tekst", "Nowy tekst", scope="body")
-
-# Case-insensitive replacement
-doc.replace_text("stary tekst", "Nowy tekst", case_sensitive=False)
-
-doc.save("replaced.docx")
-```
-
-### Ekstrakcja Placeholderów
-
-```python
-from docx_interpreter import Document
-
-doc = Document.open("template.docx")
-
-# Wyciągnij wszystkie placeholdery z dokumentu
-placeholders = doc.extract_placeholders()
-
-for placeholder in placeholders:
-    print(f"Typ: {placeholder.type}, Nazwa: {placeholder.name}")
-    # Typ: TEXT, Nazwa: Name
-    # Typ: DATE, Nazwa: IssueDate
-    # ...
-```
-
-### Convenience Functions
-
-```python
-from docx_interpreter import (
-    fill_template, 
-    merge_documents, 
-    render_to_html,
-    render_to_pdf,
-    open_document,
-    create_document
-)
-
-# Wypełnij szablon (jedna linia)
-fill_template("template.docx", {"TEXT:Name": "Jan"}, "output.docx")
-
-# Połącz dokumenty (jedna linia)
-merge_documents("main.docx", ["appendix1.docx", "appendix2.docx"], "merged.docx")
-
-# Renderuj do HTML (jedna linia)
-render_to_html("document.docx", "output.html", editable=True)
-
-# Renderuj do PDF (jedna linia)
-render_to_pdf("document.docx", "output.pdf")
-
-# Otwórz dokument (funkcja)
-doc = open_document("template.docx")
-
-# Utwórz dokument (funkcja)
-doc = create_document()
-```
-
-## 🎯 Typy Placeholderów
-
-Biblioteka obsługuje 20+ typów placeholderów z automatycznym formatowaniem:
-
-- **TEXT** - zwykły tekst
-- **DATE** - formatowanie dat (16.10.2025)
-- **CURRENCY** - formatowanie waluty (1 500,50 PLN)
-- **PHONE** - formatowanie telefonów (+48 123 456 789)
-- **QR** - generowanie kodów QR
-- **TABLE** - wstawianie tabel z nagłówkami i wierszami
-- **IMAGE** - wstawianie obrazów
-- **LIST** - wstawianie list (numerowanych lub punktowych)
-- **CONDITIONAL** - bloki warunkowe (START_/END_)
-- ... i wiele innych
-
-### Format Placeholderów
-
-Placeholdery używają formatu: `{{ TYPE:Key }}`
-
-Przykłady:
-- `{{ TEXT:Name }}` - zwykły tekst
-- `{{ DATE:IssueDate }}` - data
-- `{{ CURRENCY:Amount }}` - waluta
-- `{{ QR:OrderCode }}` - kod QR
-- `{{ TABLE:Items }}` - tabela
-- `{{ START_SpecialOffer }}...{{ END_SpecialOffer }}` - blok warunkowy
-
-## 📖 Dokumentacja API
-
-### Główne Metody
-
-#### Tworzenie i Otwieranie
-- `Document.open(file_path)` - Otwiera dokument z pliku
-- `Document.create()` - Tworzy nowy pusty dokument
-
-#### Dodawanie Zawartości
-- `add_paragraph(text, style)` - Dodaje paragraf
-- `add_run(paragraph, text, bold, italic, underline, ...)` - Dodaje run z formatowaniem
-- `create_numbered_list()` - Tworzy listę numerowaną
-- `create_bullet_list()` - Tworzy listę punktową
-
-#### Manipulacja Tekstem
-- `replace_text(old, new, scope, case_sensitive)` - Zastępuje tekst
-- `fill_placeholders(data, multi_pass)` - Wypełnia placeholdery
-- `process_conditional_block(name, show)` - Obsługuje bloki warunkowe
-
-#### Scalanie Dokumentów
-- `merge(other, page_break)` - Pełne scalanie dokumentów
-- `merge_selective(options)` - Selektywne scalanie elementów
-- `merge_headers(source)` - Scalanie nagłówków
-- `merge_footers(source)` - Scalanie stopek
-- `append(other)` - Dodaje dokument na końcu
-- `prepend(other)` - Dodaje dokument na początku
-
-#### Renderowanie
-- `render_html(path, editable)` - Renderuje do HTML
-- `render_pdf(path)` - Renderuje do PDF
-- `update_from_html_file(path, preserve_structure)` - Aktualizuje z HTML
-
-#### Eksport i Zapisywanie
-- `save(file_path)` - Zapisuje dokument do DOCX
-- `extract_placeholders()` - Wyciąga placeholdery z dokumentu
-
-### Właściwości
-
-- `body` - Dostęp do body dokumentu
-
-## 📖 Dodatkowa Dokumentacja
-
-- [Quick Start Guide](docs/QUICKSTART.md) - Przewodnik szybkiego startu
-- [Merger Documentation](docs/MERGER_DOCUMENTATION.md) - Dokumentacja scalania dokumentów
-- [Relationships Guide](docs/MERGER_RELATIONSHIPS.md) - Szczegóły obsługi relacji OPC
-
-## 🔧 Instalacja
+## 🚀 Quick Start
 
 ```bash
 pip install docx-interpreter
 ```
 
-## 📝 Licencja
+```python
+from docx_interpreter import Document
 
-MIT License
+# Open and fill a template
+doc = Document.open("template.docx")
+doc.fill_placeholders({
+    "TEXT:Name": "John Doe",
+    "DATE:IssueDate": "2025-01-15",
+    "CURRENCY:Amount": 1500.50,
+    "TABLE:Items": {
+        "headers": ["Product", "Qty", "Price"],
+        "rows": [["Laptop", "1", "4500"], ["Mouse", "2", "50"]]
+    }
+})
 
+# Render to PDF and HTML
+doc.to_pdf("output.pdf")
+doc.to_html("output.html")
+```
+
+## 📚 Documentation
+
+- [**Getting Started**](docs/getting-started.md) – Installation, basic usage, and first steps
+- [**API Reference**](docs/api-reference.md) – Complete method documentation
+- [**Architecture**](docs/architecture.md) – System design, data flow, and internals
+- [**AI Integration**](docs/ai-integration.md) – JSON export format and AI workflow examples
+
+## 🎯 Placeholder Types
+
+| Type | Example | Output |
+|------|---------|--------|
+| `TEXT` | `{{ TEXT:Name }}` | Plain text |
+| `DATE` | `{{ DATE:IssueDate }}` | Formatted date |
+| `CURRENCY` | `{{ CURRENCY:Amount }}` | `1,500.50 USD` |
+| `PHONE` | `{{ PHONE:Contact }}` | `+1 234 567 890` |
+| `QR` | `{{ QR:Code }}` | QR code image |
+| `TABLE` | `{{ TABLE:Items }}` | Dynamic table |
+| `IMAGE` | `{{ IMAGE:Logo }}` | Embedded image |
+| `LIST` | `{{ LIST:Features }}` | Bullet/numbered list |
+| `CONDITIONAL` | `{{ START_Offer }}...{{ END_Offer }}` | Show/hide block |
+
+## 🔧 Core API
+
+```python
+from docx_interpreter import Document
+
+# Document lifecycle
+doc = Document.open("file.docx")      # Open existing
+doc = Document.create()                # Create new
+doc.save("output.docx")                # Save
+
+# Content manipulation
+doc.fill_placeholders(data)            # Fill template placeholders
+doc.replace_text("old", "new")         # Find and replace
+doc.add_paragraph("text", style="Heading1")
+
+# Rendering
+doc.to_pdf("out.pdf", backend="rust")  # PDF with Rust renderer
+doc.to_html("out.html", editable=True) # Editable HTML
+doc.update_from_html_file("edited.html") # Import HTML changes
+
+# Merging
+doc.merge("other.docx", page_break=True)
+doc.merge_selective({
+    "body": Document.open("content.docx"),
+    "headers": Document.open("header.docx")
+})
+
+# Layout pipeline
+layout = doc.pipeline()                # Get UnifiedLayout
+```
+
+## 🏗️ Architecture
+
+```
+DOCX File
+    ↓
+PackageReader + XMLParser (full DOCX parsing)
+    ↓
+Document Model (paragraphs, tables, images, styles)
+    ↓
+LayoutPipeline (pagination, text metrics, footnotes)
+    ↓
+UnifiedLayout (pages with positioned blocks)
+    ↓
+PDFCompiler / HTMLExporter
+    ↓
+PDF / HTML Output
+```
+
+## 🤖 AI Integration
+
+Export document layout as structured JSON for AI processing:
+
+```python
+# Export layout for AI analysis
+layout = doc.pipeline()
+layout.export_json("layout.json", format="optimized_pipeline")
+
+# JSON contains:
+# - Page structure with block positions (x, y, width, height)
+# - Deduplicated styles and media references
+# - Text content with formatting metadata
+# - Semantic markers (source_uid, sequence)
+```
+
+## 📊 Comparison with Alternatives
+
+| Feature | DocQuill | python-docx | Aspose.Words |
+|---------|----------|-------------|--------------|
+| Full DOCX parsing | ✅ | ⚠️ ~20% | ✅ |
+| PDF rendering | ✅ | ❌ | ✅ |
+| HTML rendering | ✅ | ❌ | ✅ |
+| Placeholder engine | ✅ 20+ types | ❌ | ❌ |
+| Document merger | ✅ | ❌ | ⚠️ |
+| Native Python | ✅ | ✅ | ❌ (.NET wrapper) |
+| Open source | ✅ MIT | ✅ MIT | ❌ Commercial |
+| Price | Free | Free | $999+/year |
+
+## 🛠️ Technology Stack
+
+- **Python 3.9+** – Core library, parser, layout engine
+- **Rust (PyO3)** – High-performance PDF renderer
+- **HarfBuzz** – Text shaping and metrics
+- **ReportLab** – Fallback PDF backend
+
+## 📝 License
+
+MIT License – see [LICENSE](LICENSE) for details.
+
+## 🤝 Contributing
+
+Contributions welcome! Please read the contribution guidelines before submitting PRs.
+
+---
+
+**DocQuill** – Professional document automation for Python.
