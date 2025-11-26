@@ -1,9 +1,18 @@
-# DocQuill
+<p align="center">
+  <img src="assets/logo.svg" alt="DocQuill Logo" width="200">
+</p>
 
-> Advanced Python library for DOCX manipulation with Jinja-like templating, document merging, and high-quality PDF/HTML rendering.
+<h1 align="center">DocQuill</h1>
 
-[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+<p align="center">
+  <strong>Advanced Python library for DOCX manipulation with Jinja-like templating, document merging, and high-quality PDF/HTML rendering.</strong>
+</p>
+
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License: Apache 2.0"></a>
+  <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.9+-blue.svg" alt="Python 3.9+"></a>
+  <a href="https://github.com/AddNap/DocQuill"><img src="https://img.shields.io/github/stars/AddNap/DocQuill?style=social" alt="GitHub Stars"></a>
+</p>
 
 ## ✨ Features
 
