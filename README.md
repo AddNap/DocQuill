@@ -2,7 +2,7 @@
 
 > Advanced Python library for DOCX manipulation with Jinja-like templating, document merging, and high-quality PDF/HTML rendering.
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 
 ## ✨ Features
@@ -136,7 +136,7 @@ layout.export_json("layout.json", format="optimized_pipeline")
 | Placeholder engine | ✅ 20+ types | ❌ | ❌ |
 | Document merger | ✅ | ❌ | ⚠️ |
 | Native Python | ✅ | ✅ | ❌ (.NET wrapper) |
-| Open source | ✅ MIT | ✅ MIT | ❌ Commercial |
+| Open source | ✅ Apache 2.0 | ✅ MIT | ❌ Commercial |
 | Price | Free | Free | $999+/year |
 
 ## 🛠️ Technology Stack
@@ -148,7 +148,7 @@ layout.export_json("layout.json", format="optimized_pipeline")
 
 ## 📝 License
 
-MIT License – see [LICENSE](LICENSE) for details.
+Apache License 2.0 – see [LICENSE](LICENSE) for details.
 
 ## 🤝 Contributing
 
