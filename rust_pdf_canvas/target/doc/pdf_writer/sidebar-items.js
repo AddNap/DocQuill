@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["Filter"],"mod":["types","writers"],"struct":["Array","Chunk","Content","Date","Dict","Name","Null","Obj","Pdf","Rect","Ref","Str","Stream","TextStr","TypedArray","TypedDict"],"trait":["Finish","Primitive","Rewrite","Writer"]};
