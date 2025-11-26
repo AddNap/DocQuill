@@ -297,6 +297,30 @@ class LayoutEngine:
     
     def _build_paragraph(self, element: Any) -> Dict[str, Any]:
         style = dict(self.style_bridge.resolve(element, "paragraph") or {})
+        
+        # Resolve font from document style if not present
+        if not style.get("font_name") and not style.get("font_ascii"):
+            style_id = getattr(element, "style_id", None) or getattr(element, "style_name", None) or "Normal"
+            if self.style_manager:
+                doc_style = self.style_manager.get_style(style_id)
+                if doc_style and isinstance(doc_style, dict):
+                    props = doc_style.get("properties", {})
+                    run_props = props.get("run", {}) if isinstance(props, dict) else {}
+                    font_name = (
+                        run_props.get("font_ascii") or 
+                        run_props.get("font_hAnsi") or 
+                        run_props.get("font_name") or
+                        run_props.get("font_eastAsia")
+                    )
+                    if font_name:
+                        style["font_name"] = font_name
+                        style["font_ascii"] = font_name
+                        # Also store in nested 'run' for consistency
+                        if "run" not in style:
+                            style["run"] = {}
+                        style["run"]["font_name"] = font_name
+                        style["run"]["font_ascii"] = font_name
+        
         meta: Dict[str, Any] = {}
 
         indent_dict = style.get("indent") or {}
@@ -634,8 +658,36 @@ class LayoutEngine:
                 _merge_flag("subscript", "subscript")
 
                 font_name = getattr(run, "font_name", None)
+                # Try to get font from run.style if not directly on run
+                if not font_name and isinstance(raw_style, dict):
+                    font_name = (
+                        raw_style.get("font_ascii") or 
+                        raw_style.get("font_hAnsi") or 
+                        raw_style.get("font_name") or
+                        raw_style.get("font_eastAsia") or
+                        raw_style.get("font_cs")
+                    )
+                # Fallback to paragraph style font
+                if not font_name and isinstance(style, dict):
+                    para_run_style = style.get("run", {})
+                    if isinstance(para_run_style, dict):
+                        font_name = (
+                            para_run_style.get("font_ascii") or 
+                            para_run_style.get("font_hAnsi") or 
+                            para_run_style.get("font_name") or
+                            para_run_style.get("font_eastAsia")
+                        )
+                    # Also check direct paragraph style
+                    if not font_name:
+                        font_name = (
+                            style.get("font_ascii") or 
+                            style.get("font_hAnsi") or 
+                            style.get("font_name") or
+                            style.get("font_eastAsia")
+                        )
                 if font_name:
                     run_style.setdefault("font_name", font_name)
+                    run_style.setdefault("font_ascii", font_name)
                 font_size = getattr(run, "font_size", None)
                 if font_size:
                     run_style.setdefault("font_size", font_size)

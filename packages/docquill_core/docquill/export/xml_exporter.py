@@ -548,6 +548,28 @@ class XMLExporter:
                         for anchor in drawing.findall(f'.//{wp_ns}anchor'):
                             self._fix_anchor_for_header_footer(anchor, wp_ns)
                 
+                # Synchronize text from runs to raw_xml (for fill_placeholders support)
+                # Get runs from paragraph object
+                if isinstance(paragraph, dict):
+                    runs = paragraph.get('runs', [])
+                else:
+                    runs = paragraph.runs if hasattr(paragraph, 'runs') else []
+                
+                if runs:
+                    w_ns = self.namespaces["w"]
+                    # Find all w:t elements in the paragraph
+                    t_elements = para_elem.findall(f'.//{{{w_ns}}}t')
+                    
+                    # Match runs to t_elements and update text
+                    run_idx = 0
+                    for t_elem in t_elements:
+                        if run_idx < len(runs):
+                            run_obj = runs[run_idx]
+                            run_text = run_obj.text if hasattr(run_obj, 'text') else (run_obj.get('text', '') if isinstance(run_obj, dict) else '')
+                            if run_text is not None and t_elem.text != run_text:
+                                t_elem.text = run_text
+                            run_idx += 1
+                
                 return para_elem
             except Exception as e:
                 logger.error(f"Failed to parse raw_xml for paragraph: {e}")

@@ -54,15 +54,15 @@ class PlaceholderEngine:
     """
     
     # Regex for detecting placeholders (supports {{ }} and { })
-    """
-
-    (?P<brace_open>\{\{|\{)        # {{ or {
-    \s*
-    (?P<name>[^{}]+?)              # name (may contain colon)
-    \s*
-    (?P<brace_close>\}\}|\})       # }} or }
-
-    """
+    # Matches: {{ TYPE:Name }}, {{TYPE:Name}}, { TYPE:Name }, etc.
+    PLACEHOLDER_PATTERN = re.compile(
+        r'(?P<brace_open>\{\{|\{)'    # {{ or {
+        r'\s*'
+        r'(?P<name>[^{}]+?)'          # name (may contain colon and spaces)
+        r'\s*'
+        r'(?P<brace_close>\}\}|\})',  # }} or }
+        re.VERBOSE
+    )
     
     # Placeholder types
     PLACEHOLDER_TYPES = {
@@ -460,19 +460,30 @@ class PlaceholderEngine:
 
         Returns:
         List of patterns (e.g. ["{TEXT:Name}", "{{TEXT:Name}}", "{Name}", "{{Name}}"])
+        Also includes versions with spaces: "{{ TEXT:Name }}", "{ TEXT:Name }"
 
         """
         patterns = []
         
-        # Dodaj wzorce z kluczem jak podano
+        # Dodaj wzorce z kluczem jak podano (bez spacji)
         patterns.append(f"{{{key}}}")      # {TEXT:Nazwa}
         patterns.append(f"{{{{{key}}}}}")  # {{TEXT:Nazwa}}
+        
+        # Dodaj wzorce ze spacjami wewnątrz
+        patterns.append(f"{{{{ {key} }}}}")  # {{ TEXT:Nazwa }}
+        patterns.append(f"{{ {key} }}")      # { TEXT:Nazwa }
+        
+        # Dodaj wzorce z różnymi kombinacjami spacji
+        patterns.append(f"{{{{ {key}}}}}")   # {{ TEXT:Nazwa}}
+        patterns.append(f"{{{{{key} }}}}")   # {{TEXT:Nazwa }}
         
         # If key has prefix, also add without prefix
         if ':' in key:
             _, base_name = key.split(':', 1)
             patterns.append(f"{{{base_name}}}")
             patterns.append(f"{{{{{base_name}}}}}")
+            patterns.append(f"{{{{ {base_name} }}}}")
+            patterns.append(f"{{ {base_name} }}")
         
         return patterns
     
@@ -755,11 +766,30 @@ class PlaceholderEngine:
     # Helper methods for compatibility with different document structures
     def _get_body(self) -> Optional[Any]:
         """Pobiera body dokumentu."""
-        if hasattr(self.document, 'body'):
-            return self.document.body
-        elif hasattr(self.document, '_body'):
-            return self.document._body
-        elif hasattr(self.document, 'get_body'):
+        # Try to get parsed model first (has actual content)
+        if hasattr(self.document, 'to_model'):
+            try:
+                model = self.document.to_model()
+                if model and hasattr(model, 'elements') and model.elements:
+                    # Create a pseudo-body with elements
+                    class PseudoBody:
+                        def __init__(self, elements):
+                            self.children = elements
+                            self.paragraphs = [e for e in elements if hasattr(e, 'runs')]
+                            self.tables = [e for e in elements if hasattr(e, 'rows')]
+                    return PseudoBody(model.elements)
+            except Exception:
+                pass
+        
+        if hasattr(self.document, 'body') and self.document.body:
+            body = self.document.body
+            if hasattr(body, 'children') and body.children:
+                return body
+        if hasattr(self.document, '_body') and self.document._body:
+            body = self.document._body
+            if hasattr(body, 'children') and body.children:
+                return body
+        if hasattr(self.document, 'get_body'):
             return self.document.get_body()
         return None
     

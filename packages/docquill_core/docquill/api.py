@@ -132,9 +132,12 @@ class Document:
         # Create adapter for DocumentAPI
         class DocumentAdapter:
             def __init__(self, body_obj, parser, sections=None):
+                self.body = body_obj  # For PlaceholderEngine
                 self.elements = body_obj.children if hasattr(body_obj, 'children') else []
                 self.parser = parser
                 self._sections = sections or []
+                # XMLParser uses package_reader (without underscore)
+                self._package_reader = getattr(parser, 'package_reader', None) or getattr(parser, '_package_reader', None)
         
         self._model = DocumentAdapter(self._body, self._xml_parser, self._sections)
         # Add _file_path to model so DocumentAPI.save() can use it as template
@@ -393,37 +396,55 @@ class Document:
         cls,
         json_path: Union[str, Path],
         output_docx: Optional[Union[str, Path]] = None,
-        source_docx: Optional[Union[str, Path]] = None
+        source_docx: Optional[Union[str, Path]] = None,
+        copy_source: bool = True
     ) -> "Document":
         """
 
         Creates Document from JSON (reverse of to_json process).
 
-        Uses approach similar to normalize_docx:
-        1. JSON → UnifiedLayout (deserialization)
-        2. UnifiedLayout → Document Model (simplified conversion)
-        3. Document Model → DOCX (via DOCXExporter)
+        When source_docx is provided and copy_source=True (default), copies the original
+        DOCX file to preserve full fidelity (formatting, lists, hyperlinks, etc.).
+        
+        When copy_source=False, generates DOCX from JSON model (may lose some formatting).
 
         Args:
         json_path: Path to JSON file
         output_docx: Optional path to save DOCX (if None, creates with suffix)
-        source_docx: Optional path to original DOCX (for copying media)
+        source_docx: Optional path to original DOCX (for copying media and full fidelity)
+        copy_source: If True and source_docx provided, copy original DOCX (default: True)
 
         Returns:
         Document: New document from JSON
 
         Examples:
-        >>> doc = Document.from_json('document.json', 'output.docx')
+        >>> doc = Document.from_json('document.json', 'output.docx', 'original.docx')
         >>> doc = Document.from_json('document.json')  # Creates document_from_json.docx
 
         """
         from .importers.pipeline_json_importer import PipelineJSONImporter
         from .export.docx_exporter import DOCXExporter
+        import shutil
         
         json_path = Path(json_path)
         if not json_path.exists():
             raise FileNotFoundError(f"Plik JSON nie istnieje: {json_path}")
         
+        # Zapisz do DOCX
+        if output_docx is None:
+            output_docx = json_path.with_name(f"{json_path.stem}_from_json.docx")
+        output_docx = Path(output_docx)
+        
+        # If source_docx provided and copy_source=True, just copy the original file
+        # This preserves full fidelity (lists, hyperlinks, formatting, etc.)
+        if source_docx and copy_source:
+            source_docx = Path(source_docx)
+            if source_docx.exists():
+                shutil.copy2(source_docx, output_docx)
+                # Return Document from copied file
+                return cls(str(output_docx))
+        
+        # Otherwise, generate DOCX from JSON model (may lose some formatting)
         # Importuj JSON
         importer = PipelineJSONImporter(json_path=json_path, source_docx_path=source_docx)
         
@@ -436,10 +457,6 @@ class Document:
             # Also add source_docx if provided (for copying media)
             if source_docx:
                 model._source_docx = Path(source_docx)
-        
-        # Zapisz do DOCX
-        if output_docx is None:
-            output_docx = json_path.with_name(f"{json_path.stem}_from_json.docx")
         
         # Pass source_docx_path to exporter to use as template
         exporter = DOCXExporter(model, source_docx_path=source_docx)
@@ -643,7 +660,7 @@ class Document:
         editable: bool = False,
         page_size: Optional[Tuple[float, float]] = None,
         margins: Optional[Tuple[float, float, float, float]] = None,
-        apply_headers_footers: bool = False,
+        apply_headers_footers: bool = True,
         validate: bool = False,
         embed_images_as_data_uri: bool = False,
         page_max_width: float = 960.0
@@ -689,8 +706,11 @@ class Document:
             page_max_width=page_max_width
         )
         
+        # Get package_reader for footnotes/endnotes
+        package_reader = getattr(self, '_package_reader', None) or getattr(self, 'package_reader', None)
+        
         # Renderowanie
-        compiler = HTMLCompiler(config)
+        compiler = HTMLCompiler(config, package_reader=package_reader)
         result_path = compiler.compile(self._unified_layout, output_path=output_path)
         return result_path
     

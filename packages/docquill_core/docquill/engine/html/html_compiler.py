@@ -305,7 +305,6 @@ class HTMLCompiler:
             "box-sizing: border-box",
             "background: #ffffff",
             "padding: 0",
-            "overflow: hidden",
             "--doc-page-margin-top: 0px",
             "--doc-page-margin-right: 0px",
             "--doc-page-margin-bottom: 0px",
@@ -401,7 +400,10 @@ class HTMLCompiler:
                             current_min = footer_min_top_by_page.get(index, section_origin_footer)
                             footer_min_top_by_page[index] = min(current_min, overlay_top)
                 else:
-                    body_contexts.append(context)
+                    # Skip footnotes/endnotes blocks - they are rendered separately at the end
+                    block_type_lower = (block.block_type or "").lower()
+                    if block_type_lower not in {"footnotes", "endnotes"}:
+                        body_contexts.append(context)
 
             body_flow_offset += content_height
             absolute_offset += page_height
@@ -1080,6 +1082,9 @@ class HTMLCompiler:
                 ".document-block {",
                 "  position: relative;",
                 "  box-sizing: border-box;",
+                "  max-width: 100%;",
+                "  overflow-wrap: break-word;",
+                "  word-wrap: break-word;",
                 "}",
                 ".doc-block-decor {",
                 "  position: absolute;",
@@ -1104,7 +1109,6 @@ class HTMLCompiler:
                 "  inset: 0;",
                 "  background: white;",
                 "  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);",
-                "  overflow: hidden;",
                 "}",
                 ".block {",
                 "  box-sizing: border-box;",
@@ -1116,6 +1120,9 @@ class HTMLCompiler:
                 "  line-height: 1.35;",
                 "  color: #222;",
                 "  position: relative;",
+                "  max-width: 100%;",
+                "  overflow-wrap: break-word;",
+                "  word-wrap: break-word;",
                 "}",
                 ".block .paragraph-line {",
                 "  white-space: pre-wrap;",
@@ -1125,8 +1132,6 @@ class HTMLCompiler:
                 "}",
                 ".block .field {",
                 "  display: inline;",
-                "  color: #666;",
-                "  font-style: italic;",
                 "}",
                 ".block .inline-textbox {",
                 "  display: inline-block;",
@@ -1262,10 +1267,14 @@ class HTMLCompiler:
                 "}",
                 ".block .table-block td,",
                 ".block .table-block th {",
-                "  border: 1px solid rgba(0, 0, 0, 0.15);",
-                "  padding: 0.25em 0.4em;",
+                "  border: 1px solid #000;",
+                "  padding: 0.35em 0.5em;",
                 "  vertical-align: top;",
-                "  background: rgba(255, 255, 255, 0.95);",
+                "  background: #fff;",
+                "}",
+                ".block .table-block.table-no-borders td,",
+                ".block .table-block.table-no-borders th {",
+                "  border: none;",
                 "}",
                 ".block .table-block td:empty::after {",
                 "  content: '\\00a0';",
@@ -2633,6 +2642,8 @@ class HTMLCompiler:
             style_info.get("font_ascii")
             or style_info.get("font_hAnsi")
             or style_info.get("font_name")
+            or style_info.get("font_eastAsia")
+            or style_info.get("font_cs")
         )
         if font_name:
             css_styles.append(self._format_font_family(font_name))
@@ -2694,7 +2705,50 @@ class HTMLCompiler:
         if not display_text:
             return None
 
-        attrs: list[str] = ['class="field"']
+        # Build CSS classes
+        css_classes = ["field"]
+        
+        # Check for formatting (bold, italic, etc.)
+        style = data.get("style", {})
+        if isinstance(style, dict):
+            if style.get("bold"):
+                css_classes.append("run-bold")
+            if style.get("italic"):
+                css_classes.append("run-italic")
+            if style.get("underline"):
+                css_classes.append("run-underline")
+        
+        # Also check direct properties
+        if data.get("bold"):
+            if "run-bold" not in css_classes:
+                css_classes.append("run-bold")
+        if data.get("italic"):
+            if "run-italic" not in css_classes:
+                css_classes.append("run-italic")
+        
+        class_str = " ".join(css_classes)
+        attrs: list[str] = [f'class="{class_str}"']
+        
+        # Build inline styles
+        style_parts: list[str] = []
+        if isinstance(style, dict):
+            font_size = style.get("font_size") or style.get("size")
+            if font_size:
+                try:
+                    # font_size from XML is in half-points, convert to points
+                    font_size_pt = float(font_size) / 2
+                    style_parts.append(f"font-size: calc(var(--doc-font-scale, 1) * {font_size_pt:.2f}pt)")
+                except (ValueError, TypeError):
+                    style_parts.append(f"font-size: calc(var(--doc-font-scale, 1) * {font_size}pt)")
+            color = style.get("color")
+            if color and color.lower() not in ("auto", "000000", "#000000"):
+                if not color.startswith("#"):
+                    color = f"#{color}"
+                style_parts.append(f"color: {color}")
+        
+        if style_parts:
+            attrs.append(f'style="{"; ".join(style_parts)}"')
+        
         field_info = data.get("field")
         field_kind: Optional[str] = None
         if isinstance(field_info, dict):
@@ -3157,8 +3211,9 @@ class HTMLCompiler:
             if anchor_value and str(anchor_value).strip():
                 return f'#{str(anchor_value).strip()}'
 
-        fallback = (fallback_text or "").strip()
-        return _normalize(fallback, "")
+        # Don't use fallback_text as URL - it would make every word a link to itself
+        # Only return None if no valid hyperlink was found
+        return None
 
     @staticmethod
     def _escape_text_with_spaces(value: str) -> str:
@@ -3511,9 +3566,26 @@ class HTMLCompiler:
                     percent = max(float(value) / total_height * 100.0, 0.0)
                     row_height_styles[idx] = f' style="height: {percent:.4f}%;"'
 
+        # Extract cell styles from raw data
+        raw_rows = []
+        if isinstance(raw, dict):
+            raw_rows = raw.get("rows", [])
+        
+        # Check if table has explicit borders
+        has_table_borders = self._table_has_borders(raw)
+        
         rows_html: list[str] = []
         for row_idx, row in enumerate(layout.rows):
             cells_html: list[str] = []
+            
+            # Get raw row - handle both dict and TableRow objects
+            raw_row = raw_rows[row_idx] if row_idx < len(raw_rows) else None
+            raw_cells = []
+            if isinstance(raw_row, dict):
+                raw_cells = raw_row.get("cells", [])
+            elif hasattr(raw_row, "cells"):
+                raw_cells = raw_row.cells
+            
             for col_idx, cell in enumerate(row):
                 attributes: list[str] = []
                 span_key = (row_idx, col_idx)
@@ -3527,13 +3599,26 @@ class HTMLCompiler:
                         attributes.append(f'rowspan="{rowspan}"')
                 elif cell_span and cell_span.get("skip"):
                     continue
+                
+                # Get cell style - handle both dict and TableCell objects
+                raw_cell = raw_cells[col_idx] if col_idx < len(raw_cells) else None
+                cell_style = self._get_cell_style(cell, raw_cell)
+                if cell_style:
+                    attributes.append(f'style="{cell_style}"')
+                
                 cell_html = self._render_table_cell(cell)
                 attr_str = " " + " ".join(attributes) if attributes else ""
                 cells_html.append(f"<td{attr_str}>{cell_html}</td>")
             row_style = row_height_styles.get(row_idx, "")
             rows_html.append(f"<tr{row_style}>" + "".join(cells_html) + "</tr>")
 
-        table_html = "<table class=\"table-block\">\n"
+        # Add table-no-borders class if table has no borders
+        table_classes = ["table-block"]
+        if not has_table_borders:
+            table_classes.append("table-no-borders")
+        table_class_str = " ".join(table_classes)
+        
+        table_html = f'<table class="{table_class_str}">\n'
         if colgroup_html:
             table_html += colgroup_html + "\n"
         table_html += "\n".join(rows_html) + "\n</table>"
@@ -3541,6 +3626,221 @@ class HTMLCompiler:
         if bottom_border_html:
             table_html += "\n" + bottom_border_html
         return '<div class="table-container">' + table_html + "</div>"
+
+    def _table_has_borders(self, raw: Optional[Dict[str, Any]]) -> bool:
+        """Check if table has explicit borders defined."""
+        if not isinstance(raw, dict):
+            return False  # No raw data = no borders
+        
+        # Check table-level borders
+        style = raw.get("style", {})
+        if isinstance(style, dict):
+            borders = style.get("borders", {})
+            if borders:
+                # Check if any border has actual values (not nil/none)
+                for side, border in borders.items():
+                    if isinstance(border, dict):
+                        val = border.get("val") or border.get("style")
+                        if val and val.lower() not in ("nil", "none", ""):
+                            return True
+                        sz = border.get("sz") or border.get("width")
+                        if sz:
+                            try:
+                                if int(sz) > 0:
+                                    return True
+                            except (ValueError, TypeError):
+                                pass
+        
+        # Check cell-level borders - handle both dict and TableRow/TableCell objects
+        rows = raw.get("rows", [])
+        for row in rows:
+            cells = []
+            if isinstance(row, dict):
+                cells = row.get("cells", [])
+            elif hasattr(row, "cells"):
+                cells = row.cells
+            
+            for cell in cells:
+                cell_borders = None
+                if isinstance(cell, dict):
+                    cell_borders = cell.get("borders", {}) or cell.get("cell_borders", {})
+                elif hasattr(cell, "cell_borders"):
+                    cell_borders = cell.cell_borders
+                
+                if cell_borders:
+                    for side, border in cell_borders.items():
+                        if isinstance(border, dict):
+                            val = border.get("val") or border.get("style")
+                            if val and val.lower() not in ("nil", "none", ""):
+                                return True
+                            sz = border.get("sz") or border.get("width")
+                            if sz:
+                                try:
+                                    if int(sz) > 0:
+                                        return True
+                                except (ValueError, TypeError):
+                                    pass
+        
+        # If no explicit borders found, check if table has a style that implies borders
+        table_style = style.get("style") or style.get("style_id") if isinstance(style, dict) else None
+        if table_style and "grid" in str(table_style).lower():
+            return True
+        
+        return False
+
+    def _get_cell_style(self, cell: TableCellLayout, raw_cell: Any) -> str:
+        """Generate inline style for table cell."""
+        style_parts: list[str] = []
+        
+        # Get shading - handle both dict and object
+        shading = None
+        if isinstance(raw_cell, dict):
+            shading = raw_cell.get("shading", {})
+        elif hasattr(raw_cell, "shading"):
+            shading = raw_cell.shading
+        
+        if isinstance(shading, dict):
+            fill = shading.get("fill") or shading.get("val")
+            if fill and str(fill).lower() not in ("auto", "clear", "none", ""):
+                fill_str = str(fill)
+                if len(fill_str) == 6 and all(c in "0123456789ABCDEFabcdef" for c in fill_str):
+                    style_parts.append(f"background-color: #{fill_str}")
+                elif fill_str.startswith("#"):
+                    style_parts.append(f"background-color: {fill_str}")
+        
+        # Background from cell.style
+        if cell.style and cell.style.background:
+            bg = cell.style.background
+            if hasattr(bg, 'hex') and bg.hex:
+                style_parts.append(f"background-color: #{bg.hex}")
+            elif hasattr(bg, 'rgb') and bg.rgb:
+                r, g, b = bg.rgb
+                style_parts.append(f"background-color: rgb({r}, {g}, {b})")
+        
+        # Get borders - handle both dict and object
+        borders = None
+        if isinstance(raw_cell, dict):
+            borders = raw_cell.get("borders", {}) or raw_cell.get("cell_borders", {})
+        elif hasattr(raw_cell, "cell_borders"):
+            borders = raw_cell.cell_borders
+        
+        if borders and isinstance(borders, dict):
+            for side in ["top", "right", "bottom", "left"]:
+                border = borders.get(side, {})
+                if isinstance(border, dict):
+                    width = border.get("sz") or border.get("width")
+                    color = border.get("color") or border.get("color_raw")
+                    border_style = border.get("val") or border.get("style", "single")
+                    
+                    if width or color:
+                        # Convert width from eighths of a point to px
+                        width_px = 1
+                        if width:
+                            try:
+                                width_val = float(width)
+                                width_px = max(1, width_val / 8)
+                            except (ValueError, TypeError):
+                                width_px = 1
+                        
+                        # Convert border style
+                        css_style = "solid"
+                        if border_style in ("dashed", "dotted", "double"):
+                            css_style = border_style
+                        elif border_style in ("dashDot", "dashDotDot"):
+                            css_style = "dashed"
+                        elif border_style == "nil":
+                            continue
+                        
+                        # Convert color
+                        css_color = "#000"
+                        if color:
+                            color_str = str(color).lower()
+                            if color_str not in ("auto", ""):
+                                if color_str.startswith("#"):
+                                    css_color = color_str
+                                elif len(color_str) == 6 and all(c in "0123456789abcdef" for c in color_str):
+                                    css_color = f"#{color_str}"
+                        
+                        style_parts.append(f"border-{side}: {width_px:.1f}px {css_style} {css_color}")
+        
+        # Vertical alignment - handle both dict and object
+        valign = None
+        if isinstance(raw_cell, dict):
+            valign = raw_cell.get("vAlign") or raw_cell.get("vertical_align")
+        elif hasattr(raw_cell, "vertical_align"):
+            valign = raw_cell.vertical_align
+        
+        if valign:
+            valign_map = {"top": "top", "center": "middle", "bottom": "bottom"}
+            css_valign = valign_map.get(str(valign).lower(), "top")
+            style_parts.append(f"vertical-align: {css_valign}")
+        
+        return "; ".join(style_parts)
+
+    def _get_model_cell_style(self, cell: Any) -> str:
+        """Generate inline style for model TableCell object."""
+        style_parts: list[str] = []
+        
+        # Get shading
+        shading = getattr(cell, "shading", None)
+        if isinstance(shading, dict):
+            fill = shading.get("fill") or shading.get("val")
+            if fill and str(fill).lower() not in ("auto", "clear", "none", ""):
+                fill_str = str(fill)
+                if len(fill_str) == 6 and all(c in "0123456789ABCDEFabcdef" for c in fill_str):
+                    style_parts.append(f"background-color: #{fill_str}")
+                elif fill_str.startswith("#"):
+                    style_parts.append(f"background-color: {fill_str}")
+        
+        # Get borders from cell_borders attribute
+        borders = getattr(cell, "cell_borders", None)
+        if borders and isinstance(borders, dict):
+            for side in ["top", "right", "bottom", "left"]:
+                border = borders.get(side, {})
+                if isinstance(border, dict):
+                    width = border.get("sz") or border.get("width")
+                    color = border.get("color") or border.get("color_raw")
+                    border_style = border.get("val") or border.get("style", "single")
+                    
+                    if width or color:
+                        # Convert width from eighths of a point to px
+                        width_px = 1
+                        if width:
+                            try:
+                                width_val = float(width)
+                                width_px = max(1, width_val / 8)
+                            except (ValueError, TypeError):
+                                width_px = 1
+                        
+                        # Convert border style
+                        css_style = "solid"
+                        if border_style in ("dashed", "dotted", "double"):
+                            css_style = border_style
+                        elif border_style in ("dashDot", "dashDotDot"):
+                            css_style = "dashed"
+                        elif border_style == "nil":
+                            continue
+                        
+                        # Convert color
+                        css_color = "#000"
+                        if color:
+                            color_str = str(color).lower()
+                            if color_str not in ("auto", ""):
+                                if color_str.startswith("#"):
+                                    css_color = color_str
+                                elif len(color_str) == 6 and all(c in "0123456789abcdef" for c in color_str):
+                                    css_color = f"#{color_str}"
+                        
+                        style_parts.append(f"border-{side}: {width_px:.1f}px {css_style} {css_color}")
+        
+        # Vertical alignment
+        valign = getattr(cell, "vertical_align", None)
+        if valign:
+            valign_map = {"top": "top", "center": "middle", "bottom": "bottom"}
+            css_valign = valign_map.get(str(valign).lower(), "top")
+            style_parts.append(f"vertical-align: {css_valign}")
+        
+        return "; ".join(style_parts)
 
     def _render_table_cell(self, cell: TableCellLayout) -> str:
         parts: list[str] = []
@@ -3768,6 +4068,9 @@ class HTMLCompiler:
                         percent = max(float(value) / total_height * 100.0, 0.0)
                         row_height_styles[idx] = f' style="height: {percent:.4f}%;"'
 
+        # Check if table has borders
+        has_table_borders = self._table_has_borders(raw_source)
+        
         html_rows: list[str] = []
         if row_positions:
             for row_idx, entries in enumerate(row_positions):
@@ -3787,6 +4090,11 @@ class HTMLCompiler:
                             attributes.append(f'colspan="{colspan}"')
                         if rowspan and rowspan > 1:
                             attributes.append(f'rowspan="{rowspan}"')
+                    
+                    # Get cell style from model cell (TableCell object)
+                    cell_style = self._get_model_cell_style(cell)
+                    if cell_style:
+                        attributes.append(f'style="{cell_style}"')
 
                     cell_html = self._render_table_model_cell(cell)
                     attr_str = " " + " ".join(attributes) if attributes else ""
@@ -3796,7 +4104,14 @@ class HTMLCompiler:
 
         if not html_rows:
             return ""
-        table_html = "<table class=\"table-block\">\n"
+        
+        # Add table-no-borders class if table has no borders
+        table_classes = ["table-block"]
+        if not has_table_borders:
+            table_classes.append("table-no-borders")
+        table_class_str = " ".join(table_classes)
+        
+        table_html = f'<table class="{table_class_str}">\n'
         if colgroup_html:
             table_html += colgroup_html + "\n"
         table_html += "\n".join(html_rows) + "\n</table>"

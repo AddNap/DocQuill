@@ -142,8 +142,7 @@ Export document layout as structured JSON for AI processing:
 
 ```python
 # Export layout for AI analysis
-layout = doc.pipeline()
-layout.export_json("layout.json", format="optimized_pipeline")
+doc.to_json("layout.json", optimized=True)
 
 # JSON contains:
 # - Page structure with block positions (x, y, width, height)

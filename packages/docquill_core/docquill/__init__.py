@@ -21,8 +21,7 @@ Quick Start:
     doc.to_html("output.html")
     
     # AI-ready JSON
-    layout = doc.pipeline()
-    json_data = layout.to_json()
+    doc.to_json("layout.json", optimized=True)
 """
 
 from .version import __version__, __version_info__

@@ -19,13 +19,12 @@ The AI integration workflow:
 ### Basic Export
 
 ```python
-from docx_interpreter import Document
+from docquill import Document
 
 doc = Document.open("document.docx")
-layout = doc.pipeline()
 
-# Export to JSON
-layout.export_json("layout.json", format="optimized_pipeline")
+# Export to JSON (runs pipeline internally)
+doc.to_json("layout.json", optimized=True)
 ```
 
 ### JSON Structure
@@ -132,11 +131,10 @@ Extract information with positional context:
 
 ```python
 import json
-from docx_interpreter import Document
+from docquill import Document
 
 doc = Document.open("contract.docx")
-layout = doc.pipeline()
-layout.export_json("contract_layout.json")
+doc.to_json("contract_layout.json", optimized=True)
 
 with open("contract_layout.json") as f:
     data = json.load(f)
@@ -213,13 +211,12 @@ Modify layout and reimport:
 
 ```python
 import json
-from docx_interpreter import Document
-from docx_interpreter.importers import PipelineJSONImporter
+from docquill import Document
+from docquill.importers import PipelineJSONImporter
 
 # Export
 doc = Document.open("original.docx")
-layout = doc.pipeline()
-layout.export_json("layout.json")
+doc.to_json("layout.json", optimized=True)
 
 # Modify (e.g., via AI)
 with open("layout.json") as f:
@@ -244,7 +241,7 @@ importer = PipelineJSONImporter(
 model = importer.to_document_model()
 
 # Export to DOCX
-from docx_interpreter.export import DOCXExporter
+from docquill.export import DOCXExporter
 exporter = DOCXExporter(model)
 exporter.save("modified.docx")
 ```
@@ -288,13 +285,12 @@ def generate_from_ai_response(ai_response, template_layout):
 ```python
 import openai
 import json
-from docx_interpreter import Document
+from docquill import Document
 
 def analyze_document_with_gpt(docx_path, question):
     # Export layout
     doc = Document.open(docx_path)
-    layout = doc.pipeline()
-    layout.export_json("temp_layout.json")
+    doc.to_json("temp_layout.json", optimized=True)
     
     with open("temp_layout.json") as f:
         layout_data = json.load(f)
@@ -336,8 +332,7 @@ def analyze_document_with_gpt(docx_path, question):
 class DocumentQA:
     def __init__(self, docx_path):
         self.doc = Document.open(docx_path)
-        self.layout = self.doc.pipeline()
-        self.layout.export_json("_temp_layout.json")
+        self.doc.to_json("_temp_layout.json", optimized=True)
         
         with open("_temp_layout.json") as f:
             self.layout_data = json.load(f)
@@ -490,11 +485,10 @@ block["s"] = 999  # BAD - may reference non-existent style
 ```python
 # Export
 doc = Document.open("input.docx")
-layout = doc.pipeline()
-layout.export_json("layout.json", format="optimized_pipeline")
+doc.to_json("layout.json", optimized=True)
 
 # Import
-from docx_interpreter.importers import PipelineJSONImporter
+from docquill.importers import PipelineJSONImporter
 
 importer = PipelineJSONImporter(
     json_path="modified.json",

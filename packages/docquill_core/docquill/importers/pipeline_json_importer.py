@@ -354,9 +354,10 @@ class PipelineJSONImporter:
             unified_layout = self.to_unified_layout()
             
             # First try to load headers/footers from original DOCX (if available)
+            sections = self.json_data.get('sections', [])
             if self._xml_parser and self._package_reader:
                 # Load headers/footers from original document using rId from sections
-                sections = self.json_data.get('sections', [])
+                pass  # sections already loaded above
             for section in sections:
                 # Headers
                 section_headers = section.get('headers', [])
@@ -648,6 +649,16 @@ class PipelineJSONImporter:
             if section:
                 model._sections.append(section)
         
+        # Add source_docx and importer references for DOCXExporter
+        if self.source_docx_path:
+            model._source_docx = str(self.source_docx_path)
+        model._importer = self
+        
+        # Add styles_list from JSON for DOCXExporter
+        model._json_styles = self.json_data.get('styles', [])
+        model._json_headers = self.json_data.get('headers', {})
+        model._json_footers = self.json_data.get('footers', {})
+        
         return model
     
     def _find_header_footer_path(self, rel_id: str, hf_type: str) -> Optional[str]:
@@ -817,22 +828,37 @@ class PipelineJSONImporter:
             table.rows = []
             for row_data in rows_data:
                 row = TableRow()
-                cells_data = row_data.get('cells', [])
+                # Handle both formats:
+                # 1. List of cells directly: [[cell1, cell2], [cell3, cell4]]
+                # 2. Dict with 'cells' key: [{'cells': [cell1, cell2]}, ...]
+                if isinstance(row_data, list):
+                    cells_data = row_data  # Row is directly a list of cells
+                else:
+                    cells_data = row_data.get('cells', [])
                 row.cells = []
                 for cell_data in cells_data:
                     cell = TableCell()
-                    # Serialize blocks in cell
-                    blocks_data = cell_data.get('blocks', [])
-                    cell.children = []
-                    for block_data in blocks_data:
-                        block_element = self._element_from_dict(block_data)
-                        if block_element:
-                            cell.children.append(block_element)
-                    # Dodaj colspan/rowspan
-                    if 'colspan' in cell_data:
-                        cell.colspan = cell_data.get('colspan')
-                    if 'rowspan' in cell_data:
-                        cell.rowspan = cell_data.get('rowspan')
+                    # Handle cell data - can be dict or simple value
+                    if isinstance(cell_data, dict):
+                        # Serialize blocks in cell
+                        blocks_data = cell_data.get('blocks', [])
+                        cell.children = []
+                        for block_data in blocks_data:
+                            block_element = self._element_from_dict(block_data)
+                            if block_element:
+                                cell.children.append(block_element)
+                        # Dodaj colspan/rowspan (check both names)
+                        cell.colspan = cell_data.get('colspan') or cell_data.get('grid_span', 1)
+                        cell.rowspan = cell_data.get('rowspan', 1)
+                        # Set cell width if available
+                        if 'width_twips' in cell_data:
+                            cell.set_width(cell_data['width_twips'])
+                    else:
+                        # Simple text cell
+                        from ..models.paragraph import Paragraph
+                        para = Paragraph()
+                        para.text = str(cell_data) if cell_data else ""
+                        cell.children = [para]
                     row.cells.append(cell)
                 table.rows.append(row)
             

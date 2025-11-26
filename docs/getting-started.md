@@ -5,7 +5,7 @@ This guide covers installation, basic usage, and common workflows with DocQuill.
 ## Installation
 
 ```bash
-pip install docx-interpreter
+pip install docquill
 ```
 
 ### Optional: Rust PDF Backend
@@ -15,7 +15,7 @@ For best PDF rendering performance, install the Rust backend:
 ```bash
 # Requires Rust toolchain
 pip install maturin
-cd pdf_renderer_rust
+cd packages/docquill_pdf_rust
 maturin develop --release
 ```
 
@@ -24,7 +24,7 @@ maturin develop --release
 ### Opening and Saving Documents
 
 ```python
-from docx_interpreter import Document
+from docquill import Document
 
 # Open existing document
 doc = Document.open("template.docx")
@@ -210,7 +210,7 @@ doc.merge_footers("footer_template.docx")
 One-liner operations:
 
 ```python
-from docx_interpreter import (
+from docquill import (
     fill_template,
     merge_documents,
     render_to_pdf,
@@ -286,17 +286,17 @@ for page in layout.pages:
 ## Error Handling
 
 ```python
-from docx_interpreter import Document
-from docx_interpreter.exceptions import DocxError, ParseError, RenderError
+from docquill import Document
+from docquill.exceptions import DocxInterpreterError, ParsingError, RenderingError
 
 try:
     doc = Document.open("file.docx")
     doc.to_pdf("output.pdf")
-except ParseError as e:
+except ParsingError as e:
     print(f"Failed to parse document: {e}")
-except RenderError as e:
+except RenderingError as e:
     print(f"Failed to render: {e}")
-except DocxError as e:
+except DocxInterpreterError as e:
     print(f"Document error: {e}")
 ```
 

@@ -54,6 +54,22 @@ Process document through layout engine, returning positioned blocks.
 
 ### Rendering
 
+#### JSON Output
+
+```python
+doc.to_json(
+    output_path: str | Path,
+    optimized: bool = True
+) -> Path
+```
+
+Export document layout as JSON for AI/ML processing.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `output_path` | `str \| Path` | required | Output file path |
+| `optimized` | `bool` | `True` | Use optimized format with deduplicated styles |
+
 #### PDF Output
 
 ```python
@@ -86,7 +102,7 @@ doc.to_html(
     editable: bool = False,
     page_size: tuple[float, float] = None,
     margins: tuple[float, float, float, float] = None,
-    apply_headers_footers: bool = False,
+    apply_headers_footers: bool = True,
     validate: bool = False,
     embed_images_as_data_uri: bool = False,
     page_max_width: float = 960.0
@@ -96,8 +112,16 @@ doc.to_html(
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `editable` | `bool` | `False` | Enable contenteditable |
+| `apply_headers_footers` | `bool` | `True` | Include headers/footers |
 | `embed_images_as_data_uri` | `bool` | `False` | Inline images as base64 |
 | `page_max_width` | `float` | `960.0` | Max width in CSS pixels |
+
+**HTML Features:**
+- Full font-family preservation from document styles
+- Table formatting with borders, shading, and cell alignment
+- Headers and footers with overlays (images, textboxes)
+- Footnotes and endnotes rendered at document end
+- Field codes (PAGE, NUMPAGES) with original formatting
 
 #### HTML Import
 
@@ -339,7 +363,7 @@ doc.watermarks -> list[Watermark]   # Watermark list
 Module-level functions for common operations:
 
 ```python
-from docx_interpreter import (
+from docquill import (
     open_document,
     create_document,
     fill_template,
@@ -413,8 +437,12 @@ render_to_html(
 class UnifiedLayout:
     pages: list[LayoutPage]
     current_page: int
-    
-    def export_json(path: str, format: str = "optimized_pipeline") -> None
+```
+
+**Note**: To export layout to JSON, use `doc.to_json()` method on the Document class:
+
+```python
+doc.to_json(output_path: str, optimized: bool = True) -> Path
 ```
 
 ### LayoutPage
@@ -466,11 +494,11 @@ class Rect:
 ## Exceptions
 
 ```python
-from docx_interpreter.exceptions import (
-    DocxError,      # Base exception
-    ParseError,     # Document parsing failed
-    RenderError,    # Rendering failed
-    ValidationError # Layout validation failed
+from docquill.exceptions import (
+    DocxInterpreterError,  # Base exception
+    ParsingError,          # Document parsing failed
+    RenderingError,        # Rendering failed
+    LayoutError            # Layout validation failed
 )
 ```
 

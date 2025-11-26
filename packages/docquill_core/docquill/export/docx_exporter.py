@@ -119,6 +119,16 @@ class DOCXExporter:
             return self.document._package_reader
         elif hasattr(self.document, 'parser') and hasattr(self.document.parser, 'package_reader'):
             return self.document.parser.package_reader
+        # For documents from JSON, check importer's package_reader
+        elif hasattr(self.document, '_importer') and hasattr(self.document._importer, '_package_reader'):
+            return self.document._importer._package_reader
+        # Also check source_docx_path and create package_reader if needed
+        elif hasattr(self.document, '_source_docx') and self.document._source_docx:
+            from ..parser.package_reader import PackageReader
+            try:
+                return PackageReader(str(self.document._source_docx))
+            except Exception:
+                pass
         return None
     
     def export(self, output_path: Union[str, Path]) -> bool:
@@ -310,27 +320,40 @@ class DOCXExporter:
             package_reader = self.document._package_reader
             # Check headers/footers relationships in document.xml.rels
             if hasattr(package_reader, 'relationships'):
-                doc_rels = package_reader.relationships.get('document', [])
-                for rel in doc_rels:
-                    rel_type = rel.get('Type', '')
-                    target = rel.get('Target', '')
+                doc_rels = package_reader.relationships.get('document', {})
+                # doc_rels can be dict (rId -> rel_dict) or list
+                if isinstance(doc_rels, dict):
+                    rels_iter = doc_rels.values()
+                else:
+                    rels_iter = doc_rels
+                for rel in rels_iter:
+                    if isinstance(rel, dict):
+                        rel_type = rel.get('Type', '') or rel.get('type', '')
+                        target = rel.get('Target', '') or rel.get('target', '')
+                    else:
+                        # Skip if not a dict
+                        continue
                     
                     if 'header' in rel_type.lower() or 'footer' in rel_type.lower():
                         # Get header/footer content
+                        # Target can be relative (header1.xml) or full (word/header1.xml)
+                        full_target = target if target.startswith('word/') else f'word/{target}'
                         try:
-                            hf_xml = package_reader.get_xml_content(target)
+                            hf_xml = package_reader.get_xml_content(full_target)
                             if hf_xml:
-                                self._parts[target] = hf_xml.encode('utf-8')
+                                # Store with relative path for relationships
+                                rel_target = target if not target.startswith('word/') else target[5:]
+                                self._parts[f'word/{rel_target}'] = hf_xml.encode('utf-8')
                                 if 'header' in target.lower():
-                                    self._content_types[target] = (
+                                    self._content_types[f'word/{rel_target}'] = (
                                         'application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml'
                                     )
                                 else:
-                                    self._content_types[target] = (
+                                    self._content_types[f'word/{rel_target}'] = (
                                         'application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml'
                                     )
                         except Exception as e:
-                            logger.warning(f"Failed to copy header/footer {target}: {e}")
+                            logger.debug(f"Header/footer {target} not found, may be added later: {e}")
         
         # If document has no _package_reader (e.g. created from JSON), check headers/footers in model
         if not hasattr(self.document, '_package_reader') or not self.document._package_reader:
@@ -425,137 +448,139 @@ class DOCXExporter:
         
         # Set of targets that already have relationships (to avoid duplicates)
         existing_rel_targets = set()
+        # Set of used relationship IDs (to avoid duplicates)
+        used_rel_ids = set()
         
         # First copy relationships from original document if exist
         package_reader = self._get_package_reader()
+        
+        # Collect all relationships from original document
+        all_orig_rels = []
         if package_reader and hasattr(package_reader, 'relationships'):
                 doc_rels = package_reader.relationships.get('document', [])
                 # doc_rels can be list or dictionary
                 if isinstance(doc_rels, dict):
-                    # If dict, iterate through values (or items to access ID)
                     rels_iter = doc_rels.items()
                 else:
-                    # If list, iterate directly
                     rels_iter = enumerate(doc_rels) if isinstance(doc_rels, list) else []
                 
                 for rel_key, rel in rels_iter:
-                    # If rel_key is ID (string), use it as old_rel_id
                     old_rel_id_from_key = rel_key if isinstance(rel_key, str) and rel_key.startswith('rId') else None
                     
-                    # Relationship can be dictionary or object
                     if isinstance(rel, dict):
                         rel_type = rel.get('Type', '') or rel.get('type', '')
                         target = rel.get('Target', '') or rel.get('target', '')
                         target_mode = rel.get('TargetMode', 'Internal') or rel.get('target_mode', 'Internal')
                         rel_id_from_rel = rel.get('Id', '') or rel.get('id', '')
                     else:
-                        # If relationship is object, try to get attributes
                         rel_type = getattr(rel, 'Type', '') or getattr(rel, 'type', '')
                         target = getattr(rel, 'Target', '') or getattr(rel, 'target', '')
                         target_mode = getattr(rel, 'TargetMode', 'Internal') or getattr(rel, 'target_mode', 'Internal')
                         rel_id_from_rel = getattr(rel, 'Id', '') or getattr(rel, 'id', '')
                     
-                    # Use ID from key or from relationship
                     old_rel_id = old_rel_id_from_key or rel_id_from_rel
-                    
-                    # Normalize target (remove leading slash if present)
                     if target.startswith('/'):
                         target = target[1:]
                     
-                    # Check if part exists in our package
-                    # Target can be relative (media/image.png) or full (word/media/image.png)
-                    target_exists = False
+                    is_external = target_mode == 'External' or target.startswith('http://') or target.startswith('https://') or target.startswith('mailto:')
+                    all_orig_rels.append((old_rel_id, rel_type, target, target_mode, is_external))
+        
+        # PASS 1: Add all external relationships first with their original IDs
+        # External relationships can have duplicate targets (same URL with different IDs)
+        for old_rel_id, rel_type, target, target_mode, is_external in all_orig_rels:
+            if is_external and old_rel_id:
+                # For external rels, don't check for duplicate targets - each hyperlink needs its own ID
+                self._relationships['word/_rels/document.xml.rels'].append((
+                    old_rel_id, rel_type, target, target_mode
+                ))
+                used_rel_ids.add(old_rel_id)
+                # Update counter
+                try:
+                    id_num = int(old_rel_id.replace('rId', ''))
+                    if 'word/_rels/document.xml.rels' not in self._rel_id_counters:
+                        self._rel_id_counters['word/_rels/document.xml.rels'] = id_num + 1
+                    else:
+                        self._rel_id_counters['word/_rels/document.xml.rels'] = max(
+                            self._rel_id_counters['word/_rels/document.xml.rels'], 
+                            id_num + 1
+                        )
+                except ValueError:
+                    pass
+        
+        # PASS 2: Add internal relationships
+        for old_rel_id, rel_type, target, target_mode, is_external in all_orig_rels:
+            if is_external:
+                continue  # Already processed
+            
+            # Check if part exists
+            target_exists = False
+            normalized_target = target
+            
+            if target in self._parts or target in self._media:
+                target_exists = True
+                normalized_target = target
+            elif not target.startswith('word/'):
+                full_target = f'word/{target}'
+                if full_target in self._parts or full_target in self._media:
+                    target_exists = True
                     normalized_target = target
-                    
-                    # Check directly
-                    if target in self._parts or target in self._media:
+            elif target.startswith('word/'):
+                short_target = target[5:]
+                if short_target in self._parts or short_target in self._media:
+                    target_exists = True
+                    normalized_target = short_target
+            
+            # Headers/footers variants
+            if not target_exists and ('header' in rel_type.lower() or 'footer' in rel_type.lower()):
+                variants = [target, f'word/{target}', target.replace('word/', '')]
+                for variant in variants:
+                    if variant in self._parts:
+                        target_exists = True
+                        normalized_target = Path(target).name
+                        break
+            
+            # Media variants
+            if not target_exists and ('media' in target or 'image' in rel_type.lower()):
+                variants = [
+                    target, f'word/{target}', target.replace('word/', ''),
+                    target if target.startswith('media/') else f'media/{Path(target).name}',
+                    f'word/media/{Path(target).name}'
+                ]
+                for variant in variants:
+                    if variant in self._media:
                         target_exists = True
                         normalized_target = target
-                    # Check with word/ prefix
-                    elif not target.startswith('word/'):
-                        full_target = f'word/{target}'
-                        if full_target in self._parts or full_target in self._media:
+                        break
+                if not target_exists:
+                    for media_key in self._media.keys():
+                        if Path(media_key).name == Path(target).name:
                             target_exists = True
-                            normalized_target = target  # Keep original target (relative for relationships)
-                    # Check without word/ prefix
-                    elif target.startswith('word/'):
-                        short_target = target[5:]  # Remove "word/"
-                        if short_target in self._parts or short_target in self._media:
-                            target_exists = True
-                            normalized_target = short_target  # Use shorter version for relationships
+                            normalized_target = target
+                            break
+            
+            if target_exists:
+                check_target = normalized_target
+                if 'header' in rel_type.lower() or 'footer' in rel_type.lower():
+                    check_target = Path(normalized_target).name
+                
+                if check_target not in existing_rel_targets:
+                    rel_id = self._get_next_rel_id('word/_rels/document.xml.rels')
+                    while rel_id in used_rel_ids:
+                        rel_id = self._get_next_rel_id('word/_rels/document.xml.rels')
+                    used_rel_ids.add(rel_id)
                     
-                    # For headers/footers, also check if exists in _parts with different path variants
-                    if not target_exists and ('header' in rel_type.lower() or 'footer' in rel_type.lower()):
-                        # Check all possible variants for headers/footers
-                        variants = [
-                            target,
-                            f'word/{target}',
-                            target.replace('word/', ''),
-                        ]
-                        for variant in variants:
-                            if variant in self._parts:
-                                target_exists = True
-                                # For relationships use filename (without path)
-                                normalized_target = Path(target).name
-                                break
+                    rel_target = normalized_target
+                    if 'header' in rel_type.lower() or 'footer' in rel_type.lower():
+                        rel_target = Path(normalized_target).name
                     
-                    # For media, also check if exists in _media with different path variants
-                    if not target_exists and ('media' in target or 'image' in rel_type.lower()):
-                        # Check all possible variants
-                        variants = [
-                            target,
-                            f'word/{target}',
-                            target.replace('word/', ''),
-                            target if target.startswith('media/') else f'media/{Path(target).name}',
-                            f'word/media/{Path(target).name}'
-                        ]
-                        for variant in variants:
-                            if variant in self._media:
-                                target_exists = True
-                                # For relationships use original target (relative)
-                                # ale sprawdzamy czy media istnieje w _media
-                                normalized_target = target  # Zostaw oryginalny target dla relacji
-                                break
-                        
-                        # If still not found, check all keys in _media
-                        if not target_exists:
-                            for media_key in self._media.keys():
-                                # Check if filename matches
-                                if Path(media_key).name == Path(target).name:
-                                    target_exists = True
-                                    normalized_target = target  # Zostaw oryginalny target dla relacji
-                                    break
+                    self._relationships['word/_rels/document.xml.rels'].append((
+                        rel_id, rel_type, rel_target, target_mode
+                    ))
+                    existing_rel_targets.add(check_target)
                     
-                    if target_exists:
-                        # Check if relationship already exists (using normalized_target)
-                        # For headers/footers use filename (without path)
-                        check_target = normalized_target
-                        if 'header' in rel_type.lower() or 'footer' in rel_type.lower():
-                            # Dla headers/footers sprawdzamy po nazwie pliku
-                            check_target = Path(normalized_target).name
-                        
-                        if check_target not in existing_rel_targets:
-                            rel_id = self._get_next_rel_id('word/_rels/document.xml.rels')
-                            
-                            # For headers/footers use filename in relationship
-                            rel_target = normalized_target
-                            if 'header' in rel_type.lower() or 'footer' in rel_type.lower():
-                                rel_target = Path(normalized_target).name
-                            
-                            self._relationships['word/_rels/document.xml.rels'].append((
-                                rel_id, rel_type, rel_target, target_mode
-                            ))
-                            existing_rel_targets.add(check_target)
-                            
-                            # Zapisz mapowanie ID dla headers/footers
-                            if old_rel_id and ('header' in rel_type.lower() or 'footer' in rel_type.lower()):
-                                self._header_footer_id_mapping[old_rel_id] = rel_id
-                                logger.debug(f"Mapped {rel_type.split('/')[-1]} ID: {old_rel_id} -> {rel_id} for {rel_target} (target={target}, normalized={normalized_target})")
-                        else:
-                            logger.debug(f"Skipping duplicate relationship for {check_target}")
-                    else:
-                        if 'header' in rel_type.lower() or 'footer' in rel_type.lower():
-                            logger.debug(f"Target not found for {rel_type.split('/')[-1]}: {target} (normalized: {normalized_target})")
+                    if old_rel_id and ('header' in rel_type.lower() or 'footer' in rel_type.lower()):
+                        self._header_footer_id_mapping[old_rel_id] = rel_id
+                        logger.debug(f"Mapped {rel_type.split('/')[-1]} ID: {old_rel_id} -> {rel_id} for {rel_target}")
         
         # Add relationships for parts that are in package but don't have relationships
         # (e.g. for documents created from JSON)
@@ -575,7 +600,8 @@ class DOCXExporter:
             existing_targets.add('styles.xml')
         
         # Relacja do numbering.xml
-        if 'word/numbering.xml' in self._parts and 'word/numbering.xml' not in existing_targets:
+        numbering_targets = {'word/numbering.xml', 'numbering.xml'}
+        if 'word/numbering.xml' in self._parts and not any(t in existing_targets for t in numbering_targets):
             rel_id = self._get_next_rel_id('word/_rels/document.xml.rels')
             self._relationships['word/_rels/document.xml.rels'].append((
                 rel_id,
@@ -583,6 +609,7 @@ class DOCXExporter:
                 'numbering.xml',  # In document.xml relationships use relative path
                 'Internal'
             ))
+            existing_targets.add('numbering.xml')
         
         # Relationships to headers - find old ID from section
         sections = None
@@ -991,24 +1018,31 @@ class DOCXExporter:
             
             # Get original styles.xml if exists
             original_styles_xml = None
-            if hasattr(self.document, '_package_reader'):
+            if hasattr(self.document, '_package_reader') and self.document._package_reader:
                 package_reader = self.document._package_reader
                 original_styles_xml = package_reader.get_xml_content('word/styles.xml')
             
-            # For documents from JSON, try to get styles from importer
-            if not original_styles_xml and hasattr(self.document, '_importer'):
-                importer = self.document._importer
-                if hasattr(importer, 'styles_list') and importer.styles_list:
-                    # Styles are in JSON - use them to create basic styles.xml
-                    # Or use source_docx if available
-                    if hasattr(self.document, '_source_docx') and self.document._source_docx:
-                        from ..parser.package_reader import PackageReader
-                        try:
-                            source_reader = PackageReader(self.document._source_docx)
-                            original_styles_xml = source_reader.get_xml_content('word/styles.xml')
-                        except Exception:
-                            pass
+            # For documents from JSON, try to get styles from source_docx first
+            if not original_styles_xml and hasattr(self.document, '_source_docx') and self.document._source_docx:
+                from ..parser.package_reader import PackageReader
+                try:
+                    source_reader = PackageReader(self.document._source_docx)
+                    original_styles_xml = source_reader.get_xml_content('word/styles.xml')
+                    logger.debug(f"Loaded styles.xml from source_docx: {self.document._source_docx}")
+                except Exception as e:
+                    logger.warning(f"Failed to load styles.xml from source_docx: {e}")
             
+            # For documents with original styles.xml (not from JSON), just return it as-is
+            # to preserve all styles including list styles, character styles etc.
+            if original_styles_xml and hasattr(self.document, '_package_reader') and self.document._package_reader:
+                # Document loaded from DOCX - return original styles.xml
+                return original_styles_xml
+            
+            # For documents from JSON (source_docx), also return original styles
+            if original_styles_xml and hasattr(self.document, '_source_docx') and self.document._source_docx:
+                return original_styles_xml
+            
+            # Only for new documents without original styles, generate styles.xml
             # Create StyleNormalizer
             style_normalizer = StyleNormalizer(original_styles_xml)
             
@@ -1030,39 +1064,9 @@ class DOCXExporter:
                     for run in runs:
                         style_normalizer.register_run(run)
             
-            # For documents from JSON (source_docx), if no custom styles, return all...
-            if not style_normalizer.has_custom_styles() and original_styles_xml:
-                # Return all styles from original document
-                return original_styles_xml
-            
-            # Generate XML only if there are custom styles
+            # Generate XML with all registered styles
             if style_normalizer.has_custom_styles():
-                # Collect used style IDs and style names
-                used_style_ids = set()
-                used_style_names = set()
-                
-                if hasattr(self.document, '_body'):
-                    body = self._get_body()
-                    if body:
-                        paragraphs = self._get_paragraphs(body)
-                        for para in paragraphs:
-                            if hasattr(para, 'style') and isinstance(para.style, dict):
-                                style_id = para.style.get('style_id') or para.style.get('id') or para.style.get('styleId')
-                                style_name = para.style.get('style_name') or para.style.get('name')
-                                
-                                if style_id:
-                                    used_style_ids.add(style_id)
-                                if style_name:
-                                    used_style_names.add(style_name)
-                
-                # If we have source_docx, add all styles from original document
-                # (not only used, because may be needed for other elements)
-                if hasattr(self.document, '_source_docx') and self.document._source_docx and original_styles_xml:
-                    # For documents from JSON, return all styles from original + new custom styles
-                    # Use None as used_style_ids to copy all styles
-                    return style_normalizer.to_xml(None)
-                else:
-                    return style_normalizer.to_xml(used_style_ids)
+                return style_normalizer.to_xml(None)  # Return all styles
             else:
                 # If no custom styles and no original XML, return None
                 return None

@@ -415,28 +415,34 @@ resolver.register_type("CUSTOM", CustomPlaceholderHandler())
 ## File Organization
 
 ```
-docx_interpreter/
-├── __init__.py         # Public API exports
-├── api.py              # Document class
-├── document_api.py     # Extended document operations
-├── parser/             # DOCX parsing
-├── models/             # Document model classes
-├── engine/             # Layout pipeline
-│   ├── pdf/            # PDF compilation
-│   └── text_metrics/   # Text measurement
-├── renderers/          # Output renderers
-├── export/             # JSON/HTML exporters
-├── importers/          # JSON importer
-├── styles/             # Style management
-├── layout/             # Page/section models
-├── utils/              # Utilities
-└── media/              # Image conversion
-
-pdf_renderer_rust/      # Rust PDF backend
-├── src/
-│   ├── lib.rs          # PyO3 bindings
-│   ├── renderer.rs     # PDF generation
-│   └── canvas.rs       # High-level API
-└── Cargo.toml
+packages/
+├── docquill_core/          # Main Python package
+│   └── docquill/
+│       ├── __init__.py     # Public API exports
+│       ├── api.py          # Document class
+│       ├── document_api.py # Extended document operations
+│       ├── cli.py          # Command-line interface
+│       ├── parser/         # DOCX parsing
+│       ├── models/         # Document model classes
+│       ├── engine/         # Layout pipeline
+│       │   ├── pdf/        # PDF compilation
+│       │   ├── html/       # HTML compiler
+│       │   └── text_metrics/ # Text measurement
+│       ├── renderers/      # Output renderers
+│       ├── export/         # JSON/DOCX exporters
+│       ├── importers/      # JSON importer
+│       ├── styles/         # Style management
+│       ├── layout/         # Page/section models
+│       ├── utils/          # Utilities
+│       └── media/          # Image conversion
+│
+├── docquill_pdf_rust/      # Rust PDF backend
+│   ├── src/
+│   │   ├── lib.rs          # PyO3 bindings
+│   │   ├── renderer.rs     # PDF generation
+│   │   └── canvas.rs       # High-level API
+│   └── Cargo.toml
+│
+└── docquill_pro/           # Future PRO modules
 ```
 
