@@ -1,6 +1,6 @@
 [package]
 name = "docquill_rust"
-version = "0.1.4"
+version = "0.1.5"
 edition = "2021"
 license = "Apache-2.0"
 description = "High-performance Rust components for DocQuill: PDF renderer and EMF/WMF converter"
@@ -22,6 +22,11 @@ ttf-parser = "0.20"
 byteorder = "1.5"
 svg = "0.14"
 base64 = "0.22"
+
+# SVG to PNG rendering
+resvg = "0.37"
+usvg = "0.37"
+tiny-skia = "0.11"
 
 [profile.release]
 opt-level = 3

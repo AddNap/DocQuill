@@ -34,6 +34,14 @@ except ImportError:  # pragma: no cover - optional dependency
     _HAS_CAIROSVG = False
     cairosvg = None  # type: ignore
 
+# Pillow for image manipulation
+try:
+    from PIL import Image
+    _HAS_PIL = True
+except ImportError:  # pragma: no cover - optional dependency
+    _HAS_PIL = False
+    Image = None  # type: ignore
+
 try:
     import emf2svg  # type: ignore
     _HAS_EMF2SVG = True
@@ -936,32 +944,124 @@ class MediaConverter:
         height: Optional[int] = None,
     ) -> Optional[bytes]:
         """
-        Convert SVG text to PNG bytes using cairosvg when available.
+        Convert SVG text to PNG bytes.
+        
+        Tries multiple backends in order:
+        1. Rust (docquill_rust) - fastest, cross-platform, no external dependencies
+        2. cairosvg - fast but requires Cairo C library
+        3. System tools (rsvg-convert, inkscape) - fallback
         """
         if not svg_content:
             return None
-        if not _HAS_CAIROSVG:
-            logger.debug("cairosvg not available for SVG→PNG conversion")
-            return None
 
-        try:
-            kwargs: Dict[str, Any] = {}
-            if isinstance(width, int) and width > 0:
-                kwargs["output_width"] = width
-            if isinstance(height, int) and height > 0:
-                kwargs["output_height"] = height
-            png_data = cairosvg.svg2png(bytestring=svg_content.encode("utf-8"), **kwargs)  # type: ignore[arg-type]
-            
-            # Check if PNG is valid and not a placeholder
-            # Placeholders are typically < 500 bytes, real images are much larger
-            if png_data and len(png_data) < 500:
-                logger.debug(f"SVG→PNG conversion produced very small PNG ({len(png_data)} bytes), likely empty/invalid")
-                return None
-            
+        # Method 1: Rust (docquill_rust) - PREFERRED
+        # Cross-platform, no external dependencies, fastest
+        if _HAS_RUST_CONVERTER and hasattr(emf_converter, 'convert_svg_to_png'):
+            try:
+                png_data = emf_converter.convert_svg_to_png(
+                    svg_content,
+                    width if width and width > 0 else None,
+                    height if height and height > 0 else None,
+                )
+                # Rust returns list, convert to bytes
+                if isinstance(png_data, list):
+                    png_data = bytes(png_data)
+                
+                if png_data and len(png_data) >= 500:
+                    logger.debug("SVG→PNG via Rust (docquill_rust)")
+                    return png_data
+            except Exception as exc:
+                logger.debug(f"Rust SVG→PNG failed: {exc}")
+
+        # Method 2: cairosvg (requires Cairo C library)
+        if _HAS_CAIROSVG:
+            try:
+                kwargs: Dict[str, Any] = {}
+                if isinstance(width, int) and width > 0:
+                    kwargs["output_width"] = width
+                if isinstance(height, int) and height > 0:
+                    kwargs["output_height"] = height
+                png_data = cairosvg.svg2png(bytestring=svg_content.encode("utf-8"), **kwargs)
+                
+                if png_data and len(png_data) >= 500:
+                    logger.debug("SVG→PNG via cairosvg")
+                    return png_data
+            except Exception as exc:
+                logger.debug(f"cairosvg failed: {exc}")
+        
+        # Method 3: System tools (rsvg-convert, inkscape)
+        png_data = self._svg_to_png_via_system(svg_content, width, height)
+        if png_data:
             return png_data
+        
+        logger.debug("No SVG→PNG backend available")
+        return None
+    
+    def _svg_to_png_via_system(
+        self,
+        svg_content: str,
+        width: Optional[int] = None,
+        height: Optional[int] = None,
+    ) -> Optional[bytes]:
+        """
+        Convert SVG to PNG using system tools (inkscape or rsvg-convert).
+        """
+        # Write SVG to temp file
+        try:
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.svg', delete=False, encoding='utf-8') as f:
+                f.write(svg_content)
+                svg_path = f.name
+            
+            png_path = svg_path.replace('.svg', '.png')
+            
+            try:
+                # Try rsvg-convert first (lighter weight)
+                if shutil.which('rsvg-convert'):
+                    cmd = ['rsvg-convert', '-f', 'png', '-o', png_path]
+                    if width:
+                        cmd.extend(['-w', str(width)])
+                    if height:
+                        cmd.extend(['-h', str(height)])
+                    cmd.append(svg_path)
+                    
+                    result = subprocess.run(cmd, capture_output=True, timeout=30)
+                    if result.returncode == 0 and os.path.exists(png_path):
+                        with open(png_path, 'rb') as f:
+                            png_data = f.read()
+                        if len(png_data) >= 500:
+                            logger.debug("SVG→PNG via rsvg-convert")
+                            return png_data
+                
+                # Try inkscape
+                if shutil.which('inkscape'):
+                    cmd = ['inkscape', '--export-type=png', f'--export-filename={png_path}']
+                    if width:
+                        cmd.append(f'--export-width={width}')
+                    if height:
+                        cmd.append(f'--export-height={height}')
+                    cmd.append(svg_path)
+                    
+                    result = subprocess.run(cmd, capture_output=True, timeout=60)
+                    if result.returncode == 0 and os.path.exists(png_path):
+                        with open(png_path, 'rb') as f:
+                            png_data = f.read()
+                        if len(png_data) >= 500:
+                            logger.debug("SVG→PNG via inkscape")
+                            return png_data
+                            
+            finally:
+                # Cleanup temp files
+                for path in [svg_path, png_path]:
+                    try:
+                        if os.path.exists(path):
+                            os.unlink(path)
+                    except Exception:
+                        pass
+                        
         except Exception as exc:
-            logger.warning(f"SVG→PNG conversion failed: {exc}")
-            return None
+            logger.debug(f"System SVG→PNG conversion failed: {exc}")
+        
+        return None
 
     @staticmethod
     def _sanitize_dimension(value: Optional[int], min_value: int = 1, max_value: int = 4096) -> Optional[int]:

@@ -124,6 +124,110 @@ static FONT_MAPPINGS: &[FontFileMapping] = &[
     },
 ];
 
+/// Find bundled fonts directory from docquill Python package
+/// This ensures consistency between Python (ReportLab) and Rust font metrics
+fn find_bundled_fonts_dir() -> Option<PathBuf> {
+    // Try to find docquill package fonts directory
+    // The fonts are bundled at: site-packages/docquill/fonts/
+    
+    // Method 1: Use Python to find the package location
+    if let Ok(output) = std::process::Command::new("python3")
+        .args(["-c", "import docquill; import os; print(os.path.dirname(docquill.__file__))"])
+        .output()
+    {
+        if output.status.success() {
+            let package_dir = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            let fonts_dir = PathBuf::from(&package_dir).join("fonts");
+            if fonts_dir.exists() {
+                return Some(fonts_dir);
+            }
+        }
+    }
+    
+    // Method 2: Try python (without 3 suffix, for Windows)
+    if let Ok(output) = std::process::Command::new("python")
+        .args(["-c", "import docquill; import os; print(os.path.dirname(docquill.__file__))"])
+        .output()
+    {
+        if output.status.success() {
+            let package_dir = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            let fonts_dir = PathBuf::from(&package_dir).join("fonts");
+            if fonts_dir.exists() {
+                return Some(fonts_dir);
+            }
+        }
+    }
+    
+    // Method 3: Common site-packages locations
+    let site_packages_patterns = [
+        // Virtual environments
+        ".venv/lib/python3.*/site-packages/docquill/fonts",
+        "venv/lib/python3.*/site-packages/docquill/fonts",
+        ".venv/Lib/site-packages/docquill/fonts",  // Windows venv
+        "venv/Lib/site-packages/docquill/fonts",   // Windows venv
+        // User install
+        ".local/lib/python3.*/site-packages/docquill/fonts",
+    ];
+    
+    if let Ok(home) = std::env::var("HOME").or_else(|_| std::env::var("USERPROFILE")) {
+        for pattern in &site_packages_patterns {
+            // Simple glob-like matching for python version
+            for version in ["3.9", "3.10", "3.11", "3.12", "3.13"] {
+                let path_str = pattern.replace("python3.*", &format!("python{}", version));
+                let full_path = PathBuf::from(&home).join(&path_str);
+                if full_path.exists() {
+                    return Some(full_path);
+                }
+            }
+        }
+    }
+    
+    // Method 4: Check current working directory (development mode)
+    if let Ok(cwd) = std::env::current_dir() {
+        // Check packages/docquill_core/docquill/fonts/
+        let dev_path = cwd.join("packages/docquill_core/docquill/fonts");
+        if dev_path.exists() {
+            return Some(dev_path);
+        }
+        
+        // Check parent directories
+        let mut dir = cwd.parent();
+        for _ in 0..5 {
+            if let Some(d) = dir {
+                let dev_path = d.join("packages/docquill_core/docquill/fonts");
+                if dev_path.exists() {
+                    return Some(dev_path);
+                }
+                dir = d.parent();
+            } else {
+                break;
+            }
+        }
+    }
+    
+    None
+}
+
+/// Get bundled font path for DejaVu Sans variants
+/// These are the canonical fonts that match Python's ReportLab metrics
+fn get_bundled_dejavu_font(style: FontStyle) -> Option<PathBuf> {
+    let bundled_dir = find_bundled_fonts_dir()?;
+    
+    let filename = match style {
+        FontStyle::Regular => "DejaVuSans.ttf",
+        FontStyle::Bold => "DejaVuSans-Bold.ttf",
+        FontStyle::Italic => "DejaVuSans-Oblique.ttf",
+        FontStyle::BoldItalic => "DejaVuSans-BoldOblique.ttf",
+    };
+    
+    let font_path = bundled_dir.join(filename);
+    if font_path.exists() {
+        Some(font_path)
+    } else {
+        None
+    }
+}
+
 /// Get system fonts directories for the current platform
 fn get_system_font_dirs() -> Vec<PathBuf> {
     let mut dirs = Vec::new();
@@ -288,12 +392,19 @@ fn generate_font_filenames(font_name: &str, style: FontStyle) -> Vec<String> {
 }
 
 /// Get fallback font for when requested font is not found
-/// Returns a font that should always be available on the system
+/// PRIORITY: Bundled DejaVu Sans first (ensures consistency with Python/ReportLab)
+/// then system fonts as fallback
 pub fn get_fallback_font(style: FontStyle) -> Option<PathBuf> {
-    // Try fonts in order of preference
+    // HIGHEST PRIORITY: Bundled DejaVu Sans from docquill package
+    // This ensures font metrics match Python's ReportLab calculations
+    if let Some(path) = get_bundled_dejavu_font(style) {
+        return Some(path);
+    }
+    
+    // Fallback: Try system fonts
     let fallback_families = [
+        "DejaVu Sans",  // Same font family as bundled
         "Arial",        // Available on Windows, often on Linux/macOS
-        "DejaVu Sans",  // Common on Linux
         "Liberation Sans", // Common on Linux
         "Helvetica",    // macOS
         "Segoe UI",     // Windows

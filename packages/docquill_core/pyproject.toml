@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "docquill"
-version = "0.1.5"
+version = "0.1.6"
 description = "Professional DOCX document processing library with AI-ready JSON export, PDF/HTML rendering, and round-trip editing"
 readme = "README.md"
 license = "Apache-2.0"
@@ -67,6 +67,10 @@ docquill = "docquill.__main__:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["docquill"]
+# Include bundled fonts for consistent rendering across Python and Rust
+include = [
+    "docquill/fonts/*.ttf",
+]
 exclude = [
     "docquill/media/converter/rust.zip",
     "docquill/media/converter/java/**",
@@ -76,6 +80,7 @@ exclude = [
 [tool.hatch.build.targets.sdist]
 include = [
     "/docquill",
+    "/docquill/fonts/*.ttf",
 ]
 exclude = [
     "docquill/media/converter/rust.zip",

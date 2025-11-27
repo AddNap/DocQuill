@@ -58,11 +58,24 @@ def clear_font_parsing_cache() -> None:
     _FONT_PARSING_CACHE.clear()
     logger.debug("Font parsing cache cleared")
 
+# Bundled fonts directory (shipped with package) - HIGHEST PRIORITY
+_BUNDLED_FONTS_DIR = Path(__file__).resolve().parent.parent.parent / "fonts"
+
 SEARCH_DIRECTORIES: List[Path] = [
-    Path(__file__).resolve().parent / "fonts",
+    # Bundled fonts first - ensures consistency between Python and Rust
+    _BUNDLED_FONTS_DIR,
+    # Then system fonts as fallback
     Path("/usr/share/fonts"),
+    Path("/usr/share/fonts/truetype"),
+    Path("/usr/share/fonts/truetype/dejavu"),
     Path("/usr/local/share/fonts"),
     Path.home() / ".fonts",
+    Path.home() / ".local/share/fonts",
+    # Windows fonts
+    Path("C:/Windows/Fonts"),
+    # macOS fonts
+    Path("/System/Library/Fonts"),
+    Path("/Library/Fonts"),
 ]
 
 FONT_VARIANTS: Dict[str, Dict[str, Iterable[str]]] = {
@@ -117,6 +130,30 @@ def _locate_font_file(candidates: Iterable[str]) -> Optional[Path]:
 
 
 _REGISTERED: set[str] = set()
+
+
+def get_bundled_fonts_dir() -> Path:
+    """
+    Returns path to bundled fonts directory.
+    This is the canonical location for fonts used by both Python and Rust.
+    """
+    return _BUNDLED_FONTS_DIR
+
+
+def get_bundled_font_path(font_filename: str) -> Optional[Path]:
+    """
+    Get path to a specific bundled font file.
+    
+    Args:
+        font_filename: Font filename (e.g., "DejaVuSans.ttf")
+        
+    Returns:
+        Path to font file if exists, None otherwise
+    """
+    font_path = _BUNDLED_FONTS_DIR / font_filename
+    if font_path.exists():
+        return font_path
+    return None
 
 
 def register_default_fonts() -> None:

@@ -977,6 +977,91 @@ fn convert_emf_bytes_to_svg(emf_data: &[u8]) -> PyResult<String> {
     }
 }
 
+/// Convert SVG string to PNG bytes
+///
+/// Args:
+///     svg_data: SVG content as string
+///     width: Optional target width in pixels
+///     height: Optional target height in pixels
+///
+/// Returns:
+///     PNG data as bytes
+#[pyfunction]
+#[pyo3(signature = (svg_data, width=None, height=None))]
+fn convert_svg_to_png(svg_data: &str, width: Option<u32>, height: Option<u32>) -> PyResult<Vec<u8>> {
+    use usvg::TreeParsing;
+    use tiny_skia::Pixmap;
+    
+    // Parse SVG using usvg
+    let opt = usvg::Options::default();
+    let tree = usvg::Tree::from_str(svg_data, &opt)
+        .map_err(|e| {
+            PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("Failed to parse SVG: {}", e))
+        })?;
+    
+    // Calculate dimensions
+    let svg_width = tree.size.width();
+    let svg_height = tree.size.height();
+    let (target_width, target_height) = match (width, height) {
+        (Some(w), Some(h)) => (w, h),
+        (Some(w), None) => {
+            let scale = w as f32 / svg_width;
+            (w, (svg_height * scale) as u32)
+        }
+        (None, Some(h)) => {
+            let scale = h as f32 / svg_height;
+            ((svg_width * scale) as u32, h)
+        }
+        (None, None) => (svg_width as u32, svg_height as u32),
+    };
+    
+    // Ensure minimum size
+    let target_width = target_width.max(1);
+    let target_height = target_height.max(1);
+    
+    // Create pixmap
+    let mut pixmap = Pixmap::new(target_width, target_height).ok_or_else(|| {
+        PyErr::new::<pyo3::exceptions::PyValueError, _>("Failed to create pixmap")
+    })?;
+    
+    // Calculate transform to fit SVG into target dimensions
+    let scale_x = target_width as f32 / svg_width;
+    let scale_y = target_height as f32 / svg_height;
+    let transform = tiny_skia::Transform::from_scale(scale_x, scale_y);
+    
+    // Render SVG to pixmap using resvg
+    let rtree = resvg::Tree::from_usvg(&tree);
+    rtree.render(transform, &mut pixmap.as_mut());
+    
+    // Encode as PNG
+    let png_data = pixmap.encode_png().map_err(|e| {
+        PyErr::new::<pyo3::exceptions::PyIOError, _>(format!("Failed to encode PNG: {}", e))
+    })?;
+    
+    Ok(png_data)
+}
+
+/// Convert EMF/WMF bytes directly to PNG bytes
+///
+/// This is a convenience function that combines EMF→SVG→PNG conversion.
+///
+/// Args:
+///     emf_data: EMF/WMF data as bytes
+///     width: Optional target width in pixels
+///     height: Optional target height in pixels
+///
+/// Returns:
+///     PNG data as bytes
+#[pyfunction]
+#[pyo3(signature = (emf_data, width=None, height=None))]
+fn convert_emf_to_png(emf_data: &[u8], width: Option<u32>, height: Option<u32>) -> PyResult<Vec<u8>> {
+    // First convert to SVG
+    let svg_content = convert_emf_bytes_to_svg(emf_data)?;
+    
+    // Then convert SVG to PNG
+    convert_svg_to_png(&svg_content, width, height)
+}
+
 /// Python module for DocQuill Rust components
 #[pymodule]
 fn docquill_rust(_py: Python, m: &PyModule) -> PyResult<()> {
@@ -986,6 +1071,10 @@ fn docquill_rust(_py: Python, m: &PyModule) -> PyResult<()> {
     // EMF/WMF converter functions
     m.add_function(wrap_pyfunction!(convert_emf_to_svg, m)?)?;
     m.add_function(wrap_pyfunction!(convert_emf_bytes_to_svg, m)?)?;
+    
+    // SVG to PNG conversion
+    m.add_function(wrap_pyfunction!(convert_svg_to_png, m)?)?;
+    m.add_function(wrap_pyfunction!(convert_emf_to_png, m)?)?;
     
     Ok(())
 }
