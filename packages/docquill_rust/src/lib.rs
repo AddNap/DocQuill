@@ -358,7 +358,7 @@ impl PdfCanvasRenderer {
         } else {
             // Try to load font from system
             let font_path = self.find_font_path(&family, style)?;
-            
+
             // Load and register the font
             let font_data = load_font_file(&font_path)?;
             let font_id = Ref::new(self.next_ref_id);
@@ -374,7 +374,7 @@ impl PdfCanvasRenderer {
             // Register font
             self.font_registry.insert(font_key.clone(), (pdf_font_name, font_id));
             self.type0_cid_maps.insert(pdf_font_name, cid_map);
-            
+
             // Also register under original name for quick lookup
             if !self.font_registry.contains_key(&name) {
                 self.font_registry.insert(name.clone(), (pdf_font_name, font_id));
@@ -396,7 +396,7 @@ impl PdfCanvasRenderer {
                 "No current page",
             ));
         };
-        
+
         canvas.set_font(font_name, size);
         Ok(())
     }
@@ -999,35 +999,27 @@ fn convert_svg_to_png(svg_data: &str, width: Option<u32>, height: Option<u32>) -
             PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("Failed to parse SVG: {}", e))
         })?;
     
-    // Calculate dimensions
+    // Get SVG dimensions (these are the full-quality dimensions from content bounds)
     let svg_width = tree.size.width();
     let svg_height = tree.size.height();
-    let (target_width, target_height) = match (width, height) {
-        (Some(w), Some(h)) => (w, h),
-        (Some(w), None) => {
-            let scale = w as f32 / svg_width;
-            (w, (svg_height * scale) as u32)
-        }
-        (None, Some(h)) => {
-            let scale = h as f32 / svg_height;
-            ((svg_width * scale) as u32, h)
-        }
-        (None, None) => (svg_width as u32, svg_height as u32),
-    };
+    
+    // IMPORTANT: Always render at SVG's native resolution for maximum quality
+    // The target width/height are ignored for rendering - PDF will scale the image
+    // This ensures we rasterize the vector graphics at full quality, not scaled down
+    let render_width = svg_width as u32;
+    let render_height = svg_height as u32;
     
     // Ensure minimum size
-    let target_width = target_width.max(1);
-    let target_height = target_height.max(1);
+    let render_width = render_width.max(1);
+    let render_height = render_height.max(1);
     
-    // Create pixmap
-    let mut pixmap = Pixmap::new(target_width, target_height).ok_or_else(|| {
+    // Create pixmap at full SVG resolution
+    let mut pixmap = Pixmap::new(render_width, render_height).ok_or_else(|| {
         PyErr::new::<pyo3::exceptions::PyValueError, _>("Failed to create pixmap")
     })?;
     
-    // Calculate transform to fit SVG into target dimensions
-    let scale_x = target_width as f32 / svg_width;
-    let scale_y = target_height as f32 / svg_height;
-    let transform = tiny_skia::Transform::from_scale(scale_x, scale_y);
+    // Render at 1:1 scale (no scaling loss)
+    let transform = tiny_skia::Transform::identity();
     
     // Render SVG to pixmap using resvg
     let rtree = resvg::Tree::from_usvg(&tree);

@@ -996,7 +996,7 @@ class MediaConverter:
         
         logger.debug("No SVG→PNG backend available")
         return None
-    
+            
     def _svg_to_png_via_system(
         self,
         svg_content: str,
@@ -1072,7 +1072,7 @@ class MediaConverter:
         except (TypeError, ValueError):
             return None
         if int_value <= 0:
-            return min_value
+            return None  # Let Rust use original SVG dimensions
         return min(int_value, max_value)
 
     @staticmethod
@@ -1132,6 +1132,9 @@ class MediaConverter:
             return True
         normalized = svg_content.lower()
         if 'viewbox="0 0 -1 -1"' in normalized or 'viewbox="0 0 0 0"' in normalized:
+            return True
+        # Detect Rust WMF placeholder
+        if 'wmf conversion not yet fully implemented' in normalized:
             return True
         try:
             root = ET.fromstring(svg_content)

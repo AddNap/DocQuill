@@ -14,10 +14,6 @@ pub struct SvgWriter {
     min_y: f64,
     max_x: f64,
     max_y: f64,
-    content_min_x: f64,  // Min X excluding paths starting near origin
-    content_min_y: f64,  // Min Y excluding paths starting near origin
-    content_max_x: f64,  // Max X excluding paths starting near origin
-    content_max_y: f64,  // Max Y excluding paths starting near origin
 }
 
 impl SvgWriter {
@@ -31,29 +27,20 @@ impl SvgWriter {
             min_y: f64::MAX,
             max_x: f64::MIN,
             max_y: f64::MIN,
-            content_min_x: f64::MAX,
-            content_min_y: f64::MAX,
-            content_max_x: f64::MIN,
-            content_max_y: f64::MIN,
         }
     }
     
     fn update_bounds(&mut self, x: f64, y: f64) {
         if self.auto_viewbox {
+            // Skip very small coordinates - they're likely relative coords misinterpreted as absolute
+            // or artifacts from EMF parsing. Real content typically starts at larger coordinates.
+            if x < 50.0 && y < 50.0 {
+                return;  // Skip this point for bounds calculation
+            }
             self.min_x = self.min_x.min(x);
             self.min_y = self.min_y.min(y);
             self.max_x = self.max_x.max(x);
             self.max_y = self.max_y.max(y);
-        }
-    }
-    
-    fn update_content_bounds(&mut self, x: f64, y: f64, is_near_origin: bool) {
-        if self.auto_viewbox && !is_near_origin {
-            // Only update content bounds if not near origin (exclude radiating lines)
-            self.content_min_x = self.content_min_x.min(x);
-            self.content_min_y = self.content_min_y.min(y);
-            self.content_max_x = self.content_max_x.max(x);
-            self.content_max_y = self.content_max_y.max(y);
         }
     }
 
@@ -128,151 +115,93 @@ impl SvgWriter {
 
     /// Add a path to the SVG
     pub fn add_path(&mut self, path_data: &str, fill: Option<&str>, stroke: Option<&str>) {
-        // Extract all numbers from path data for bounds calculation
-        // Simple approach: extract all numbers and pair them as (x, y) coordinates
-        let numbers: Vec<f64> = path_data
-            .split_whitespace()
-            .filter_map(|s| {
-                // Try to parse as number, ignoring command letters
-                s.parse::<f64>().ok()
-            })
-            .collect();
+        // Parse path to extract coordinates for bounds and filtering
+        let parts: Vec<&str> = path_data.split_whitespace().collect();
+        let mut coords: Vec<(f64, f64)> = Vec::new();
+        let mut i = 0;
         
-        // Check if path uses L (lineto) commands - needed for filtering logic
+        while i < parts.len() {
+            match parts[i] {
+                "M" | "L" => {
+                    if i + 2 < parts.len() {
+                        if let (Ok(x), Ok(y)) = (parts[i+1].parse::<f64>(), parts[i+2].parse::<f64>()) {
+                            coords.push((x, y));
+                        }
+                        i += 3;
+                    } else {
+                        i += 1;
+                    }
+                }
+                "C" => {
+                    // C x1 y1 x2 y2 x3 y3 - only endpoint (x3, y3) matters for path analysis
+                    if i + 6 < parts.len() {
+                        if let (Ok(x), Ok(y)) = (parts[i+5].parse::<f64>(), parts[i+6].parse::<f64>()) {
+                            coords.push((x, y));
+                        }
+                        i += 7;
+                    } else {
+                        i += 1;
+                    }
+                }
+                "Z" => {
+                    i += 1;
+                }
+                _ => {
+                    i += 1;
+                }
+            }
+        }
+        
+        // Check if path uses L (lineto) commands - bezier curves are real shapes
         let uses_lineto = path_data.contains(" L ") || 
                          (path_data.starts_with("M ") && 
                           path_data.len() > 10 && 
                           !path_data.contains(" C "));
         
-        // Check if path has artifacts that create visible lines:
-        // 1. Long segments going TO origin (position reset commands) - filter entire path
-        // 2. Long first segment FROM origin (radiating lines) - remove first segment, keep rest
-        let should_filter_entire_path = if numbers.len() >= 4 {
-            let xs: Vec<f64> = numbers.iter().step_by(2).cloned().collect();
-            let ys: Vec<f64> = numbers.iter().skip(1).step_by(2).cloned().collect();
+        // Filter artifact paths where most points after the first have y=0 or very small y
+        // This pattern indicates relative coordinates misinterpreted as absolute
+        // Real shapes don't have multiple consecutive points at y=0
+        if uses_lineto && coords.len() >= 3 {
+            let zero_y_count = coords.iter().skip(1).filter(|(_, y)| *y < 1.0).count();
+            let non_first_count = coords.len() - 1;
             
-            if xs.is_empty() || ys.is_empty() {
-                false
-            } else {
-                if !uses_lineto {
-                    false  // Paths with bezier curves are actual shapes
-                } else {
-                    let start_x = xs[0];
-                    let start_y = ys[0];
-                    // Check for two types of artifacts:
-                    // 1. Long segments going TO origin (position reset commands)
-                    // 2. Paths starting near origin with very long first segment (radiating lines)
-                    let mut has_long_segment_to_origin = false;
-                    for i in 0..(xs.len().min(ys.len()) - 1) {
-                        let x1 = xs[i];
-                        let y1 = ys[i];
-                        let x2 = xs[i + 1];
-                        let y2 = ys[i + 1];
-                        
-                        // Check if segment goes to near origin (position reset)
-                        let goes_to_origin = x2 < 50.0 && y2 < 50.0;
-                        if goes_to_origin {
-                            let dist = ((x2 - x1).powi(2) + (y2 - y1).powi(2)).sqrt();
-                            if dist > 300.0 {
-                                has_long_segment_to_origin = true;
-                                break;
-                            }
-                        }
-                    }
-                    
-                    // Check if starts near origin with very long first segment (radiating line)
-                    // Filter ALL paths with long first segment if they use L commands (lineto)
-                    // Even complex shapes with many points create visible lines if first segment is long
-                    // Paths with C (bezier) commands are real shapes and should be preserved
-                    let starts_at_origin = start_x < 10.0 && start_y < 10.0;
-                    let has_long_first_segment = if starts_at_origin && xs.len() >= 2 && ys.len() >= 2 {
-                        let first_seg_dist = ((xs[1] - xs[0]).powi(2) + (ys[1] - ys[0]).powi(2)).sqrt();
-                        // Filter if first segment is very long (>300 pixels)
-                        // This creates a visible radiating line from origin
-                        // Only filter paths using L commands, not C (bezier) commands
-                        first_seg_dist > 300.0
-                    } else {
-                        false
-                    };
-                    
-                    // Filter entire path if has long segment going TO origin (position reset)
-                    // For paths with long first segment FROM origin, we'll modify them instead
-                    has_long_segment_to_origin
-                }
+            // If most points after first have y≈0, it's an artifact (filter entire path)
+            if zero_y_count >= non_first_count / 2 && zero_y_count >= 2 {
+                return;
             }
-        } else {
-            false
-        };
+        }
         
-        // Check if path has long first segment FROM origin (radiating line)
-        // Instead of filtering, we'll modify the path to remove the first segment
-        let mut modified_path_data = path_data.to_string();
-        let has_long_first_segment_from_origin = if numbers.len() >= 4 {
-            let xs: Vec<f64> = numbers.iter().step_by(2).cloned().collect();
-            let ys: Vec<f64> = numbers.iter().skip(1).step_by(2).cloned().collect();
+        // Modify paths starting near origin - remove first segment instead of filtering entire path
+        // Pattern: M small_x 0 L big_x big_y ... -> M big_x big_y ...
+        let mut final_path_data = path_data.to_string();
+        if uses_lineto && coords.len() >= 2 {
+            let (start_x, start_y) = coords[0];
+            let starts_near_origin = start_x < 10.0 && start_y < 1.0;
             
-            if !xs.is_empty() && !ys.is_empty() {
-                let start_x = xs[0];
-                let start_y = ys[0];
-                let starts_at_origin = start_x < 10.0 && start_y < 10.0;
+            if starts_near_origin {
+                let (x2, y2) = coords[1];
+                let first_seg_dist = ((x2 - start_x).powi(2) + (y2 - start_y).powi(2)).sqrt();
                 
-                if starts_at_origin && xs.len() >= 2 && ys.len() >= 2 && uses_lineto {
-                    let first_seg_dist = ((xs[1] - xs[0]).powi(2) + (ys[1] - ys[0]).powi(2)).sqrt();
-                    
-                    if first_seg_dist > 300.0 {
-                        // Modify path: remove first M and L, start from second point
-                        // Parse path to find first L command
-                        let parts: Vec<&str> = path_data.split_whitespace().collect();
-                        if parts.len() >= 6 && parts[0] == "M" && parts[3] == "L" {
-                            // Rebuild path starting from second point (first L destination)
-                            let new_start_x = parts[4];
-                            let new_start_y = parts[5];
-                            let rest = parts[6..].join(" ");
-                            modified_path_data = format!("M {} {} {}", new_start_x, new_start_y, rest);
-                            true
-                        } else {
-                            false
-                        }
-                    } else {
-                        false
+                // If first segment is long, remove it by starting path from second point
+                if first_seg_dist > 200.0 {
+                    // Find "M x y L" pattern and replace with "M" at second point
+                    let parts: Vec<&str> = path_data.split_whitespace().collect();
+                    if parts.len() >= 6 && parts[0] == "M" && parts[3] == "L" {
+                        // Rebuild path: M second_x second_y rest...
+                        let rest = parts[6..].join(" ");
+                        final_path_data = format!("M {} {} {}", parts[4], parts[5], rest);
                     }
-                } else {
-                    false
                 }
-            } else {
-                false
-            }
-        } else {
-            false
-        };
-        
-        // Filter entire path if it has position reset (long segment TO origin)
-        if should_filter_entire_path {
-            // Still update bounds for viewBox calculation, but don't add to elements
-            for chunk in numbers.chunks(2) {
-                if chunk.len() >= 2 {
-                    self.update_bounds(chunk[0], chunk[1]);
-                }
-            }
-            return;  // Don't add this path to SVG
-        }
-        
-        // Use modified path if first segment was removed
-        let final_path_data = if has_long_first_segment_from_origin {
-            &modified_path_data
-        } else {
-            path_data
-        };
-        
-        // Update bounds with all coordinate pairs (use original path_data for bounds)
-        for chunk in numbers.chunks(2) {
-            if chunk.len() >= 2 {
-                self.update_bounds(chunk[0], chunk[1]);
-                self.update_content_bounds(chunk[0], chunk[1], false);
             }
         }
         
-        let mut path = Path::new().set("d", final_path_data);
+        // Update bounds with valid coordinates (skip first if it was near origin)
+        for (x, y) in &coords {
+            self.update_bounds(*x, *y);
+        }
+        
+        // Add path to SVG (use modified path if first segment was removed)
+        let mut path = Path::new().set("d", final_path_data.as_str());
         
         if let Some(fill_color) = fill {
             path = path.set("fill", fill_color);
@@ -289,97 +218,33 @@ impl SvgWriter {
 
     /// Finish and generate SVG string
     pub fn finish(self) -> String {
-        // Use calculated bounds if available, otherwise use provided dimensions or large safe values
-        let vb_x = if self.min_x != f64::MAX { self.min_x.min(0.0) } else { 0.0 };
-        let vb_y = if self.min_y != f64::MAX { self.min_y.min(0.0) } else { 0.0 };
-        
-        // Check if we have valid bounds that are significantly larger than initial dimensions
-        // If bounds are too small (close to initial dimensions), they're likely incorrect
-        let has_valid_bounds = self.min_x != f64::MAX && self.max_x > self.min_x && 
-                               self.min_y != f64::MAX && self.max_y > self.min_y &&
-                               (self.max_x - self.min_x) > (self.width as f64 * 1.5) &&
-                               (self.max_y - self.min_y) > (self.height as f64 * 1.5);
-        
-        // Use dimensions from rclFrame (passed to SvgWriter::new) as the base for viewBox
-        // rclFrame represents the physical size of the EMF content
-        // However, we should use the actual content bounds to ensure nothing is clipped
-        // If we have valid bounds, use them; otherwise fall back to rclFrame dimensions
-        let (vb_width, vb_height) = if self.min_x != f64::MAX && self.max_x > self.min_x && 
-                                      self.max_y > self.min_y {
-            // Use calculated bounds to ensure all content is visible
-            // Add small padding to avoid edge clipping
-            let padding = 10.0;
-            ((self.max_x - vb_x + padding).max(self.width as f64), 
-             (self.max_y - vb_y + padding).max(self.height as f64))
+        // Use actual content bounds as viewBox origin - this removes empty margins
+        let (vb_x, vb_y, vb_width, vb_height) = if self.min_x != f64::MAX && self.max_x > self.min_x && 
+                                                   self.min_y != f64::MAX && self.max_y > self.min_y {
+            // Use actual content bounds - this crops out empty margins
+            let content_width = self.max_x - self.min_x;
+            let content_height = self.max_y - self.min_y;
+            (self.min_x, self.min_y, content_width, content_height)
         } else {
-            // Use rclFrame dimensions (passed to SvgWriter::new as width/height)
-            (self.width as f64, self.height as f64)
+            // Fallback to rclFrame dimensions starting at 0,0
+            (0.0, 0.0, self.width as f64, self.height as f64)
         };
         
-        eprintln!("SvgWriter finish: bounds=({}, {}) to ({}, {}), has_valid={}, viewBox=({}, {}, {}, {})", 
-            self.min_x, self.min_y, self.max_x, self.max_y, has_valid_bounds, vb_x, vb_y, vb_width, vb_height);
-        
-        // Calculate clip area - exclude paths starting near origin (0,0) which are often artifacts
-        // Use content bounds (excluding paths near origin) if available
-        // But ensure we don't clip too aggressively - use actual bounds if they're reasonable
-        let clip_x = if self.content_min_x != f64::MAX && self.content_min_x > 50.0 {
-            (self.content_min_x - 10.0).max(0.0)  // Add small padding, ensure non-negative
-        } else if self.min_x != f64::MAX && self.min_x > 0.0 {
-            self.min_x.max(0.0)  // Use actual min_x if available
-        } else {
-            0.0  // Start from 0 if no artifacts detected
-        };
-        let clip_y = if self.content_min_y != f64::MAX && self.content_min_y > 50.0 {
-            (self.content_min_y - 10.0).max(0.0)  // Add small padding, ensure non-negative
-        } else if self.min_y != f64::MAX && self.min_y > 0.0 {
-            self.min_y.max(0.0)  // Use actual min_y if available
-        } else {
-            0.0  // Start from 0 if no artifacts detected
-        };
-        let clip_width = if self.content_max_x != f64::MIN && self.content_max_x > clip_x {
-            (self.content_max_x - clip_x + 20.0).max(vb_width - clip_x)  // Use full width if needed
-        } else if self.max_x > clip_x {
-            (self.max_x - clip_x + 20.0).max(vb_width - clip_x)
-        } else {
-            vb_width - clip_x  // Use full viewBox width
-        };
-        let clip_height = if self.content_max_y != f64::MIN && self.content_max_y > clip_y {
-            (self.content_max_y - clip_y + 20.0).max(vb_height - clip_y)  // Use full height if needed
-        } else if self.max_y > clip_y {
-            (self.max_y - clip_y + 20.0).max(vb_height - clip_y)
-        } else {
-            vb_height - clip_y  // Use full viewBox height
-        };
-        
-        eprintln!("Clip area: x={}, y={}, w={}, h={}, content_bounds=({}, {}) to ({}, {})", 
-            clip_x, clip_y, clip_width, clip_height,
-            self.content_min_x, self.content_min_y, self.content_max_x, self.content_max_y);
-        
-        // Create clip path to exclude unwanted paths from top-left corner
-        use svg::node::element::{ClipPath, Rectangle as ClipRect};
-        let clip_path = ClipPath::new()
-            .set("id", "content-clip")
-            .add(ClipRect::new()
-                .set("x", clip_x)
-                .set("y", clip_y)
-                .set("width", clip_width)
-                .set("height", clip_height));
-        
+        // SVG dimensions: use rclFrame aspect ratio but scale up for quality
+        let scale_factor = 2.0_f64.max(vb_width / self.width as f64).max(vb_height / self.height as f64);
+        let svg_width = (self.width as f64 * scale_factor).ceil() as u32;
+        let svg_height = (self.height as f64 * scale_factor).ceil() as u32;
+
         let mut document = Document::new()
-            .set("width", vb_width.ceil() as u32)
-            .set("height", vb_height.ceil() as u32)
-            .set("viewBox", format!("{} {} {} {}", vb_x, vb_y, vb_width, vb_height))
-            .add(clip_path);
+            .set("width", svg_width)
+            .set("height", svg_height)
+            .set("viewBox", format!("{:.2} {:.2} {:.2} {:.2}", vb_x, vb_y, vb_width, vb_height))
+            .set("preserveAspectRatio", "none");
         
-        // Add elements with clip-path applied
-        use svg::node::element::Group;
-        let mut group = Group::new().set("clip-path", "url(#content-clip)");
         for element in self.elements {
-            group = group.add(element);
+            document = document.add(element);
         }
-        document = document.add(group);
 
         document.to_string()
     }
 }
-

@@ -243,7 +243,7 @@ class PDFCompiler:
 
     """
 
-    _IMAGE_TARGET_DPI = 192.0  # Prefer higher-than-screen DPI to avoid EMF raster degradation
+    _IMAGE_TARGET_DPI = 300.0  # High DPI for print-quality EMF/WMF rasterization
     
     def __init__(
         self,
@@ -311,7 +311,6 @@ class PDFCompiler:
                         from docquill_pdf_rust import PdfCanvasRenderer
                     except ImportError:
                         try:
-                            # Development name
                             from rust_pdf_canvas import PdfCanvasRenderer
                         except ImportError:
                             raise ImportError("Rust PDF renderer not available. Install with: pip install docquill-rust")

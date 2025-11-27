@@ -18,7 +18,7 @@ from typing import Optional, Dict, Any, List, Set, Tuple
 from dataclasses import asdict, fields, is_dataclass
 
 logger = logging.getLogger(__name__)
-_IMAGE_TARGET_DPI = 192.0  # Match ReportLab implementation for rasterizing EMF/WMF
+_IMAGE_TARGET_DPI = 300.0  # High DPI for print-quality EMF/WMF rasterization
 
 # Try to import Rust renderer
 pdf_renderer_rust = None

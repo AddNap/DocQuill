@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "docquill-rust"
-version = "0.1.5"
+version = "0.1.6"
 description = "High-performance Rust components for DocQuill: PDF renderer and EMF/WMF converter"
 readme = "README.md"
 license = "Apache-2.0"
