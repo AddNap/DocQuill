@@ -40,12 +40,9 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     environment: pypi
+    permissions:
+      id-token: write
     steps:
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
@@ -53,15 +50,7 @@ jobs:
           path: dist/
       
       - name: Show dist contents
-        run: |
-          ls -la dist/
-          file dist/* || true
-      
-      - name: Install twine
-        run: pip install twine
+        run: ls -la dist/
       
       - name: Publish to PyPI
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
-        run: twine upload dist/*
+        uses: pypa/gh-action-pypi-publish@release/v1
