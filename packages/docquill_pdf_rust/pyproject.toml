@@ -39,5 +39,4 @@ Repository = "https://github.com/AddNap/DocQuill"
 
 [tool.maturin]
 features = ["pyo3/extension-module"]
-python-source = "python"
 module-name = "docquill_pdf_rust"
