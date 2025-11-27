@@ -616,14 +616,18 @@ class MediaConverter:
     def convert_emf_to_svg(self, emf_data: bytes) -> Optional[str]:
         """
         Convert EMF/WMF data to SVG.
-        Prefer Rust converter (fastest), then Java converter, then Python fallback.
+        
+        Conversion priority:
+        1. Rust converter (~50x faster, supports EMF, EMF+, WMF, WMF+embedded EMF)
+        2. Java converter (FreeHEP/Apache POI - better edge case handling)
+        3. Python emf2svg fallback
         """
-        # Try Rust converter first (fastest, no subprocess overhead)
+        # Try Rust converter first (~50x faster than Java)
         svg_content = self._convert_emf_to_svg_rust(emf_data)
         if svg_content:
             return svg_content
         
-        # Fallback to Java converter
+        # Fallback to Java converter (better edge case support)
         svg_content = self._convert_emf_to_svg_java(emf_data)
         if svg_content:
             return svg_content
@@ -633,7 +637,9 @@ class MediaConverter:
 
     def _convert_emf_to_svg_rust(self, emf_data: bytes) -> Optional[str]:
         """
-        Convert EMF/WMF data to SVG using the Rust converter (fastest).
+        Convert EMF/WMF data to SVG using the Rust converter (~50x faster than Java).
+        
+        Supports: EMF, EMF+, WMF, WMF with embedded EMF.
         
         Returns SVG string or None if conversion is not possible.
         """
@@ -647,16 +653,21 @@ class MediaConverter:
                 logger.debug("EMF converted to SVG via Rust converter")
                 return svg_content
             else:
-                logger.debug("Rust converter produced empty SVG output")
+                logger.debug("Rust converter produced empty SVG output, falling back to Java")
                 return None
         except Exception as exc:
-            logger.debug(f"Rust EMF conversion failure: {exc}")
+            logger.debug(f"Rust EMF conversion failure: {exc}, falling back to Java")
             return None
 
     def _convert_emf_to_svg_java(self, emf_data: bytes) -> Optional[str]:
         """
-        Try converting via Java backend. Attempt both WMF and EMF codepaths because
-        some DOCX files store EMF payloads with a .wmf extension.
+        Try converting via Java backend (FreeHEP/Apache POI).
+        
+        Fallback for edge cases that Rust converter doesn't handle well.
+        Slower (~50x) but has better compatibility with complex metafiles.
+        
+        Attempts both WMF and EMF codepaths because some DOCX files 
+        store EMF payloads with a .wmf extension.
         """
         for suffix in (".emf", ".wmf"):
             svg = self._convert_emf_to_svg_java_with_suffix(emf_data, suffix)

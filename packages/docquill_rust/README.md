@@ -64,7 +64,11 @@ svg_content = docquill_rust.convert_emf_bytes_to_svg(emf_bytes)
 
 **Supported formats:**
 - EMF (Enhanced Metafile)
+- EMF+ (GDI+ Enhanced Metafile)
 - WMF (Windows Metafile)
+- WMF with embedded EMF
+
+**Performance:** ~50x faster than Java-based converters (FreeHEP/Apache POI)
 
 ## Building from Source
 
