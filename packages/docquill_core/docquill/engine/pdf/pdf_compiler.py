@@ -301,41 +301,20 @@ class PDFCompiler:
         # Initialize Rust renderer if using Rust
         if self.use_rust:
             try:
-                # Import from rust_pdf_canvas.rust_pdf_canvas (maturin creates it this way)
-                # The Rust module is compiled as rust_pdf_canvas.abi3.so in the package
+                # Try unified PyPI package first: pip install docquill-rust
+                PdfCanvasRenderer = None
                 try:
-                    from rust_pdf_canvas import PdfCanvasRenderer
-                except (ImportError, AttributeError):
-                    # Fallback: manually load the Rust module from .so file
-                    import importlib.util
-                    import sys
-                    import os
-                    
-                    # Find the .so file in site-packages (check both venv and system paths)
-                    rust_module_path = None
-                    for site_path in sys.path:
-                        if 'site-packages' in site_path:
-                            candidate = os.path.join(site_path, 'rust_pdf_canvas', 'rust_pdf_canvas.abi3.so')
-                            if os.path.exists(candidate):
-                                rust_module_path = candidate
-                                break
-                    
-                    # Also check .venv if it exists
-                    if not rust_module_path:
-                        venv_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), '.venv', 'lib', 'python3.10', 'site-packages', 'rust_pdf_canvas', 'rust_pdf_canvas.abi3.so')
-                        if os.path.exists(venv_path):
-                            rust_module_path = venv_path
-                    
-                    if rust_module_path:
-                        # Load the module manually
-                        spec = importlib.util.spec_from_file_location('rust_pdf_canvas', rust_module_path)
-                        rust_mod = importlib.util.module_from_spec(spec)
-                        # Register it in sys.modules so it can be imported later
-                        sys.modules['rust_pdf_canvas.rust_pdf_canvas'] = rust_mod
-                        spec.loader.exec_module(rust_mod)
-                        PdfCanvasRenderer = rust_mod.PdfCanvasRenderer
-                    else:
-                        raise ImportError("Could not find rust_pdf_canvas.abi3.so")
+                    from docquill_rust import PdfCanvasRenderer
+                except ImportError:
+                    try:
+                        # Legacy package: pip install docquill-pdf-rust
+                        from docquill_pdf_rust import PdfCanvasRenderer
+                    except ImportError:
+                        try:
+                            # Development name
+                            from rust_pdf_canvas import PdfCanvasRenderer
+                        except ImportError:
+                            raise ImportError("Rust PDF renderer not available. Install with: pip install docquill-rust")
                 
                 self.rust_renderer = PdfCanvasRenderer(
                     str(self.output_path),
