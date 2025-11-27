@@ -36,37 +36,32 @@ jobs:
           name: dist
           path: packages/docquill_core/dist/
 
-  publish-testpypi:
+  publish-pypi:
     needs: build
     runs-on: ubuntu-latest
-    environment: testpypi
-    permissions:
-      id-token: write
+    environment: pypi
     steps:
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
           name: dist
           path: dist/
       
-      - name: Publish to TestPyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          repository-url: https://test.pypi.org/legacy/
-
-  publish-pypi:
-    needs: publish-testpypi
-    runs-on: ubuntu-latest
-    environment: pypi
-    permissions:
-      id-token: write
-    steps:
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: dist
-          path: dist/
+      - name: Show dist contents
+        run: |
+          ls -la dist/
+          file dist/* || true
+      
+      - name: Install twine
+        run: pip install twine
       
       - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
-
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: twine upload dist/*
