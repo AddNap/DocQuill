@@ -1,6 +1,6 @@
 [package]
 name = "docquill_rust"
-version = "0.1.6"
+version = "0.1.7"
 edition = "2021"
 license = "Apache-2.0"
 description = "High-performance Rust components for DocQuill: PDF renderer and EMF/WMF converter"
