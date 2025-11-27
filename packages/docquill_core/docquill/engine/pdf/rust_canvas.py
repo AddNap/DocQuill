@@ -13,21 +13,26 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 # Try to import Rust renderer
-# First try the PyPI package name, then fallback to development name
+# First try the unified PyPI package, then fallback to legacy names
 rust_pdf_canvas = None
 HAS_RUST_RENDERER = False
 
 try:
-    # PyPI package: pip install docquill-pdf-rust
-    import docquill_pdf_rust as rust_pdf_canvas
+    # Unified PyPI package: pip install docquill-rust
+    import docquill_rust as rust_pdf_canvas
     HAS_RUST_RENDERER = True
 except ImportError:
     try:
-        # Development/legacy name
-        import rust_pdf_canvas
+        # Legacy PyPI package: pip install docquill-pdf-rust
+        import docquill_pdf_rust as rust_pdf_canvas
         HAS_RUST_RENDERER = True
     except ImportError:
-        pass
+        try:
+            # Development/legacy name
+            import rust_pdf_canvas
+            HAS_RUST_RENDERER = True
+        except ImportError:
+            pass
 
 
 class RustCanvas:

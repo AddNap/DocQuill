@@ -42,12 +42,21 @@ except ImportError:  # pragma: no cover - optional dependency
     emf2svg = None  # type: ignore
 
 # Import Rust converter for EMF/WMF conversion
+# First try the unified PyPI package, then fallback to standalone module
+_HAS_RUST_CONVERTER = False
+emf_converter = None
+
 try:
-    import emf_converter  # type: ignore
+    # PyPI package: pip install docquill-rust
+    import docquill_rust as emf_converter  # type: ignore
     _HAS_RUST_CONVERTER = True
-except ImportError:  # pragma: no cover - optional dependency
-    _HAS_RUST_CONVERTER = False
-    emf_converter = None  # type: ignore
+except ImportError:
+    try:
+        # Standalone/legacy module
+        import emf_converter  # type: ignore
+        _HAS_RUST_CONVERTER = True
+    except ImportError:  # pragma: no cover - optional dependency
+        pass
 
 class MediaConverter:
     """

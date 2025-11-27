@@ -1,0 +1,30 @@
+[package]
+name = "docquill_rust"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "High-performance Rust components for DocQuill: PDF renderer and EMF/WMF converter"
+
+[lib]
+name = "docquill_rust"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+pyo3 = { version = "0.20", features = ["extension-module", "abi3-py39"] }
+
+# PDF rendering
+pdf-writer = "0.9"
+image = "0.24"
+jpeg-decoder = "0.3"
+ttf-parser = "0.20"
+
+# EMF/WMF conversion
+byteorder = "1.5"
+svg = "0.14"
+base64 = "0.22"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+

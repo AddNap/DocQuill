@@ -57,7 +57,7 @@ jobs:
         run: pip install maturin
       
       - name: Build wheel
-        working-directory: packages/docquill_pdf_rust
+        working-directory: packages/docquill_rust
         run: maturin build --release --target ${{ matrix.target }} --out dist
         env:
           # For Linux ARM64 cross-compilation
@@ -67,7 +67,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: wheel-${{ matrix.target }}
-          path: packages/docquill_pdf_rust/dist/*.whl
+          path: packages/docquill_rust/dist/*.whl
 
   # Build source distribution
   build-sdist:
@@ -85,14 +85,14 @@ jobs:
         run: pip install maturin
       
       - name: Build sdist
-        working-directory: packages/docquill_pdf_rust
+        working-directory: packages/docquill_rust
         run: maturin sdist --out dist
       
       - name: Upload sdist
         uses: actions/upload-artifact@v4
         with:
           name: sdist
-          path: packages/docquill_pdf_rust/dist/*.tar.gz
+          path: packages/docquill_rust/dist/*.tar.gz
 
   # Publish to PyPI
   publish:
