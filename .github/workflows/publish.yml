@@ -52,5 +52,23 @@ jobs:
       - name: Show dist contents
         run: ls -la dist/
       
+      - name: Check if version already on PyPI
+        id: check_pypi
+        run: |
+          set -e
+          file=$(ls -1 dist/*.whl | head -n1)
+          filename=$(basename "$file")
+          # Extract package name and version from wheel filename
+          pkg=$(echo "$filename" | sed -E 's/^([^-]+)-.+$/\1/')
+          ver=$(echo "$filename" | sed -E 's/^[^-]+-([0-9][^-]*)-.*/\1/')
+          echo "Detected package: $pkg version: $ver"
+          if curl --silent --fail "https://pypi.org/pypi/$pkg/$ver/json" >/dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "::warning::Package $pkg==$ver already exists on PyPI. Skipping upload."
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+      
       - name: Publish to PyPI
+        if: steps.check_pypi.outputs.exists == 'false'
         uses: pypa/gh-action-pypi-publish@release/v1
