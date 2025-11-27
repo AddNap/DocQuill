@@ -13,11 +13,15 @@ pip install docquill
 For best PDF rendering performance, install the Rust backend:
 
 ```bash
-# Requires Rust toolchain
-pip install maturin
-cd packages/docquill_pdf_rust
-maturin develop --release
+pip install docquill[rust]
 ```
+
+Pre-built wheels are available for:
+- **Linux** (x86_64, aarch64)
+- **macOS** (Intel x86_64, Apple Silicon arm64)
+- **Windows** (x86_64)
+
+No Rust compiler required!
 
 ## Basic Usage
 

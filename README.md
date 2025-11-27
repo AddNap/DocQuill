@@ -40,11 +40,13 @@ packages/
 pip install docquill
 ```
 
-For high-performance PDF rendering:
+For high-performance PDF rendering (2-5x faster, no Rust compiler needed):
 
 ```bash
 pip install docquill[rust]
 ```
+
+Pre-built wheels available for Linux, macOS (Intel/Apple Silicon), and Windows.
 
 ```python
 from docquill import Document
@@ -164,10 +166,10 @@ cd DocQuill
 cd packages/docquill_core
 pip install -e ".[dev]"
 
-# (Optional) Build Rust PDF renderer
-cd ../docquill_pdf_rust
-pip install maturin
-maturin develop --release
+# (Optional) Install Rust PDF renderer
+pip install docquill-pdf-rust
+# Or build from source (requires Rust toolchain):
+# cd ../docquill_pdf_rust && pip install maturin && maturin develop --release
 ```
 
 ### Running tests
