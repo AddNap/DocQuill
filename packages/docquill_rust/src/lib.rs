@@ -3,6 +3,9 @@
 //! High-performance Rust components for DocQuill:
 //! - PDF Canvas Renderer - minimal PDF renderer with canvas operations
 //! - EMF/WMF Converter - convert Windows metafiles to SVG
+//!
+//! Font loading is lazy - fonts are loaded on demand when canvas_set_font() is called.
+//! This ensures proper system font discovery across platforms.
 
 // PDF renderer modules
 mod canvas;
@@ -21,8 +24,10 @@ use pdf_writer::{Finish, Name, Pdf, Ref};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 use std::collections::HashMap;
+use std::path::PathBuf;
 
 use canvas::PdfCanvas;
+use font_utils::{FontStyle, find_system_font, get_fallback_font, load_font_file, add_truetype_font};
 use types::{Color, Rect};
 
 /// Map Unicode code point to CID (Character ID) for Type0 fonts
@@ -31,7 +36,7 @@ pub type CidMap = HashMap<u32, u16>;
 // CanvasCommand is now parsed directly from Python dicts in canvas_run_batch
 // This avoids pyo3 enum parsing complexity while maintaining zero-copy performance
 
-/// Main PDF renderer class - minimal implementation
+/// Main PDF renderer class - minimal implementation with lazy font loading
 #[pyclass]
 pub struct PdfCanvasRenderer {
     pdf: Pdf,
@@ -42,19 +47,22 @@ pub struct PdfCanvasRenderer {
     page_tree_id: Option<Ref>,
     catalog_id: Option<Ref>,
     next_ref_id: i32,
-    // Font registry (simple - just track font names and IDs)
-    font_registry: HashMap<String, (Name<'static>, Ref)>, // font_name -> (Name, Ref)
-    fonts_used_on_current_page: HashMap<Name<'static>, Ref>, // font_name -> font_id
+    // Font registry: font_key -> (Name, Ref)
+    // font_key = "family:style" e.g. "Calibri:Regular", "Arial:Bold"
+    font_registry: HashMap<String, (Name<'static>, Ref)>,
+    fonts_used_on_current_page: HashMap<Name<'static>, Ref>,
     next_font_id: u32,
     // CID maps for Type0 fonts: font_name -> Unicode -> CID mapping
-    type0_cid_maps: HashMap<Name<'static>, CidMap>, // Maps font Name to Unicode->CID mapping
+    type0_cid_maps: HashMap<Name<'static>, CidMap>,
     // ExtGState registry (opacity, etc.)
-    ext_graphics_states: HashMap<u32, (Name<'static>, Ref)>, // alpha_key -> (Name, Ref)
+    ext_graphics_states: HashMap<u32, (Name<'static>, Ref)>,
     ext_graphics_states_used_on_current_page: HashMap<Name<'static>, Ref>,
     // Image registry
     images_used_on_current_page: HashMap<Name<'static>, Ref>,
     images_registry: HashMap<String, (Ref, Name<'static>)>,
     next_image_id: i32,
+    // Default font (loaded lazily on first use)
+    default_font_loaded: bool,
 }
 
 #[pymethods]
@@ -70,118 +78,11 @@ impl PdfCanvasRenderer {
         // Set up catalog
         pdf.catalog(catalog_id).pages(page_tree_id);
 
-        // Try to register a system font (platform-specific)
-        let mut font_registry = HashMap::new();
-        let default_font_id = Ref::new(3);
-        let mut next_ref = 4;
+        // Start ref IDs after catalog and page tree
+        let next_ref = 3;
 
-        // CID maps for Type0 fonts
-        let mut type0_cid_maps = HashMap::new();
-
-        // Find and register default font (uses system fonts on Windows/macOS, DejaVu on Linux)
-        if let Some(font_path) = font_utils::find_dejavu_sans() {
-            if let Ok(font_data) = font_utils::load_font_file(&font_path) {
-                if let Ok((font_name, cid_map)) = font_utils::add_truetype_font(
-                    &mut pdf,
-                    &font_data,
-                    default_font_id,
-                    &mut next_ref,
-                ) {
-                    // Register under multiple names for compatibility
-                    font_registry.insert("DejaVu Sans".to_string(), (font_name, default_font_id));
-                    font_registry.insert("DejaVuSans".to_string(), (font_name, default_font_id));
-                    font_registry.insert("Arial".to_string(), (font_name, default_font_id));
-                    font_registry.insert("Helvetica".to_string(), (font_name, default_font_id));
-                    font_registry.insert("sans-serif".to_string(), (font_name, default_font_id));
-                    type0_cid_maps.insert(font_name, cid_map);
-                }
-            }
-        }
-
-        if font_registry.is_empty() {
-            panic!(
-                "No suitable TrueType font found. On Windows, Arial should be available. \
-On Linux, install fonts-dejavu-core or place DejaVuSans.ttf in assets/fonts/."
-            );
-        }
-
-        // Register DejaVu Sans variants if available
-        // Bold
-        if let Some(bold_path) = font_utils::find_dejavu_sans_bold() {
-            if let Ok(font_data) = font_utils::load_font_file(&bold_path) {
-                let bold_font_id = Ref::new(next_ref);
-                next_ref += 1;
-                if let Ok((font_name, cid_map)) =
-                    font_utils::add_truetype_font(&mut pdf, &font_data, bold_font_id, &mut next_ref)
-                {
-                    font_registry.insert("DejaVu Sans-Bold".to_string(), (font_name, bold_font_id));
-                    font_registry.insert("DejaVuSans-Bold".to_string(), (font_name, bold_font_id));
-                    type0_cid_maps.insert(font_name, cid_map);
-                }
-            }
-        }
-
-        // Italic
-        if let Some(italic_path) = font_utils::find_dejavu_sans_italic() {
-            if let Ok(font_data) = font_utils::load_font_file(&italic_path) {
-                let italic_font_id = Ref::new(next_ref);
-                next_ref += 1;
-                if let Ok((font_name, cid_map)) = font_utils::add_truetype_font(
-                    &mut pdf,
-                    &font_data,
-                    italic_font_id,
-                    &mut next_ref,
-                ) {
-                    font_registry.insert(
-                        "DejaVu Sans-Oblique".to_string(),
-                        (font_name, italic_font_id),
-                    );
-                    font_registry.insert(
-                        "DejaVuSans-Oblique".to_string(),
-                        (font_name, italic_font_id),
-                    );
-                    font_registry.insert(
-                        "DejaVu Sans-Italic".to_string(),
-                        (font_name, italic_font_id),
-                    );
-                    font_registry
-                        .insert("DejaVuSans-Italic".to_string(), (font_name, italic_font_id));
-                    type0_cid_maps.insert(font_name, cid_map);
-                }
-            }
-        }
-
-        // Bold Italic
-        if let Some(bold_italic_path) = font_utils::find_dejavu_sans_bold_italic() {
-            if let Ok(font_data) = font_utils::load_font_file(&bold_italic_path) {
-                let bold_italic_font_id = Ref::new(next_ref);
-                next_ref += 1;
-                if let Ok((font_name, cid_map)) = font_utils::add_truetype_font(
-                    &mut pdf,
-                    &font_data,
-                    bold_italic_font_id,
-                    &mut next_ref,
-                ) {
-                    font_registry.insert(
-                        "DejaVu Sans-BoldOblique".to_string(),
-                        (font_name, bold_italic_font_id),
-                    );
-                    font_registry.insert(
-                        "DejaVuSans-BoldOblique".to_string(),
-                        (font_name, bold_italic_font_id),
-                    );
-                    font_registry.insert(
-                        "DejaVu Sans-BoldItalic".to_string(),
-                        (font_name, bold_italic_font_id),
-                    );
-                    font_registry.insert(
-                        "DejaVuSans-BoldItalic".to_string(),
-                        (font_name, bold_italic_font_id),
-                    );
-                    type0_cid_maps.insert(font_name, cid_map);
-                }
-            }
-        }
+        // Fonts are loaded lazily - no font loading at initialization!
+        // This ensures proper system font discovery when canvas_set_font() is called
 
         Self {
             pdf,
@@ -192,15 +93,16 @@ On Linux, install fonts-dejavu-core or place DejaVuSans.ttf in assets/fonts/."
             page_tree_id: Some(page_tree_id),
             catalog_id: Some(catalog_id),
             next_ref_id: next_ref,
-            font_registry,
+            font_registry: HashMap::new(),
             fonts_used_on_current_page: HashMap::new(),
-            next_font_id: 2,
-            type0_cid_maps, // CID maps for Type0 fonts
+            next_font_id: 1,
+            type0_cid_maps: HashMap::new(),
             ext_graphics_states: HashMap::new(),
             ext_graphics_states_used_on_current_page: HashMap::new(),
             images_used_on_current_page: HashMap::new(),
             images_registry: HashMap::new(),
-            next_image_id: 2000, // Start from 2000 to avoid conflicts
+            next_image_id: 2000,
+            default_font_loaded: false,
         }
     }
 
@@ -275,20 +177,8 @@ On Linux, install fonts-dejavu-core or place DejaVuSans.ttf in assets/fonts/."
         // Add to pages list
         self.pages.push(page_id);
 
-        // Always register the Unicode-safe default font for the page
-        let (default_font_name, default_font_id) = self
-            .font_registry
-            .get("DejaVu Sans")
-            .or_else(|| self.font_registry.get("DejaVuSans"))
-            .copied()
-            .expect("DejaVu Sans Type0 font must be registered");
-        if !self
-            .fonts_used_on_current_page
-            .contains_key(&default_font_name)
-        {
-            self.fonts_used_on_current_page
-                .insert(default_font_name, default_font_id);
-        }
+        // Fonts are loaded lazily - no default font registration here
+        // The first canvas_set_font() call will load the appropriate font
 
         Ok(())
     }
@@ -450,52 +340,47 @@ On Linux, install fonts-dejavu-core or place DejaVuSans.ttf in assets/fonts/."
         Ok(())
     }
 
-    /// Set font name and size
+    /// Set font name and size - uses lazy font loading
+    /// 
+    /// Font discovery priority:
+    /// 1. Check if font is already loaded in registry
+    /// 2. Search for exact font in system fonts
+    /// 3. Try font name variations (with/without style suffix)
+    /// 4. Fall back to system default font
     fn canvas_set_font(&mut self, name: String, size: f64) -> PyResult<()> {
-        let canvas = if let Some((_, _, ref mut c)) = self.current_page {
-            c
-        } else {
-            return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
-                "No current page",
-            ));
-        };
-
-        // Get or create font
-        let (font_name, font_id) = if let Some(&(name_ref, id_ref)) = self.font_registry.get(&name)
-        {
+        // Parse font name to extract family and style
+        let (family, style) = Self::parse_font_name(&name);
+        let font_key = format!("{}:{:?}", family.to_lowercase(), style);
+        
+        // Check if font is already loaded
+        let (font_name, font_id) = if let Some(&(name_ref, id_ref)) = self.font_registry.get(&font_key) {
             (name_ref, id_ref)
         } else {
-            // Try to find font with different name variations
-            let mut found_font = None;
-
-            // Try common variations
-            let variations = vec![
-                name.replace("-", " "),
-                name.replace(" ", "-"),
-                name.replace("Bold", "-Bold"),
-                name.replace("Italic", "-Italic"),
-                name.replace("Oblique", "-Oblique"),
-            ];
-
-            for variant in variations {
-                if let Some(&font) = self.font_registry.get(&variant) {
-                    found_font = Some(font);
-                    break;
-                }
+            // Try to load font from system
+            let font_path = self.find_font_path(&family, style)?;
+            
+            // Load and register the font
+            let font_data = load_font_file(&font_path)?;
+            let font_id = Ref::new(self.next_ref_id);
+            self.next_ref_id += 1;
+            
+            let (pdf_font_name, cid_map) = add_truetype_font(
+                &mut self.pdf,
+                &font_data,
+                font_id,
+                &mut self.next_ref_id,
+            )?;
+            
+            // Register font
+            self.font_registry.insert(font_key.clone(), (pdf_font_name, font_id));
+            self.type0_cid_maps.insert(pdf_font_name, cid_map);
+            
+            // Also register under original name for quick lookup
+            if !self.font_registry.contains_key(&name) {
+                self.font_registry.insert(name.clone(), (pdf_font_name, font_id));
             }
-
-            // Fallback to default Type0 font (DejaVu Sans family)
-            let default_font = found_font.unwrap_or_else(|| {
-                self.font_registry
-                    .get("DejaVu Sans")
-                    .or_else(|| self.font_registry.get("DejaVuSans"))
-                    .copied()
-                    .expect("DejaVu Sans Type0 font must be registered")
-            });
-
-            // Cache the mapping for future use
-            self.font_registry.insert(name.clone(), default_font);
-            default_font
+            
+            (pdf_font_name, font_id)
         };
 
         // Register font for current page
@@ -503,6 +388,15 @@ On Linux, install fonts-dejavu-core or place DejaVuSans.ttf in assets/fonts/."
             self.fonts_used_on_current_page.insert(font_name, font_id);
         }
 
+        // Set font on canvas
+        let canvas = if let Some((_, _, ref mut c)) = self.current_page {
+            c
+        } else {
+            return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
+                "No current page",
+            ));
+        };
+        
         canvas.set_font(font_name, size);
         Ok(())
     }
@@ -896,6 +790,87 @@ On Linux, install fonts-dejavu-core or place DejaVuSans.ttf in assets/fonts/."
 }
 
 impl PdfCanvasRenderer {
+    /// Parse font name to extract family and style
+    /// Examples:
+    /// - "Calibri" -> ("Calibri", Regular)
+    /// - "Arial Bold" -> ("Arial", Bold)
+    /// - "Times New Roman-Italic" -> ("Times New Roman", Italic)
+    /// - "DejaVu Sans-BoldOblique" -> ("DejaVu Sans", BoldItalic)
+    fn parse_font_name(name: &str) -> (String, FontStyle) {
+        let name_lower = name.to_lowercase();
+        
+        // Check for style suffixes
+        let is_bold = name_lower.contains("bold") || name_lower.ends_with("-bd") || name_lower.ends_with("bd");
+        let is_italic = name_lower.contains("italic") || name_lower.contains("oblique") 
+            || name_lower.ends_with("-it") || name_lower.ends_with("it");
+        
+        let style = match (is_bold, is_italic) {
+            (true, true) => FontStyle::BoldItalic,
+            (true, false) => FontStyle::Bold,
+            (false, true) => FontStyle::Italic,
+            (false, false) => FontStyle::Regular,
+        };
+        
+        // Extract family name by removing style suffixes
+        let mut family = name.to_string();
+        let suffixes = [
+            "-BoldOblique", "-BoldItalic", "-Bold", "-Oblique", "-Italic",
+            " BoldOblique", " BoldItalic", " Bold", " Oblique", " Italic",
+            "BoldOblique", "BoldItalic", "Bold", "Oblique", "Italic",
+        ];
+        
+        for suffix in &suffixes {
+            if let Some(stripped) = family.strip_suffix(suffix) {
+                family = stripped.to_string();
+                break;
+            }
+        }
+        
+        // Clean up family name
+        family = family.trim_end_matches('-').trim().to_string();
+        
+        (family, style)
+    }
+    
+    /// Find font file path for given family and style
+    /// Priority:
+    /// 1. Exact match in system fonts
+    /// 2. System fallback font
+    fn find_font_path(&self, family: &str, style: FontStyle) -> PyResult<PathBuf> {
+        // Try exact match first
+        if let Some(path) = find_system_font(family, style) {
+            return Ok(path);
+        }
+        
+        // Try with Regular style if requested style not found
+        if style != FontStyle::Regular {
+            if let Some(path) = find_system_font(family, FontStyle::Regular) {
+                return Ok(path);
+            }
+        }
+        
+        // Fall back to system default font
+        if let Some(path) = get_fallback_font(style) {
+            return Ok(path);
+        }
+        
+        // Last resort: try to get any fallback
+        if let Some(path) = get_fallback_font(FontStyle::Regular) {
+            return Ok(path);
+        }
+        
+        Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
+            format!(
+                "No suitable font found for '{}' ({:?}). \
+                Please ensure system fonts are installed. \
+                On Windows: Arial, Calibri, or Segoe UI should be available. \
+                On Linux: Install fonts-dejavu-core or liberation-fonts. \
+                On macOS: Helvetica should be available.",
+                family, style
+            )
+        ))
+    }
+    
     fn get_or_create_ext_graphics_state(
         &mut self,
         alpha_key: u32,

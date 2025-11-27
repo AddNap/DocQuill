@@ -1,4 +1,7 @@
 //! Font utilities for loading and registering TrueType fonts
+//! 
+//! This module provides lazy font loading - fonts are loaded on demand when
+//! canvas_set_font() is called, not at renderer initialization.
 
 use pdf_writer::types::{CidFontType, FontFlags, SystemInfo};
 use pdf_writer::{Name, Pdf, Rect, Ref, Str};
@@ -6,25 +9,330 @@ use pyo3::prelude::*;
 use std::collections::{BTreeMap, HashMap};
 use std::fs::File;
 use std::io::Read;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use ttf_parser::Face;
 
 /// Map Unicode code point to CID (Character ID) for Type0 fonts
 pub type CidMap = HashMap<u32, u16>;
 
+/// Font style variants
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum FontStyle {
+    Regular,
+    Bold,
+    Italic,
+    BoldItalic,
+}
+
+impl FontStyle {
+    /// Parse font style from font name
+    pub fn from_name(name: &str) -> Self {
+        let lower = name.to_lowercase();
+        let is_bold = lower.contains("bold") || lower.contains("-bd") || lower.ends_with("bd");
+        let is_italic = lower.contains("italic") || lower.contains("oblique") 
+            || lower.contains("-it") || lower.ends_with("it")
+            || lower.contains("-i") && !lower.contains("-in");
+        
+        match (is_bold, is_italic) {
+            (true, true) => FontStyle::BoldItalic,
+            (true, false) => FontStyle::Bold,
+            (false, true) => FontStyle::Italic,
+            (false, false) => FontStyle::Regular,
+        }
+    }
+}
+
+/// Mapping of font family names to their file names on different platforms
+struct FontFileMapping {
+    /// Base font family name (lowercase, normalized)
+    family: &'static str,
+    /// Windows file names: [regular, bold, italic, bold_italic]
+    windows: [&'static str; 4],
+    /// Linux file names
+    linux: [&'static str; 4],
+    /// macOS file names
+    macos: [&'static str; 4],
+}
+
+/// Common font mappings
+static FONT_MAPPINGS: &[FontFileMapping] = &[
+    FontFileMapping {
+        family: "arial",
+        windows: ["arial.ttf", "arialbd.ttf", "ariali.ttf", "arialbi.ttf"],
+        linux: ["Arial.ttf", "Arial-Bold.ttf", "Arial-Italic.ttf", "Arial-BoldItalic.ttf"],
+        macos: ["Arial.ttf", "Arial Bold.ttf", "Arial Italic.ttf", "Arial Bold Italic.ttf"],
+    },
+    FontFileMapping {
+        family: "calibri",
+        windows: ["calibri.ttf", "calibrib.ttf", "calibrii.ttf", "calibriz.ttf"],
+        linux: ["Calibri.ttf", "Calibri-Bold.ttf", "Calibri-Italic.ttf", "Calibri-BoldItalic.ttf"],
+        macos: ["Calibri.ttf", "Calibri Bold.ttf", "Calibri Italic.ttf", "Calibri Bold Italic.ttf"],
+    },
+    FontFileMapping {
+        family: "times new roman",
+        windows: ["times.ttf", "timesbd.ttf", "timesi.ttf", "timesbi.ttf"],
+        linux: ["Times-New-Roman.ttf", "Times-New-Roman-Bold.ttf", "Times-New-Roman-Italic.ttf", "Times-New-Roman-BoldItalic.ttf"],
+        macos: ["Times New Roman.ttf", "Times New Roman Bold.ttf", "Times New Roman Italic.ttf", "Times New Roman Bold Italic.ttf"],
+    },
+    FontFileMapping {
+        family: "segoe ui",
+        windows: ["segoeui.ttf", "segoeuib.ttf", "segoeuii.ttf", "segoeuiz.ttf"],
+        linux: ["SegoeUI.ttf", "SegoeUI-Bold.ttf", "SegoeUI-Italic.ttf", "SegoeUI-BoldItalic.ttf"],
+        macos: ["Segoe UI.ttf", "Segoe UI Bold.ttf", "Segoe UI Italic.ttf", "Segoe UI Bold Italic.ttf"],
+    },
+    FontFileMapping {
+        family: "tahoma",
+        windows: ["tahoma.ttf", "tahomabd.ttf", "tahoma.ttf", "tahomabd.ttf"], // Tahoma has no italic
+        linux: ["Tahoma.ttf", "Tahoma-Bold.ttf", "Tahoma.ttf", "Tahoma-Bold.ttf"],
+        macos: ["Tahoma.ttf", "Tahoma Bold.ttf", "Tahoma.ttf", "Tahoma Bold.ttf"],
+    },
+    FontFileMapping {
+        family: "verdana",
+        windows: ["verdana.ttf", "verdanab.ttf", "verdanai.ttf", "verdanaz.ttf"],
+        linux: ["Verdana.ttf", "Verdana-Bold.ttf", "Verdana-Italic.ttf", "Verdana-BoldItalic.ttf"],
+        macos: ["Verdana.ttf", "Verdana Bold.ttf", "Verdana Italic.ttf", "Verdana Bold Italic.ttf"],
+    },
+    FontFileMapping {
+        family: "georgia",
+        windows: ["georgia.ttf", "georgiab.ttf", "georgiai.ttf", "georgiaz.ttf"],
+        linux: ["Georgia.ttf", "Georgia-Bold.ttf", "Georgia-Italic.ttf", "Georgia-BoldItalic.ttf"],
+        macos: ["Georgia.ttf", "Georgia Bold.ttf", "Georgia Italic.ttf", "Georgia Bold Italic.ttf"],
+    },
+    FontFileMapping {
+        family: "courier new",
+        windows: ["cour.ttf", "courbd.ttf", "couri.ttf", "courbi.ttf"],
+        linux: ["Courier-New.ttf", "Courier-New-Bold.ttf", "Courier-New-Italic.ttf", "Courier-New-BoldItalic.ttf"],
+        macos: ["Courier New.ttf", "Courier New Bold.ttf", "Courier New Italic.ttf", "Courier New Bold Italic.ttf"],
+    },
+    FontFileMapping {
+        family: "dejavu sans",
+        windows: ["DejaVuSans.ttf", "DejaVuSans-Bold.ttf", "DejaVuSans-Oblique.ttf", "DejaVuSans-BoldOblique.ttf"],
+        linux: ["DejaVuSans.ttf", "DejaVuSans-Bold.ttf", "DejaVuSans-Oblique.ttf", "DejaVuSans-BoldOblique.ttf"],
+        macos: ["DejaVuSans.ttf", "DejaVuSans-Bold.ttf", "DejaVuSans-Oblique.ttf", "DejaVuSans-BoldOblique.ttf"],
+    },
+    FontFileMapping {
+        family: "liberation sans",
+        windows: ["LiberationSans-Regular.ttf", "LiberationSans-Bold.ttf", "LiberationSans-Italic.ttf", "LiberationSans-BoldItalic.ttf"],
+        linux: ["LiberationSans-Regular.ttf", "LiberationSans-Bold.ttf", "LiberationSans-Italic.ttf", "LiberationSans-BoldItalic.ttf"],
+        macos: ["LiberationSans-Regular.ttf", "LiberationSans-Bold.ttf", "LiberationSans-Italic.ttf", "LiberationSans-BoldItalic.ttf"],
+    },
+    FontFileMapping {
+        family: "helvetica",
+        windows: ["arial.ttf", "arialbd.ttf", "ariali.ttf", "arialbi.ttf"], // Helvetica → Arial on Windows
+        linux: ["Helvetica.ttf", "Helvetica-Bold.ttf", "Helvetica-Oblique.ttf", "Helvetica-BoldOblique.ttf"],
+        macos: ["Helvetica.ttc", "Helvetica.ttc", "Helvetica.ttc", "Helvetica.ttc"],
+    },
+];
+
+/// Get system fonts directories for the current platform
+fn get_system_font_dirs() -> Vec<PathBuf> {
+    let mut dirs = Vec::new();
+    
+    #[cfg(target_os = "windows")]
+    {
+        // Windows fonts directory
+        if let Ok(windir) = std::env::var("WINDIR") {
+            dirs.push(PathBuf::from(format!("{}\\Fonts", windir)));
+        }
+        dirs.push(PathBuf::from("C:\\Windows\\Fonts"));
+        
+        // User fonts
+        if let Ok(localappdata) = std::env::var("LOCALAPPDATA") {
+            dirs.push(PathBuf::from(format!("{}\\Microsoft\\Windows\\Fonts", localappdata)));
+        }
+    }
+    
+    #[cfg(target_os = "macos")]
+    {
+        dirs.push(PathBuf::from("/System/Library/Fonts"));
+        dirs.push(PathBuf::from("/System/Library/Fonts/Supplemental"));
+        dirs.push(PathBuf::from("/Library/Fonts"));
+        if let Ok(home) = std::env::var("HOME") {
+            dirs.push(PathBuf::from(format!("{}/Library/Fonts", home)));
+        }
+    }
+    
+    #[cfg(target_os = "linux")]
+    {
+        dirs.push(PathBuf::from("/usr/share/fonts/truetype"));
+        dirs.push(PathBuf::from("/usr/share/fonts/TTF"));
+        dirs.push(PathBuf::from("/usr/share/fonts"));
+        dirs.push(PathBuf::from("/usr/local/share/fonts"));
+        if let Ok(home) = std::env::var("HOME") {
+            dirs.push(PathBuf::from(format!("{}/.fonts", home)));
+            dirs.push(PathBuf::from(format!("{}/.local/share/fonts", home)));
+        }
+        // Common subdirectories
+        dirs.push(PathBuf::from("/usr/share/fonts/truetype/dejavu"));
+        dirs.push(PathBuf::from("/usr/share/fonts/truetype/liberation"));
+        dirs.push(PathBuf::from("/usr/share/fonts/truetype/msttcorefonts"));
+        dirs.push(PathBuf::from("/usr/share/fonts/dejavu"));
+        dirs.push(PathBuf::from("/usr/share/fonts/liberation-sans"));
+    }
+    
+    dirs
+}
+
+/// Normalize font family name for lookup
+fn normalize_font_name(name: &str) -> String {
+    name.to_lowercase()
+        .replace("-", " ")
+        .replace("_", " ")
+        .trim()
+        .to_string()
+}
+
+/// Find a font file in system directories
+/// 
+/// Args:
+///     font_name: Font family name (e.g., "Calibri", "Arial", "Times New Roman")
+///     style: Font style (Regular, Bold, Italic, BoldItalic)
+/// 
+/// Returns:
+///     Path to font file if found, None otherwise
+pub fn find_system_font(font_name: &str, style: FontStyle) -> Option<PathBuf> {
+    let normalized = normalize_font_name(font_name);
+    let font_dirs = get_system_font_dirs();
+    
+    // Find mapping for this font family
+    let style_index = match style {
+        FontStyle::Regular => 0,
+        FontStyle::Bold => 1,
+        FontStyle::Italic => 2,
+        FontStyle::BoldItalic => 3,
+    };
+    
+    // Try exact match first
+    for mapping in FONT_MAPPINGS {
+        if normalized == mapping.family || normalized.starts_with(mapping.family) {
+            #[cfg(target_os = "windows")]
+            let filename = mapping.windows[style_index];
+            #[cfg(target_os = "macos")]
+            let filename = mapping.macos[style_index];
+            #[cfg(target_os = "linux")]
+            let filename = mapping.linux[style_index];
+            #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+            let filename = mapping.linux[style_index];
+            
+            // Search in font directories
+            for dir in &font_dirs {
+                let path = dir.join(filename);
+                if path.exists() {
+                    return Some(path);
+                }
+                
+                // Also try subdirectories (Linux often has fonts in subdirs)
+                if let Ok(entries) = std::fs::read_dir(dir) {
+                    for entry in entries.flatten() {
+                        if entry.path().is_dir() {
+                            let subpath = entry.path().join(filename);
+                            if subpath.exists() {
+                                return Some(subpath);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    // Try direct filename match (for fonts not in mapping)
+    let possible_filenames = generate_font_filenames(font_name, style);
+    for filename in &possible_filenames {
+        for dir in &font_dirs {
+            let path = dir.join(filename);
+            if path.exists() {
+                return Some(path);
+            }
+            
+            // Check subdirectories
+            if let Ok(entries) = std::fs::read_dir(dir) {
+                for entry in entries.flatten() {
+                    if entry.path().is_dir() {
+                        let subpath = entry.path().join(filename);
+                        if subpath.exists() {
+                            return Some(subpath);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    None
+}
+
+/// Generate possible font filenames for a given font name and style
+fn generate_font_filenames(font_name: &str, style: FontStyle) -> Vec<String> {
+    let base = font_name.replace(" ", "");
+    let base_with_dash = font_name.replace(" ", "-");
+    
+    let suffix = match style {
+        FontStyle::Regular => vec!["", "-Regular"],
+        FontStyle::Bold => vec!["-Bold", "bd", "-Bd", "b"],
+        FontStyle::Italic => vec!["-Italic", "-Oblique", "i", "-It", "it"],
+        FontStyle::BoldItalic => vec!["-BoldItalic", "-BoldOblique", "bi", "z", "-BI"],
+    };
+    
+    let mut filenames = Vec::new();
+    for s in &suffix {
+        filenames.push(format!("{}{}.ttf", base, s));
+        filenames.push(format!("{}{}.TTF", base, s));
+        filenames.push(format!("{}{}.otf", base, s));
+        filenames.push(format!("{}{}.OTF", base, s));
+        filenames.push(format!("{}{}.ttf", base_with_dash, s));
+        filenames.push(format!("{}{}.otf", base_with_dash, s));
+    }
+    
+    filenames
+}
+
+/// Get fallback font for when requested font is not found
+/// Returns a font that should always be available on the system
+pub fn get_fallback_font(style: FontStyle) -> Option<PathBuf> {
+    // Try fonts in order of preference
+    let fallback_families = [
+        "Arial",        // Available on Windows, often on Linux/macOS
+        "DejaVu Sans",  // Common on Linux
+        "Liberation Sans", // Common on Linux
+        "Helvetica",    // macOS
+        "Segoe UI",     // Windows
+    ];
+    
+    for family in &fallback_families {
+        if let Some(path) = find_system_font(family, style) {
+            return Some(path);
+        }
+    }
+    
+    // Last resort: try to find ANY .ttf file in system fonts
+    let font_dirs = get_system_font_dirs();
+    for dir in &font_dirs {
+        if let Ok(entries) = std::fs::read_dir(dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.extension().map(|e| e == "ttf" || e == "TTF").unwrap_or(false) {
+                    return Some(path);
+                }
+            }
+        }
+    }
+    
+    None
+}
+
 /// Load TTF/OTF font from file path
-pub fn load_font_file(path: &str) -> PyResult<Vec<u8>> {
-    let path_obj = Path::new(path);
-    if !path_obj.exists() {
+pub fn load_font_file(path: &Path) -> PyResult<Vec<u8>> {
+    if !path.exists() {
         return Err(PyErr::new::<pyo3::exceptions::PyFileNotFoundError, _>(
-            format!("Font file not found: {}", path),
+            format!("Font file not found: {}", path.display()),
         ));
     }
 
     let mut file = File::open(path).map_err(|e| {
         PyErr::new::<pyo3::exceptions::PyIOError, _>(format!(
             "Failed to open font file {}: {}",
-            path, e
+            path.display(), e
         ))
     })?;
 
@@ -32,7 +340,7 @@ pub fn load_font_file(path: &str) -> PyResult<Vec<u8>> {
     file.read_to_end(&mut font_data).map_err(|e| {
         PyErr::new::<pyo3::exceptions::PyIOError, _>(format!(
             "Failed to read font file {}: {}",
-            path, e
+            path.display(), e
         ))
     })?;
 
@@ -40,19 +348,20 @@ pub fn load_font_file(path: &str) -> PyResult<Vec<u8>> {
     Face::parse(&font_data, 0).map_err(|e| {
         PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
             "Invalid font file {}: {}",
-            path, e
+            path.display(), e
         ))
     })?;
 
     Ok(font_data)
 }
 
+/// Load font file from string path (for backward compatibility)
+pub fn load_font_file_str(path: &str) -> PyResult<Vec<u8>> {
+    load_font_file(Path::new(path))
+}
+
 /// Add TrueType font to PDF as Type0 font (CIDFontType2)
 /// Returns the font resource name and Unicode->CID mapping
-///
-/// Creates full Type0 font structure: FontDescriptor, CIDFont, Type0 font, CIDToGIDMap, and ToUnicode CMap.
-/// CID mapping: For Identity-H encoding, we use GID (Glyph ID) as CID, creating a direct mapping
-/// from Unicode code points to CIDs via the font's cmap table.
 pub fn add_truetype_font(
     pdf: &mut Pdf,
     font_data: &[u8],
@@ -87,38 +396,31 @@ pub fn add_truetype_font(
     let font_family = face
         .names()
         .into_iter()
-        .find(|name| name.name_id == 1) // Family ID = 1
+        .find(|name| name.name_id == 1)
         .and_then(|name| name.to_string())
         .unwrap_or_else(|| format!("Font{}", font_id.get()));
 
     // Build Unicode -> CID/GID mapping from font's cmap table
-    // For Identity-H encoding, we use GID (Glyph ID) as CID
-    // This creates a direct mapping: Unicode code point -> GID -> CID
     let mut cid_map = HashMap::new();
     let mut cid_to_gid_map = Vec::new();
     let mut cid_widths: BTreeMap<u16, i32> = BTreeMap::new();
 
-    // Default width (half of 1000 units) used as fallback
     let default_width = 500_i32;
 
-    // Iterate through BMP Unicode range to build mapping (covers Latin + punctuation + symbols)
+    // Iterate through BMP Unicode range to build mapping
     for code_point in 0x0000u32..=0xFFFFu32 {
         if let Some(ch) = char::from_u32(code_point) {
             if let Some(glyph_id) = face.glyph_index(ch) {
                 let gid = glyph_id.0 as u16;
-                // Use GID as CID for Identity-H encoding
                 let cid = gid;
 
-                // Store Unicode -> CID mapping (only first occurrence for a given Unicode code point)
                 cid_map.entry(code_point).or_insert(cid);
 
-                // Build CIDToGIDMap: CID -> GID (for Identity-H, CID == GID, but we still need the map)
                 if cid_to_gid_map.len() <= cid as usize {
                     cid_to_gid_map.resize((cid + 1) as usize, 0u16);
                 }
                 cid_to_gid_map[cid as usize] = gid;
 
-                // Capture advance width for this CID once
                 if !cid_widths.contains_key(&cid) {
                     let width_pdf = face
                         .glyph_hor_advance(glyph_id)
@@ -145,11 +447,10 @@ pub fn add_truetype_font(
     let cid_font_id = Ref::new(*next_ref_id);
     *next_ref_id += 1;
 
-    // Create CIDToGIDMap stream (maps CID to GID)
+    // Create CIDToGIDMap stream
     let cid_to_gid_map_id = Ref::new(*next_ref_id);
     *next_ref_id += 1;
 
-    // Build CIDToGIDMap as binary stream (array of 2-byte big-endian GIDs)
     let mut cid_to_gid_bytes = Vec::new();
     for gid in &cid_to_gid_map {
         cid_to_gid_bytes.push((gid >> 8) as u8);
@@ -169,11 +470,6 @@ pub fn add_truetype_font(
     let to_unicode_id = Ref::new(*next_ref_id);
     *next_ref_id += 1;
 
-    // Create ToUnicode CMap using the CID map we built
-    // This maps CID -> Unicode (reverse of Unicode -> CID)
-    // We'll use beginbfchar for individual mappings to ensure accuracy
-    // Build mappings from CID map
-    // Use beginbfchar blocks (max 100 entries per block per PDF spec)
     let mut cid_unicode_pairs: Vec<(u16, u32)> = cid_map
         .iter()
         .map(|(&unicode, &cid)| (cid, unicode))
@@ -215,13 +511,13 @@ end",
 
     pdf.stream(to_unicode_id, cmap_content.as_bytes());
 
-    // Prepare base font name (PostScript-friendly)
+    // Prepare base font name
     let base_font_name = font_family.replace(' ', "#20");
     let base_font_boxed = base_font_name.clone().into_boxed_str();
     let base_font_static = Box::leak(base_font_boxed);
     let base_font_name = Name(base_font_static.as_bytes());
 
-    // Build FontDescriptor using pdf-writer
+    // Build FontDescriptor
     {
         let mut font_descriptor = pdf.font_descriptor(font_descriptor_id);
         font_descriptor
@@ -296,306 +592,31 @@ end",
     Ok((Name(font_name_bytes), cid_map))
 }
 
-/// Helper function to find font in docquill package fonts directory
-/// This is the fallback when system fonts are not available
-fn find_font_in_package(font_filename: &str) -> Option<String> {
-    // Try to find fonts in Python site-packages/docquill/fonts/
-    // This requires the font files to be bundled with the package
-    
-    // Check common site-packages locations
-    let site_packages_patterns = [
-        // Virtual environment
-        ".venv/lib/python*/site-packages/docquill/fonts",
-        "venv/lib/python*/site-packages/docquill/fonts",
-        // System Python (Linux)
-        "/usr/lib/python*/site-packages/docquill/fonts",
-        "/usr/local/lib/python*/site-packages/docquill/fonts",
-        // User install
-        "~/.local/lib/python*/site-packages/docquill/fonts",
-    ];
-    
-    // Try current working directory assets/fonts (for development)
-    if let Ok(cwd) = std::env::current_dir() {
-        let assets_path = cwd.join("assets").join("fonts").join(font_filename);
-        if assets_path.exists() {
-            return Some(assets_path.to_string_lossy().to_string());
-        }
-        
-        // Also check parent directories (up to 5 levels)
-        let mut dir = cwd.parent();
-        for _ in 0..5 {
-            if let Some(d) = dir {
-                let assets_path = d.join("assets").join("fonts").join(font_filename);
-                if assets_path.exists() {
-                    return Some(assets_path.to_string_lossy().to_string());
-                }
-                dir = d.parent();
-            } else {
-                break;
-            }
-        }
-    }
-    
-    None
-}
-
-/// Get Windows system fonts directory
-#[cfg(target_os = "windows")]
-fn get_windows_fonts_dir() -> Option<String> {
-    // Try WINDIR environment variable first
-    if let Ok(windir) = std::env::var("WINDIR") {
-        return Some(format!("{}\\Fonts", windir));
-    }
-    // Fallback to common location
-    Some("C:\\Windows\\Fonts".to_string())
-}
-
-/// Try to find a suitable sans-serif font for PDF rendering
-/// Priority: System fonts first (better compatibility), then bundled fonts
+// Keep old functions for backward compatibility but mark as deprecated
+#[deprecated(note = "Use find_system_font instead")]
 pub fn find_dejavu_sans() -> Option<String> {
-    // Platform-specific system font search
-    #[cfg(target_os = "windows")]
-    {
-        // Windows: Try common system fonts first (Arial has good Unicode support)
-        let windows_fonts = [
-            "C:\\Windows\\Fonts\\arial.ttf",
-            "C:\\Windows\\Fonts\\segoeui.ttf",
-            "C:\\Windows\\Fonts\\tahoma.ttf",
-            "C:\\Windows\\Fonts\\verdana.ttf",
-            "C:\\Windows\\Fonts\\DejaVuSans.ttf",
-        ];
-        for path in &windows_fonts {
-            if Path::new(path).exists() {
-                return Some(path.to_string());
-            }
-        }
-        // Try with WINDIR env var
-        if let Ok(windir) = std::env::var("WINDIR") {
-            let fonts = ["arial.ttf", "segoeui.ttf", "tahoma.ttf", "DejaVuSans.ttf"];
-            for font in &fonts {
-                let path = format!("{}\\Fonts\\{}", windir, font);
-                if Path::new(&path).exists() {
-                    return Some(path);
-                }
-            }
-        }
-    }
-
-    #[cfg(target_os = "macos")]
-    {
-        // macOS: Try system fonts
-        let macos_fonts = [
-            "/System/Library/Fonts/Helvetica.ttc",
-            "/System/Library/Fonts/SFNSText.ttf",
-            "/Library/Fonts/Arial.ttf",
-            "/System/Library/Fonts/Supplemental/Arial.ttf",
-            "/System/Library/Fonts/Supplemental/DejaVuSans.ttf",
-        ];
-        for path in &macos_fonts {
-            if Path::new(path).exists() {
-                return Some(path.to_string());
-            }
-        }
-    }
-
-    #[cfg(target_os = "linux")]
-    {
-        // Linux: DejaVu Sans is commonly available
-        let linux_fonts = [
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-            "/usr/share/fonts/TTF/DejaVuSans.ttf",
-            "/usr/share/fonts/dejavu/DejaVuSans.ttf",
-            "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
-            "/usr/share/fonts/liberation-sans/LiberationSans-Regular.ttf",
-            "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
-        ];
-        for path in &linux_fonts {
-            if Path::new(path).exists() {
-                return Some(path.to_string());
-            }
-        }
-    }
-
-    // Fallback: Try bundled fonts in package
-    if let Some(path) = find_font_in_package("DejaVuSans.ttf") {
-        return Some(path);
-    }
-
-    None
+    find_system_font("DejaVu Sans", FontStyle::Regular)
+        .or_else(|| get_fallback_font(FontStyle::Regular))
+        .map(|p| p.to_string_lossy().to_string())
 }
 
-/// Try to find a bold sans-serif font
+#[deprecated(note = "Use find_system_font instead")]
 pub fn find_dejavu_sans_bold() -> Option<String> {
-    #[cfg(target_os = "windows")]
-    {
-        let windows_fonts = [
-            "C:\\Windows\\Fonts\\arialbd.ttf",
-            "C:\\Windows\\Fonts\\segoeuib.ttf",
-            "C:\\Windows\\Fonts\\tahomabd.ttf",
-            "C:\\Windows\\Fonts\\verdanab.ttf",
-            "C:\\Windows\\Fonts\\DejaVuSans-Bold.ttf",
-        ];
-        for path in &windows_fonts {
-            if Path::new(path).exists() {
-                return Some(path.to_string());
-            }
-        }
-        if let Ok(windir) = std::env::var("WINDIR") {
-            let fonts = ["arialbd.ttf", "segoeuib.ttf", "DejaVuSans-Bold.ttf"];
-            for font in &fonts {
-                let path = format!("{}\\Fonts\\{}", windir, font);
-                if Path::new(&path).exists() {
-                    return Some(path);
-                }
-            }
-        }
-    }
-
-    #[cfg(target_os = "macos")]
-    {
-        let macos_fonts = [
-            "/Library/Fonts/Arial Bold.ttf",
-            "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
-            "/System/Library/Fonts/Supplemental/DejaVuSans-Bold.ttf",
-        ];
-        for path in &macos_fonts {
-            if Path::new(path).exists() {
-                return Some(path.to_string());
-            }
-        }
-    }
-
-    #[cfg(target_os = "linux")]
-    {
-        let linux_fonts = [
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-            "/usr/share/fonts/TTF/DejaVuSans-Bold.ttf",
-            "/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf",
-            "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
-        ];
-        for path in &linux_fonts {
-            if Path::new(path).exists() {
-                return Some(path.to_string());
-            }
-        }
-    }
-
-    find_font_in_package("DejaVuSans-Bold.ttf")
+    find_system_font("DejaVu Sans", FontStyle::Bold)
+        .or_else(|| get_fallback_font(FontStyle::Bold))
+        .map(|p| p.to_string_lossy().to_string())
 }
 
-/// Try to find an italic sans-serif font
+#[deprecated(note = "Use find_system_font instead")]
 pub fn find_dejavu_sans_italic() -> Option<String> {
-    #[cfg(target_os = "windows")]
-    {
-        let windows_fonts = [
-            "C:\\Windows\\Fonts\\ariali.ttf",
-            "C:\\Windows\\Fonts\\segoeuii.ttf",
-            "C:\\Windows\\Fonts\\verdanai.ttf",
-            "C:\\Windows\\Fonts\\DejaVuSans-Oblique.ttf",
-        ];
-        for path in &windows_fonts {
-            if Path::new(path).exists() {
-                return Some(path.to_string());
-            }
-        }
-        if let Ok(windir) = std::env::var("WINDIR") {
-            let fonts = ["ariali.ttf", "segoeuii.ttf", "DejaVuSans-Oblique.ttf"];
-            for font in &fonts {
-                let path = format!("{}\\Fonts\\{}", windir, font);
-                if Path::new(&path).exists() {
-                    return Some(path);
-                }
-            }
-        }
-    }
-
-    #[cfg(target_os = "macos")]
-    {
-        let macos_fonts = [
-            "/Library/Fonts/Arial Italic.ttf",
-            "/System/Library/Fonts/Supplemental/Arial Italic.ttf",
-            "/System/Library/Fonts/Supplemental/DejaVuSans-Oblique.ttf",
-        ];
-        for path in &macos_fonts {
-            if Path::new(path).exists() {
-                return Some(path.to_string());
-            }
-        }
-    }
-
-    #[cfg(target_os = "linux")]
-    {
-        let linux_fonts = [
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Oblique.ttf",
-            "/usr/share/fonts/TTF/DejaVuSans-Oblique.ttf",
-            "/usr/share/fonts/dejavu/DejaVuSans-Oblique.ttf",
-            "/usr/share/fonts/truetype/liberation/LiberationSans-Italic.ttf",
-        ];
-        for path in &linux_fonts {
-            if Path::new(path).exists() {
-                return Some(path.to_string());
-            }
-        }
-    }
-
-    find_font_in_package("DejaVuSans-Oblique.ttf")
+    find_system_font("DejaVu Sans", FontStyle::Italic)
+        .or_else(|| get_fallback_font(FontStyle::Italic))
+        .map(|p| p.to_string_lossy().to_string())
 }
 
-/// Try to find a bold italic sans-serif font
+#[deprecated(note = "Use find_system_font instead")]
 pub fn find_dejavu_sans_bold_italic() -> Option<String> {
-    #[cfg(target_os = "windows")]
-    {
-        let windows_fonts = [
-            "C:\\Windows\\Fonts\\arialbi.ttf",
-            "C:\\Windows\\Fonts\\segoeuiz.ttf",
-            "C:\\Windows\\Fonts\\verdanaz.ttf",
-            "C:\\Windows\\Fonts\\DejaVuSans-BoldOblique.ttf",
-        ];
-        for path in &windows_fonts {
-            if Path::new(path).exists() {
-                return Some(path.to_string());
-            }
-        }
-        if let Ok(windir) = std::env::var("WINDIR") {
-            let fonts = ["arialbi.ttf", "segoeuiz.ttf", "DejaVuSans-BoldOblique.ttf"];
-            for font in &fonts {
-                let path = format!("{}\\Fonts\\{}", windir, font);
-                if Path::new(&path).exists() {
-                    return Some(path);
-                }
-            }
-        }
-    }
-
-    #[cfg(target_os = "macos")]
-    {
-        let macos_fonts = [
-            "/Library/Fonts/Arial Bold Italic.ttf",
-            "/System/Library/Fonts/Supplemental/Arial Bold Italic.ttf",
-            "/System/Library/Fonts/Supplemental/DejaVuSans-BoldOblique.ttf",
-        ];
-        for path in &macos_fonts {
-            if Path::new(path).exists() {
-                return Some(path.to_string());
-            }
-        }
-    }
-
-    #[cfg(target_os = "linux")]
-    {
-        let linux_fonts = [
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans-BoldOblique.ttf",
-            "/usr/share/fonts/TTF/DejaVuSans-BoldOblique.ttf",
-            "/usr/share/fonts/dejavu/DejaVuSans-BoldOblique.ttf",
-            "/usr/share/fonts/truetype/liberation/LiberationSans-BoldItalic.ttf",
-        ];
-        for path in &linux_fonts {
-            if Path::new(path).exists() {
-                return Some(path.to_string());
-            }
-        }
-    }
-
-    find_font_in_package("DejaVuSans-BoldOblique.ttf")
+    find_system_font("DejaVu Sans", FontStyle::BoldItalic)
+        .or_else(|| get_fallback_font(FontStyle::BoldItalic))
+        .map(|p| p.to_string_lossy().to_string())
 }
-
