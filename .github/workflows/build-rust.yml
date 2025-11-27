@@ -56,7 +56,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: wheel-${{ matrix.os }}-${{ matrix.target }}
-          path: packages/docquill_rust/dist/*.whl
+          path: dist/*.whl
 
   # Build source distribution
   build-sdist:
@@ -75,7 +75,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: sdist
-          path: packages/docquill_rust/dist/*.tar.gz
+          path: dist/*.tar.gz
 
   # Publish to PyPI
   publish:
@@ -98,4 +98,3 @@ jobs:
       
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
-
