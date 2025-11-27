@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "docquill"
-version = "0.1.0"
+version = "0.1.2"
 description = "Professional DOCX document processing library with AI-ready JSON export, PDF/HTML rendering, and round-trip editing"
 readme = "README.md"
 license = "Apache-2.0"
