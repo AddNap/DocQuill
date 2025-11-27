@@ -24,40 +24,30 @@ _IMAGE_TARGET_DPI = 192.0  # Match ReportLab implementation for rasterizing EMF/
 pdf_renderer_rust = None
 HAS_RUST_RENDERER = False
 
-# First try normal import
+# Try docquill_rust first (new unified package from PyPI)
 try:
-    import pdf_renderer_rust
-    # Check if PdfRenderer is available
-    if hasattr(pdf_renderer_rust, 'PdfRenderer'):
+    import docquill_rust
+    if hasattr(docquill_rust, 'PdfRenderer'):
+        pdf_renderer_rust = docquill_rust
         HAS_RUST_RENDERER = True
-    else:
-        # Module loaded but PdfRenderer not available, try direct load
-        pdf_renderer_rust = None
+        logger.debug("Loaded Rust renderer from docquill_rust (PdfRenderer)")
 except ImportError:
     pass
 
-# If not available, try to load directly from .so file
+# Legacy: try pdf_renderer_rust
 if not HAS_RUST_RENDERER:
     try:
-        import importlib.util
-        from pathlib import Path
-        project_root = Path(__file__).parent.parent.parent.parent
-        so_path = project_root / 'pdf_renderer_rust' / 'target' / 'release' / 'libpdf_renderer_rust.so'
-        if not so_path.exists():
-            so_path = project_root / 'pdf_renderer_rust' / 'target' / 'debug' / 'libpdf_renderer_rust.so'
-        if so_path.exists():
-            spec = importlib.util.spec_from_file_location('pdf_renderer_rust', so_path)
-            pdf_renderer_rust = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(pdf_renderer_rust)
-            if hasattr(pdf_renderer_rust, 'PdfRenderer'):
-                HAS_RUST_RENDERER = True
-    except Exception as e:
-        logger.debug(f"Failed to load Rust renderer from .so: {e}")
+        import pdf_renderer_rust as _pdf_renderer_rust
+        if hasattr(_pdf_renderer_rust, 'PdfRenderer'):
+            pdf_renderer_rust = _pdf_renderer_rust
+            HAS_RUST_RENDERER = True
+            logger.debug("Loaded Rust renderer from pdf_renderer_rust")
+    except ImportError:
+        pass
 
 if not HAS_RUST_RENDERER:
-    logger.warning(
-        "pdf_renderer_rust not available. Install with: "
-        "cd pdf_renderer_rust && maturin develop"
+    logger.debug(
+        "pdf_renderer_rust not available. Install docquill-rust: pip install docquill-rust"
     )
 
 try:
@@ -119,8 +109,8 @@ class PDFCompilerRust:
         """
         if not HAS_RUST_RENDERER:
             raise ImportError(
-                "pdf_renderer_rust module not available. "
-                "Build it with: cd pdf_renderer_rust && maturin develop"
+                "Rust PDF renderer not available. "
+                "Install with: pip install docquill-rust"
             )
         
         self.output_path = str(output_path)
