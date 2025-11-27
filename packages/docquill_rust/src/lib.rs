@@ -70,7 +70,7 @@ impl PdfCanvasRenderer {
         // Set up catalog
         pdf.catalog(catalog_id).pages(page_tree_id);
 
-        // Try to register DejaVu Sans as default font (better Unicode support, especially for Polish)
+        // Try to register a system font (platform-specific)
         let mut font_registry = HashMap::new();
         let default_font_id = Ref::new(3);
         let mut next_ref = 4;
@@ -78,17 +78,21 @@ impl PdfCanvasRenderer {
         // CID maps for Type0 fonts
         let mut type0_cid_maps = HashMap::new();
 
-        // Try common DejaVu Sans paths
-        if let Some(dejavu_path) = font_utils::find_dejavu_sans() {
-            if let Ok(font_data) = font_utils::load_font_file(&dejavu_path) {
+        // Find and register default font (uses system fonts on Windows/macOS, DejaVu on Linux)
+        if let Some(font_path) = font_utils::find_dejavu_sans() {
+            if let Ok(font_data) = font_utils::load_font_file(&font_path) {
                 if let Ok((font_name, cid_map)) = font_utils::add_truetype_font(
                     &mut pdf,
                     &font_data,
                     default_font_id,
                     &mut next_ref,
                 ) {
+                    // Register under multiple names for compatibility
                     font_registry.insert("DejaVu Sans".to_string(), (font_name, default_font_id));
                     font_registry.insert("DejaVuSans".to_string(), (font_name, default_font_id));
+                    font_registry.insert("Arial".to_string(), (font_name, default_font_id));
+                    font_registry.insert("Helvetica".to_string(), (font_name, default_font_id));
+                    font_registry.insert("sans-serif".to_string(), (font_name, default_font_id));
                     type0_cid_maps.insert(font_name, cid_map);
                 }
             }
@@ -96,8 +100,8 @@ impl PdfCanvasRenderer {
 
         if font_registry.is_empty() {
             panic!(
-                "DejaVu Sans TTF not found. Place DejaVuSans.ttf in assets/fonts/ \
-or install it system-wide so Unicode text can be rendered."
+                "No suitable TrueType font found. On Windows, Arial should be available. \
+On Linux, install fonts-dejavu-core or place DejaVuSans.ttf in assets/fonts/."
             );
         }
 

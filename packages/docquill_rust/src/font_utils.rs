@@ -296,14 +296,34 @@ end",
     Ok((Name(font_name_bytes), cid_map))
 }
 
-/// Helper function to find font in assets/fonts directory
-/// Searches from current working directory up to project root
-fn find_font_in_assets(font_filename: &str) -> Option<String> {
-    // Try current working directory and parent directories
+/// Helper function to find font in docquill package fonts directory
+/// This is the fallback when system fonts are not available
+fn find_font_in_package(font_filename: &str) -> Option<String> {
+    // Try to find fonts in Python site-packages/docquill/fonts/
+    // This requires the font files to be bundled with the package
+    
+    // Check common site-packages locations
+    let site_packages_patterns = [
+        // Virtual environment
+        ".venv/lib/python*/site-packages/docquill/fonts",
+        "venv/lib/python*/site-packages/docquill/fonts",
+        // System Python (Linux)
+        "/usr/lib/python*/site-packages/docquill/fonts",
+        "/usr/local/lib/python*/site-packages/docquill/fonts",
+        // User install
+        "~/.local/lib/python*/site-packages/docquill/fonts",
+    ];
+    
+    // Try current working directory assets/fonts (for development)
     if let Ok(cwd) = std::env::current_dir() {
-        let mut dir = Some(cwd.as_path());
-        for _ in 0..10 {
-            // Search up to 10 levels
+        let assets_path = cwd.join("assets").join("fonts").join(font_filename);
+        if assets_path.exists() {
+            return Some(assets_path.to_string_lossy().to_string());
+        }
+        
+        // Also check parent directories (up to 5 levels)
+        let mut dir = cwd.parent();
+        for _ in 0..5 {
             if let Some(d) = dir {
                 let assets_path = d.join("assets").join("fonts").join(font_filename);
                 if assets_path.exists() {
@@ -315,128 +335,267 @@ fn find_font_in_assets(font_filename: &str) -> Option<String> {
             }
         }
     }
+    
+    None
+}
 
-    // Also try from executable location (for compiled binaries)
-    if let Ok(exe_path) = std::env::current_exe() {
-        if let Some(exe_dir) = exe_path.parent() {
-            let mut dir = Some(exe_dir);
-            for _ in 0..10 {
-                if let Some(d) = dir {
-                    let assets_path = d.join("assets").join("fonts").join(font_filename);
-                    if assets_path.exists() {
-                        return Some(assets_path.to_string_lossy().to_string());
-                    }
-                    dir = d.parent();
-                } else {
-                    break;
+/// Get Windows system fonts directory
+#[cfg(target_os = "windows")]
+fn get_windows_fonts_dir() -> Option<String> {
+    // Try WINDIR environment variable first
+    if let Ok(windir) = std::env::var("WINDIR") {
+        return Some(format!("{}\\Fonts", windir));
+    }
+    // Fallback to common location
+    Some("C:\\Windows\\Fonts".to_string())
+}
+
+/// Try to find a suitable sans-serif font for PDF rendering
+/// Priority: System fonts first (better compatibility), then bundled fonts
+pub fn find_dejavu_sans() -> Option<String> {
+    // Platform-specific system font search
+    #[cfg(target_os = "windows")]
+    {
+        // Windows: Try common system fonts first (Arial has good Unicode support)
+        let windows_fonts = [
+            "C:\\Windows\\Fonts\\arial.ttf",
+            "C:\\Windows\\Fonts\\segoeui.ttf",
+            "C:\\Windows\\Fonts\\tahoma.ttf",
+            "C:\\Windows\\Fonts\\verdana.ttf",
+            "C:\\Windows\\Fonts\\DejaVuSans.ttf",
+        ];
+        for path in &windows_fonts {
+            if Path::new(path).exists() {
+                return Some(path.to_string());
+            }
+        }
+        // Try with WINDIR env var
+        if let Ok(windir) = std::env::var("WINDIR") {
+            let fonts = ["arial.ttf", "segoeui.ttf", "tahoma.ttf", "DejaVuSans.ttf"];
+            for font in &fonts {
+                let path = format!("{}\\Fonts\\{}", windir, font);
+                if Path::new(&path).exists() {
+                    return Some(path);
                 }
             }
         }
     }
 
-    None
-}
-
-/// Try to find DejaVu Sans font
-/// First checks assets/fonts in project directory, then system locations
-pub fn find_dejavu_sans() -> Option<String> {
-    // First, try project assets/fonts directory
-    if let Some(path) = find_font_in_assets("DejaVuSans.ttf") {
-        return Some(path);
-    }
-
-    // Fallback to system locations
-    let paths = [
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-        "/usr/share/fonts/TTF/DejaVuSans.ttf",
-        "/usr/share/fonts/dejavu/DejaVuSans.ttf",
-        "/System/Library/Fonts/Supplemental/DejaVu Sans.ttf", // macOS
-        "C:/Windows/Fonts/DejaVuSans.ttf",                    // Windows
-    ];
-
-    for path in &paths {
-        if Path::new(path).exists() {
-            return Some(path.to_string());
+    #[cfg(target_os = "macos")]
+    {
+        // macOS: Try system fonts
+        let macos_fonts = [
+            "/System/Library/Fonts/Helvetica.ttc",
+            "/System/Library/Fonts/SFNSText.ttf",
+            "/Library/Fonts/Arial.ttf",
+            "/System/Library/Fonts/Supplemental/Arial.ttf",
+            "/System/Library/Fonts/Supplemental/DejaVuSans.ttf",
+        ];
+        for path in &macos_fonts {
+            if Path::new(path).exists() {
+                return Some(path.to_string());
+            }
         }
     }
 
+    #[cfg(target_os = "linux")]
+    {
+        // Linux: DejaVu Sans is commonly available
+        let linux_fonts = [
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            "/usr/share/fonts/TTF/DejaVuSans.ttf",
+            "/usr/share/fonts/dejavu/DejaVuSans.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+            "/usr/share/fonts/liberation-sans/LiberationSans-Regular.ttf",
+            "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
+        ];
+        for path in &linux_fonts {
+            if Path::new(path).exists() {
+                return Some(path.to_string());
+            }
+        }
+    }
+
+    // Fallback: Try bundled fonts in package
+    if let Some(path) = find_font_in_package("DejaVuSans.ttf") {
+        return Some(path);
+    }
+
     None
 }
 
-/// Try to find DejaVu Sans Bold font
-/// First checks assets/fonts in project directory, then system locations
+/// Try to find a bold sans-serif font
 pub fn find_dejavu_sans_bold() -> Option<String> {
-    // First, try project assets/fonts directory
-    if let Some(path) = find_font_in_assets("DejaVuSans-Bold.ttf") {
-        return Some(path);
-    }
-
-    // Fallback to system locations
-    let paths = [
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-        "/usr/share/fonts/TTF/DejaVuSans-Bold.ttf",
-        "/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf",
-        "/System/Library/Fonts/Supplemental/DejaVu Sans Bold.ttf", // macOS
-        "C:/Windows/Fonts/DejaVuSans-Bold.ttf",                    // Windows
-    ];
-
-    for path in &paths {
-        if Path::new(path).exists() {
-            return Some(path.to_string());
+    #[cfg(target_os = "windows")]
+    {
+        let windows_fonts = [
+            "C:\\Windows\\Fonts\\arialbd.ttf",
+            "C:\\Windows\\Fonts\\segoeuib.ttf",
+            "C:\\Windows\\Fonts\\tahomabd.ttf",
+            "C:\\Windows\\Fonts\\verdanab.ttf",
+            "C:\\Windows\\Fonts\\DejaVuSans-Bold.ttf",
+        ];
+        for path in &windows_fonts {
+            if Path::new(path).exists() {
+                return Some(path.to_string());
+            }
+        }
+        if let Ok(windir) = std::env::var("WINDIR") {
+            let fonts = ["arialbd.ttf", "segoeuib.ttf", "DejaVuSans-Bold.ttf"];
+            for font in &fonts {
+                let path = format!("{}\\Fonts\\{}", windir, font);
+                if Path::new(&path).exists() {
+                    return Some(path);
+                }
+            }
         }
     }
 
-    None
+    #[cfg(target_os = "macos")]
+    {
+        let macos_fonts = [
+            "/Library/Fonts/Arial Bold.ttf",
+            "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+            "/System/Library/Fonts/Supplemental/DejaVuSans-Bold.ttf",
+        ];
+        for path in &macos_fonts {
+            if Path::new(path).exists() {
+                return Some(path.to_string());
+            }
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        let linux_fonts = [
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+            "/usr/share/fonts/TTF/DejaVuSans-Bold.ttf",
+            "/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+        ];
+        for path in &linux_fonts {
+            if Path::new(path).exists() {
+                return Some(path.to_string());
+            }
+        }
+    }
+
+    find_font_in_package("DejaVuSans-Bold.ttf")
 }
 
-/// Try to find DejaVu Sans Italic font
-/// First checks assets/fonts in project directory, then system locations
+/// Try to find an italic sans-serif font
 pub fn find_dejavu_sans_italic() -> Option<String> {
-    // First, try project assets/fonts directory
-    if let Some(path) = find_font_in_assets("DejaVuSans-Oblique.ttf") {
-        return Some(path);
-    }
-
-    // Fallback to system locations
-    let paths = [
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Oblique.ttf",
-        "/usr/share/fonts/TTF/DejaVuSans-Oblique.ttf",
-        "/usr/share/fonts/dejavu/DejaVuSans-Oblique.ttf",
-        "/System/Library/Fonts/Supplemental/DejaVu Sans Oblique.ttf", // macOS
-        "C:/Windows/Fonts/DejaVuSans-Oblique.ttf",                    // Windows
-    ];
-
-    for path in &paths {
-        if Path::new(path).exists() {
-            return Some(path.to_string());
+    #[cfg(target_os = "windows")]
+    {
+        let windows_fonts = [
+            "C:\\Windows\\Fonts\\ariali.ttf",
+            "C:\\Windows\\Fonts\\segoeuii.ttf",
+            "C:\\Windows\\Fonts\\verdanai.ttf",
+            "C:\\Windows\\Fonts\\DejaVuSans-Oblique.ttf",
+        ];
+        for path in &windows_fonts {
+            if Path::new(path).exists() {
+                return Some(path.to_string());
+            }
+        }
+        if let Ok(windir) = std::env::var("WINDIR") {
+            let fonts = ["ariali.ttf", "segoeuii.ttf", "DejaVuSans-Oblique.ttf"];
+            for font in &fonts {
+                let path = format!("{}\\Fonts\\{}", windir, font);
+                if Path::new(&path).exists() {
+                    return Some(path);
+                }
+            }
         }
     }
 
-    None
+    #[cfg(target_os = "macos")]
+    {
+        let macos_fonts = [
+            "/Library/Fonts/Arial Italic.ttf",
+            "/System/Library/Fonts/Supplemental/Arial Italic.ttf",
+            "/System/Library/Fonts/Supplemental/DejaVuSans-Oblique.ttf",
+        ];
+        for path in &macos_fonts {
+            if Path::new(path).exists() {
+                return Some(path.to_string());
+            }
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        let linux_fonts = [
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Oblique.ttf",
+            "/usr/share/fonts/TTF/DejaVuSans-Oblique.ttf",
+            "/usr/share/fonts/dejavu/DejaVuSans-Oblique.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Italic.ttf",
+        ];
+        for path in &linux_fonts {
+            if Path::new(path).exists() {
+                return Some(path.to_string());
+            }
+        }
+    }
+
+    find_font_in_package("DejaVuSans-Oblique.ttf")
 }
 
-/// Try to find DejaVu Sans Bold Italic font
-/// First checks assets/fonts in project directory, then system locations
+/// Try to find a bold italic sans-serif font
 pub fn find_dejavu_sans_bold_italic() -> Option<String> {
-    // First, try project assets/fonts directory
-    if let Some(path) = find_font_in_assets("DejaVuSans-BoldOblique.ttf") {
-        return Some(path);
-    }
-
-    // Fallback to system locations
-    let paths = [
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-BoldOblique.ttf",
-        "/usr/share/fonts/TTF/DejaVuSans-BoldOblique.ttf",
-        "/usr/share/fonts/dejavu/DejaVuSans-BoldOblique.ttf",
-        "/System/Library/Fonts/Supplemental/DejaVu Sans Bold Oblique.ttf", // macOS
-        "C:/Windows/Fonts/DejaVuSans-BoldOblique.ttf",                     // Windows
-    ];
-
-    for path in &paths {
-        if Path::new(path).exists() {
-            return Some(path.to_string());
+    #[cfg(target_os = "windows")]
+    {
+        let windows_fonts = [
+            "C:\\Windows\\Fonts\\arialbi.ttf",
+            "C:\\Windows\\Fonts\\segoeuiz.ttf",
+            "C:\\Windows\\Fonts\\verdanaz.ttf",
+            "C:\\Windows\\Fonts\\DejaVuSans-BoldOblique.ttf",
+        ];
+        for path in &windows_fonts {
+            if Path::new(path).exists() {
+                return Some(path.to_string());
+            }
+        }
+        if let Ok(windir) = std::env::var("WINDIR") {
+            let fonts = ["arialbi.ttf", "segoeuiz.ttf", "DejaVuSans-BoldOblique.ttf"];
+            for font in &fonts {
+                let path = format!("{}\\Fonts\\{}", windir, font);
+                if Path::new(&path).exists() {
+                    return Some(path);
+                }
+            }
         }
     }
 
-    None
+    #[cfg(target_os = "macos")]
+    {
+        let macos_fonts = [
+            "/Library/Fonts/Arial Bold Italic.ttf",
+            "/System/Library/Fonts/Supplemental/Arial Bold Italic.ttf",
+            "/System/Library/Fonts/Supplemental/DejaVuSans-BoldOblique.ttf",
+        ];
+        for path in &macos_fonts {
+            if Path::new(path).exists() {
+                return Some(path.to_string());
+            }
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        let linux_fonts = [
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-BoldOblique.ttf",
+            "/usr/share/fonts/TTF/DejaVuSans-BoldOblique.ttf",
+            "/usr/share/fonts/dejavu/DejaVuSans-BoldOblique.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationSans-BoldItalic.ttf",
+        ];
+        for path in &linux_fonts {
+            if Path::new(path).exists() {
+                return Some(path.to_string());
+            }
+        }
+    }
+
+    find_font_in_package("DejaVuSans-BoldOblique.ttf")
 }
+
